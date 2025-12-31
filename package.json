@@ -22,20 +22,18 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",
-    "electron": "^29.1.1",
+    "ant-design-vue": "^4.2.6",
+    "axios": "^1.13.2",
+    "electron": "^39.2.7",
     "electron-builder": "^24.13.3",
+    "pinia": "^3.0.4",
+    "pinia-plugin-persistedstate": "^4.7.1",
     "typescript": "^5.4.2",
     "vite": "^5.1.5",
     "vite-plugin-electron": "^0.28.4",
     "vite-plugin-electron-renderer": "^0.14.5",
     "vue": "^3.4.21",
+    "vue-router": "^4.6.4",
     "vue-tsc": "^2.0.6"
-  },
-  "dependencies": {
-    "ant-design-vue": "^4.2.6",
-    "axios": "^1.13.2",
-    "pinia": "^3.0.4",
-    "pinia-plugin-persistedstate": "^4.7.1",
-    "vue-router": "^4.6.4"
   }
 }

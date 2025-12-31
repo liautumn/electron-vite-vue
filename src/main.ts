@@ -3,6 +3,7 @@ import {createPinia} from 'pinia'
 import piniaPersist from 'pinia-plugin-persistedstate'
 import Antd from 'ant-design-vue'
 import App from './App.vue'
+import router from './router'
 import 'ant-design-vue/dist/reset.css'
 
 // import './demos/ipc'
@@ -21,6 +22,9 @@ app.use(pinia)
 
 // 挂载 ant-design UI
 app.use(Antd)
+
+// 挂载路由
+app.use(router)
 
 app.mount('#app').$nextTick(() => {
     postMessage({payload: 'removeLoading'}, '*')

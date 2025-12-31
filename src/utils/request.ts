@@ -7,7 +7,6 @@ const request = axios.create({
     timeout: 10000,
 })
 
-
 /**
  * 请求拦截：自动带 token
  */

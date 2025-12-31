@@ -3,11 +3,20 @@ import PiniaDemo from "./demos/PiniaDemo.vue";
 </script>
 
 <template>
-  <div>
+  <div class="container">
     <h1>hello</h1>
     <PiniaDemo/>
   </div>
 </template>
 
-<style>
+<style scoped>
+
+.container {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
 </style>

@@ -1,33 +1,46 @@
 import {defineStore} from 'pinia'
+import {ref, computed} from 'vue'
 
-// @ts-ignore
-export const useUserStore = defineStore('user', {
-    state: () => ({
-        name: '',
-        token: '',
-    }),
+export const useUserStore = defineStore(
+    'user',
+    () => {
+        // state
+        const name = ref<string>('')
+        const token = ref<string>('')
 
-    getters: {
-        getName: (state) => state.name,
-        getToken: (state) => state.token,
+        // getters
+        const getName = computed(() => name.value)
+        const getToken = computed(() => token.value)
+
+        // actions
+        function setName(newName: string) {
+            name.value = newName
+        }
+
+        function setToken(newToken: string) {
+            token.value = newToken
+        }
+
+        function clearUser() {
+            name.value = ''
+            token.value = ''
+        }
+
+        return {
+            name,
+            token,
+            getName,
+            getToken,
+            setName,
+            setToken,
+            clearUser,
+        }
     },
-
-    actions: {
-        setName(name: string) {
-            this.name = name
+    {
+        // pinia-plugin-persist(-edstate) 配置
+        persist: {
+            key: 'user-store',
+            storage: localStorage,
         },
-        setToken(token: string) {
-            this.token = token
-        },
-        clearUser() {
-            this.name = ''
-            this.token = ''
-        },
-    },
-
-    persist: {
-        key: 'user-store',
-        storage: localStorage, // 默认就是 localStorage
-        paths: ['name', 'token'], // 指定存哪些
-    },
-})
+    }
+)

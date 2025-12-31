@@ -122,12 +122,12 @@ async function createWindow() {
     // =======================
 
     // 页面加载完成后，主动给 Renderer 发消息
-    win.webContents.on('did-finish-load', () => {
-        win?.webContents.send(
-            'main-process-message',
-            new Date().toLocaleString()
-        )
-    })
+    // win.webContents.on('did-finish-load', () => {
+    //     win?.webContents.send(
+    //         'main-process-message',
+    //         new Date().toLocaleString()
+    //     )
+    // })
 
     // =======================
     // 外部链接用系统浏览器打开

@@ -14,7 +14,7 @@ import path from 'node:path'
 import os from 'node:os'
 
 // 注册Serial
-import { registerSerial } from './serial'
+import {registerSerial} from './serial'
 
 // 在 ESM 中手动创建 require（兼容老库）
 const require = createRequire(import.meta.url)
@@ -90,20 +90,20 @@ async function createWindow() {
     win = new BrowserWindow({
         // 窗口标题
         title: 'Main window',
-
         // 应用图标
-        icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
-
+        icon: path.join(process.env.VITE_PUBLIC, 'icon/icon.ico'),
         // Web 相关配置
         webPreferences: {
             // 预加载脚本（安全桥）
             preload,
-
-            // ⚠️ 以下两项在生产环境不安全，不建议开启
             nodeIntegration: false,      // 允许 Renderer 直接用 Node
-            contextIsolation: true,    // 关闭上下文隔离
+            contextIsolation: true,    // 开启上下文隔离（推荐）
         },
     })
+    // 针对 macOS 设置 Dock 图标
+    if (process.platform === 'darwin') {
+        app.dock.setIcon(path.join(process.env.VITE_PUBLIC, 'icon/icon.png'));
+    }
 
     registerSerial(win)
 

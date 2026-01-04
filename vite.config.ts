@@ -15,12 +15,13 @@ export default defineConfig(({command, mode}) => {
     return {
         plugins: [
             vue(),
-            renderer({
-                resolve: {
-                    // C/C++ modules must be pre-bundle
-                    serialport: {type: 'cjs'},
-                },
-            }),
+            // 使用 renderer 需配合 nodeIntegration: true （允许 Renderer 直接用 Node），contextIsolation: false （关闭上下文隔离）
+            // renderer({
+            //     resolve: {
+            //         // C/C++ modules must be pre-bundle
+            //         serialport: {type: 'cjs'},
+            //     },
+            // }),
             electron({
                 main: {
                     entry: 'electron/main/index.ts',

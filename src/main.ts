@@ -30,11 +30,11 @@ app.use(i18n)
 // 初始化语言（store 内部会同步 i18n）
 useLocaleStore(pinia)
 
-// 初始化主题（跟随系统 / 用户选择）
-useThemeStore(pinia)
-
 // 挂载 ant-design UI
 app.use(Antd)
+
+// 初始化主题（跟随系统 / 用户选择）
+useThemeStore(pinia)
 
 // 挂载路由
 app.use(router)

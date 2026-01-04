@@ -5,6 +5,7 @@
       <nav class="nav">
         <router-link to="/">首页</router-link>
         <router-link to="/pinia-demo">Pinia Demo</router-link>
+        <router-link to="/serialport-demo">Serialport Demo</router-link>
       </nav>
     </header>
     <main class="content">

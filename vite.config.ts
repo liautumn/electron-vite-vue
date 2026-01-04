@@ -3,6 +3,7 @@ import {defineConfig, loadEnv} from 'vite'
 import vue from '@vitejs/plugin-vue'
 import electron from 'vite-plugin-electron/simple'
 import pkg from './package.json'
+import renderer from "vite-plugin-electron-renderer";
 
 export default defineConfig(({command, mode}) => {
     const env = loadEnv(mode, process.cwd(), '')
@@ -14,6 +15,12 @@ export default defineConfig(({command, mode}) => {
     return {
         plugins: [
             vue(),
+            renderer({
+                resolve: {
+                    // C/C++ modules must be pre-bundle
+                    serialport: {type: 'cjs'},
+                },
+            }),
             electron({
                 main: {
                     entry: 'electron/main/index.ts',
@@ -44,18 +51,14 @@ export default defineConfig(({command, mode}) => {
                             },
                         },
                     },
-                },
-
-                renderer: {},
+                }
             }),
         ],
-
         /** 👇 关键：从 env 读取端口 */
         server: {
             host: env.VITE_DEV_HOST || '0.0.0.0',
             port: Number(env.VITE_DEV_PORT) || 80,
         },
-
         clearScreen: false,
     }
 })

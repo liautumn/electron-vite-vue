@@ -13,6 +13,9 @@ import path from 'node:path'
 // Node.js 操作系统信息
 import os from 'node:os'
 
+// 注册Serial
+import { registerSerial } from './serial'
+
 // 在 ESM 中手动创建 require（兼容老库）
 const require = createRequire(import.meta.url)
 
@@ -97,10 +100,12 @@ async function createWindow() {
             preload,
 
             // ⚠️ 以下两项在生产环境不安全，不建议开启
-            // nodeIntegration: true,      // 允许 Renderer 直接用 Node
-            // contextIsolation: false,    // 关闭上下文隔离
+            nodeIntegration: false,      // 允许 Renderer 直接用 Node
+            contextIsolation: true,    // 关闭上下文隔离
         },
     })
+
+    registerSerial(win)
 
     // =======================
     // 加载页面（开发 / 生产）

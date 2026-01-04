@@ -35,5 +35,8 @@
     "vue": "^3.4.21",
     "vue-router": "^4.6.4",
     "vue-tsc": "^2.0.6"
+  },
+  "dependencies": {
+    "serialport": "^13.0.0"
   }
 }

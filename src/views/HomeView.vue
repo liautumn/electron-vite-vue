@@ -19,10 +19,10 @@ const toggleLocale = () => {
   localeStore.setLocale(nextLocale.value)
 }
 const currentLanguageText = computed(() =>
-  t('home.currentLanguage', {lang: t(`localeName.${locale.value}`)})
+    t('home.currentLanguage', {lang: t(`localeName.${locale.value}`)})
 )
 const switchLabel = computed(() =>
-  t('home.switchLabel', {lang: t(`localeName.${nextLocale.value}`)})
+    t('home.switchLabel', {lang: t(`localeName.${nextLocale.value}`)})
 )
 </script>
 
@@ -56,29 +56,17 @@ const switchLabel = computed(() =>
 
 <style scoped>
 .page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
   max-width: 640px;
   margin: 32px auto;
   padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .card {
-  background: #fff;
   padding: 16px;
-  border: 1px solid #f0f0f0;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.link {
-  color: #1677ff;
-}
-
-.muted {
-  color: #666;
-  margin-bottom: 8px;
 }
 
 .language-row {
@@ -86,5 +74,9 @@ const switchLabel = computed(() =>
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.muted {
+  margin-bottom: 8px;
 }
 </style>

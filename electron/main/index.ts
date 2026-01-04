@@ -90,21 +90,31 @@ async function createWindow() {
     win = new BrowserWindow({
         // 窗口标题
         title: 'Main window',
+        // 防止启动闪一下
+        show: false,
+        // 默认全屏
+        // fullscreen: true,
         // 应用图标
         icon: path.join(process.env.VITE_PUBLIC, 'icon/icon.ico'),
         // Web 相关配置
         webPreferences: {
             // 预加载脚本（安全桥）
             preload,
-            nodeIntegration: false,      // 允许 Renderer 直接用 Node
+            nodeIntegration: false,    // 允许 Renderer 直接用 Node
             contextIsolation: true,    // 开启上下文隔离（推荐）
         },
+    })
+    // 默认最大化窗口
+    win.once('ready-to-show', () => {
+        win.maximize()
+        win.show()
     })
     // 针对 macOS 设置 Dock 图标
     // if (process.platform === 'darwin') {
     //     app.dock.setIcon(path.join(process.env.VITE_PUBLIC, 'icon/icon.png'));
     // }
 
+    // 注册串口通信
     registerSerial(win)
 
     // =======================
@@ -114,7 +124,6 @@ async function createWindow() {
     if (VITE_DEV_SERVER_URL) {
         // 开发模式：加载 Vite dev server
         win.loadURL(VITE_DEV_SERVER_URL)
-
         // 自动打开开发者工具
         win.webContents.openDevTools()
     } else {
@@ -141,7 +150,6 @@ async function createWindow() {
     win.webContents.setWindowOpenHandler(({url}) => {
         // https 链接用默认浏览器打开
         if (url.startsWith('https:')) shell.openExternal(url)
-
         // 阻止 Electron 内部新开窗口
         return {action: 'deny'}
     })
@@ -160,7 +168,6 @@ app.whenReady().then(createWindow)
 // 所有窗口关闭时触发
 app.on('window-all-closed', () => {
     win = null
-
     // macOS：关闭窗口不退出应用
     if (process.platform !== 'darwin') app.quit()
 })
@@ -173,7 +180,6 @@ app.on('second-instance', () => {
     if (win) {
         // 如果窗口最小化，先恢复
         if (win.isMinimized()) win.restore()
-
         // 聚焦窗口
         win.focus()
     }
@@ -182,7 +188,6 @@ app.on('second-instance', () => {
 // macOS：点击 Dock 图标重新激活
 app.on('activate', () => {
     const allWindows = BrowserWindow.getAllWindows()
-
     if (allWindows.length) {
         allWindows[0].focus()
     } else {
@@ -198,11 +203,10 @@ app.on('activate', () => {
 ipcMain.handle('open-win', (_, arg) => {
     const childWindow = new BrowserWindow({
         webPreferences: {
+            // 预加载脚本（安全桥）
             preload,
-
-            // ⚠️ 示例代码，生产环境不推荐
-            nodeIntegration: true,
-            contextIsolation: false,
+            nodeIntegration: false,    // 允许 Renderer 直接用 Node
+            contextIsolation: true,    // 开启上下文隔离（推荐）
         },
     })
 

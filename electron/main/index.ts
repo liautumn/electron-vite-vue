@@ -101,9 +101,9 @@ async function createWindow() {
         },
     })
     // 针对 macOS 设置 Dock 图标
-    if (process.platform === 'darwin') {
-        app.dock.setIcon(path.join(process.env.VITE_PUBLIC, 'icon/icon.png'));
-    }
+    // if (process.platform === 'darwin') {
+    //     app.dock.setIcon(path.join(process.env.VITE_PUBLIC, 'icon/icon.png'));
+    // }
 
     registerSerial(win)
 

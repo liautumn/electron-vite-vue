@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref, watch, onMounted} from 'vue'
+import {ref, watch, onMounted, onUnmounted} from 'vue'
 import type {SelectProps} from 'ant-design-vue'
 
 /* ========== 基础状态 ========== */
@@ -114,6 +114,11 @@ onMounted(() => {
     log.value += `错误: ${msg}\n`
   })
 })
+
+onUnmounted(() => {
+    close()
+})
+
 </script>
 
 <template>

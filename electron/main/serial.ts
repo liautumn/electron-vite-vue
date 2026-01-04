@@ -3,9 +3,13 @@ import { BrowserWindow, ipcMain } from 'electron'
 
 let port: SerialPort | null = null
 let win: BrowserWindow | null = null
+let serialRegistered = false
 
 export function registerSerial(mainWindow: BrowserWindow) {
   win = mainWindow
+
+  if (serialRegistered) return
+  serialRegistered = true
 
   /* 获取串口列表 */
   ipcMain.handle('serial:list', async () => {

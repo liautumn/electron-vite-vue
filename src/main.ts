@@ -4,6 +4,8 @@ import piniaPersist from 'pinia-plugin-persistedstate'
 import Antd from 'ant-design-vue'
 import App from './App.vue'
 import router from './router'
+import i18n from './i18n'
+import {useLocaleStore} from './stores/locale'
 import 'ant-design-vue/dist/reset.css'
 
 // import './demos/ipc'
@@ -19,6 +21,12 @@ pinia.use(piniaPersist)
 
 // 挂载 pinia
 app.use(pinia)
+
+// 挂载国际化
+app.use(i18n)
+
+// 初始化语言（store 内部会同步 i18n）
+useLocaleStore(pinia)
 
 // 挂载 ant-design UI
 app.use(Antd)

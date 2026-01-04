@@ -3,7 +3,6 @@ import {defineConfig, loadEnv} from 'vite'
 import vue from '@vitejs/plugin-vue'
 import electron from 'vite-plugin-electron/simple'
 import pkg from './package.json'
-import renderer from "vite-plugin-electron-renderer";
 
 export default defineConfig(({command, mode}) => {
     const env = loadEnv(mode, process.cwd(), '')

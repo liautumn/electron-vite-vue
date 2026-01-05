@@ -1,15 +1,13 @@
 /* 默认就是亮色 */
 :root {
-  --bg-color: #ffffff;
-  --text-color: #1f1f1f;
-  --border-color: #e5e6eb;
+  --bg-color: rgb(245, 245, 245);
+  --text-color: rgb(0, 0, 0);
 }
 
 /* 暗黑模式 */
 html[data-theme='dark'] {
-  --bg-color: #141414;
-  --text-color: #e8e8e8;
-  --border-color: #303030;
+  --bg-color: rgb(0, 0, 0);
+  --text-color: rgb(245, 245, 245);
 }
 
 body {

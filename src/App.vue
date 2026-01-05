@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import {computed} from 'vue'
+import {computed, h, ref} from 'vue'
+import {useRouter} from 'vue-router'
 import {storeToRefs} from 'pinia'
-import {theme as antdTheme} from 'ant-design-vue'
+import {MenuProps, theme as antdTheme} from 'ant-design-vue'
+import {AppstoreOutlined} from '@ant-design/icons-vue';
 import {useThemeStore, type ThemePreference} from './stores/theme'
+
+const router = useRouter()
 
 const themeStore = useThemeStore()
 const {preference, resolvedTheme} = storeToRefs(themeStore)
@@ -14,14 +18,6 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
   {label: '暗黑', value: 'dark'}
 ]
 
-/** 当前主题文案 */
-const themeStatus = computed(() => {
-  const themeText = resolvedTheme.value === 'dark' ? '暗黑' : '浅色'
-  return preference.value === 'system'
-      ? `系统：${themeText}`
-      : `${themeText}模式`
-})
-
 /** Ant Design Vue 主题 */
 const antdThemeConfig = computed(() => ({
   algorithm:
@@ -29,89 +25,73 @@ const antdThemeConfig = computed(() => ({
           ? antdTheme.darkAlgorithm
           : antdTheme.defaultAlgorithm
 }))
-</script>
 
+const items = ref<MenuProps['items']>([
+  {
+    key: '/',
+    icon: () => h(AppstoreOutlined),
+    label: '首页',
+    title: '首页',
+  },
+  {
+    key: '/pinia-demo',
+    icon: () => h(AppstoreOutlined),
+    label: 'Pinia',
+    title: 'Pinia',
+  },
+  {
+    key: '/serialport-demo',
+    icon: () => h(AppstoreOutlined),
+    label: 'Serialport',
+    title: 'Serialport',
+  },
+]);
+
+/** 当前选中的菜单 key */
+const selectedKeys = ref<string[]>(['/']);
+
+/** 菜单点击跳转 */
+function onMenuClick({key}: { key: string }) {
+  router.push(key)
+}
+</script>
 <template>
   <a-config-provider :theme="antdThemeConfig">
-    <div class="app">
-      <header class="header">
-        <div class="header-left">
-          <span class="brand">Vue Router Demo</span>
-          <nav class="nav">
-            <router-link to="/">首页</router-link>
-            <router-link to="/pinia-demo">Pinia Demo</router-link>
-            <router-link to="/serialport-demo">Serialport Demo</router-link>
-          </nav>
-        </div>
-
-        <div class="header-right">
-          <div class="theme-switch">
+    <a-layout>
+      <!-- Header -->
+      <a-layout-header class="app-header">
+        <a-menu
+            v-model:selectedKeys="selectedKeys"
+            mode="horizontal"
+            :items="items"
+            @click="onMenuClick"
+        >
+          <!-- 右侧插槽 -->
+          <template #extra>
             <a-segmented
                 v-model:value="preference"
                 :options="themeOptions"
                 size="small"
             />
-            <span class="theme-status">{{ themeStatus }}</span>
-          </div>
-        </div>
-      </header>
-
-      <main class="content">
+          </template>
+        </a-menu>
+      </a-layout-header>
+      <!-- Content -->
+      <a-layout-content>
         <router-view/>
-      </main>
-    </div>
+      </a-layout-content>
+    </a-layout>
   </a-config-provider>
 </template>
-
 <style scoped>
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+.app-header {
+  padding: 0;
+  background: transparent;
 }
 
-.header {
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid currentColor; /* 使用文字颜色，不加背景 */
-}
-
-
-.header-left,
-.header-right,
-.nav,
-.theme-switch {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.brand {
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.nav a {
-  text-decoration: none;
-}
-
-.nav a.router-link-active {
-  text-decoration: underline;
-}
-
-.theme-switch {
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.theme-status {
-  opacity: 0.7;
-}
-
-.content {
-  flex: 1;
-  padding: 16px;
+/* Menu 占满 Header */
+.app-header :deep(.ant-menu) {
+  border-bottom: none;
 }
 </style>
+

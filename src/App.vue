@@ -57,33 +57,50 @@ function onMenuClick({key}: { key: string }) {
 </script>
 <template>
   <a-config-provider :theme="antdThemeConfig">
-    <a-layout>
+    <a-layout class="app-layout">
+
       <!-- Header -->
       <a-layout-header class="app-header">
-        <a-menu
-            v-model:selectedKeys="selectedKeys"
-            mode="horizontal"
-            :items="items"
-            @click="onMenuClick"
-        >
-          <!-- 右侧插槽 -->
-          <template #extra>
+        <a-row>
+          <a-col :span="20">
+            <a-menu
+                v-model:selectedKeys="selectedKeys"
+                mode="horizontal"
+                :items="items"
+                @click="onMenuClick"
+            />
+          </a-col>
+          <a-col :span="4" class="header-right">
             <a-segmented
                 v-model:value="preference"
                 :options="themeOptions"
                 size="small"
             />
-          </template>
-        </a-menu>
+          </a-col>
+
+        </a-row>
       </a-layout-header>
+
       <!-- Content -->
-      <a-layout-content>
+      <a-layout-content class="app-content">
         <router-view/>
       </a-layout-content>
+
+      <!-- Footer -->
+      <a-layout-footer class="app-footer">
+        electron-vite-vue demo ©2026 Created by autumn
+      </a-layout-footer>
+
     </a-layout>
   </a-config-provider>
 </template>
 <style scoped>
+.app-layout {
+  min-height: 100vh; /* 占满视口 */
+  display: flex;
+  flex-direction: column;
+}
+
 .app-header {
   padding: 0;
   background: transparent;
@@ -92,6 +109,24 @@ function onMenuClick({key}: { key: string }) {
 /* Menu 占满 Header */
 .app-header :deep(.ant-menu) {
   border-bottom: none;
+}
+
+/* 右侧 segmented 背景 */
+.header-right {
+  background: var(--app-header); /* 纯白 */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* 靠右 */
+  padding-right: 16px;
+}
+
+.app-content {
+  padding: 15px;
+  flex: 1; /* 把 footer 顶到最底 */
+}
+
+.app-footer {
+  text-align: center;
 }
 </style>
 

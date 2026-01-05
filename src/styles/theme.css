@@ -1,16 +1,18 @@
 /* 默认就是亮色 */
 :root {
-  --bg-color: rgb(245, 245, 245);
-  --text-color: rgb(0, 0, 0);
+    --bg-color: rgb(245, 245, 245);
+    --text-color: rgb(0, 0, 0);
+    --app-header: rgb(255, 255, 255);
 }
 
 /* 暗黑模式 */
 html[data-theme='dark'] {
-  --bg-color: rgb(0, 0, 0);
-  --text-color: rgb(245, 245, 245);
+    --bg-color: rgb(0, 0, 0);
+    --text-color: rgb(245, 245, 245);
+    --app-header: rgb(20, 20, 20)
 }
 
 body {
-  background: var(--bg-color);
-  color: var(--text-color);
+    background: var(--bg-color);
+    color: var(--text-color);
 }

@@ -16,6 +16,8 @@ import os from 'node:os'
 // 注册Serial
 import {registerSerial} from './serial'
 
+app.commandLine.appendSwitch('remote-debugging-port', '9229')
+
 // 在 ESM 中手动创建 require（兼容老库）
 const require = createRequire(import.meta.url)
 

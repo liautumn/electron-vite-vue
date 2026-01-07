@@ -16,7 +16,6 @@ const goPiniaDemo = () => {
 
 const nextLocale = computed(() => (locale.value === 'zh' ? 'en' : 'zh'))
 const toggleLocale = () => {
-  console.log("-------------> debug test")
   localeStore.setLocale(nextLocale.value)
 }
 const currentLanguageText = computed(() =>

@@ -1,15 +1,9 @@
 <script setup lang="ts">
-import {computed, h, ref} from 'vue'
-import {useRoute, useRouter} from 'vue-router'
+import {computed} from 'vue'
 import {storeToRefs} from 'pinia'
-import {MenuProps, theme as antdTheme} from 'ant-design-vue'
-import {AppstoreOutlined} from '@ant-design/icons-vue';
+import {theme as antdTheme} from 'ant-design-vue'
 import {useThemeStore, type ThemePreference} from './stores/theme'
-
-import routesConfig from './router/routes.json'
-
-const router = useRouter()
-const route = useRoute()
+import {useMenu} from './router/useMenu'
 
 const themeStore = useThemeStore()
 const {preference, resolvedTheme} = storeToRefs(themeStore)
@@ -29,43 +23,8 @@ const antdThemeConfig = computed(() => ({
           : antdTheme.defaultAlgorithm
 }))
 
-type NavRoute = {
-  path: string
-  name?: string
-  redirect?: string
-  meta?: { title?: string; layout?: string; visible?: boolean; enabled?: boolean }
-  children?: NavRoute[]
-}
+const {items, selectedKeys} = useMenu()
 
-const toMenuItems = (routes: NavRoute[]): NonNullable<MenuProps['items']> =>
-  routes
-    .filter(r =>
-      !r.redirect &&
-      r.meta?.layout !== 'blank' &&
-      r.meta?.visible !== false &&
-      !r.path.includes(':')
-    )
-    .map(route => {
-      const children = route.children?.length ? toMenuItems(route.children) : undefined
-      return {
-        key: route.path,
-        icon: () => h(AppstoreOutlined),
-        label: route.meta?.title ?? route.name,
-        title: route.meta?.title ?? route.name,
-        disabled: route.meta?.enabled === false,
-        children,
-      }
-    })
-
-const items = computed<MenuProps['items']>(() => toMenuItems(routesConfig as NavRoute[]))
-
-/** 当前选中的菜单 key */
-const selectedKeys = computed(() => [route.path]);
-
-/** 菜单点击跳转 */
-function onMenuClick({key}: { key: string }) {
-  router.push(key)
-}
 </script>
 <template>
   <a-config-provider :theme="antdThemeConfig">
@@ -79,7 +38,6 @@ function onMenuClick({key}: { key: string }) {
                 v-model:selectedKeys="selectedKeys"
                 mode="horizontal"
                 :items="items"
-                @click="onMenuClick"
             />
           </a-col>
           <a-col :span="4" class="header-right">

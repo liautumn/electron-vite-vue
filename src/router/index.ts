@@ -1,114 +1,130 @@
-// 从 vue-router 导入路由创建方法和类型
 import {
-    createRouter,
-    createWebHashHistory,
-    type RouteComponent,
-    type RouteMeta,
-    type RouteRecordRaw
+    createRouter,            // 创建路由实例
+    createWebHashHistory,    // 使用 hash 模式（兼容 file://）
+    RouterView,              // 占位组件，用于目录节点
+    type RouteComponent,     // 组件类型
+    type RouteMeta,          // meta 类型
+    type RouteRecordRaw      // 路由记录类型
 } from 'vue-router'
-// 读取 JSON 配置的路由表
-import routesConfig from './routes.json'
+import {unref} from 'vue' // 从 ref 中取值，避免 .value
+import routesConfig from './routes.json' // 纯 JSON 路由表，菜单/权限可复用
+import {useUserStore} from '../stores/user' // 权限与登录态来源
 
-// 异步组件加载器类型
-type RouteComponentLoader = () => Promise<RouteComponent>
+type RouteComponentLoader = () => Promise<RouteComponent> // 异步组件加载器类型
 
-// 通过 import.meta.glob 动态收集 views 目录下的所有页面组件
+// 扫描 views 目录下的所有页面组件（按需加载，键为相对路径）
 const viewModules = import.meta.glob('../views/**/*.vue') as Record<
     string,
     () => Promise<{ default: RouteComponent }>
 >
 
-// JSON 路由声明格式
+// JSON 路由声明（component 写 views 下相对路径，如 demo/index）
 type JsonRoute = {
-    path: string
-    name: string
-    component: string
-    redirect?: string
-    alias?: string | string[]
-    props?: boolean
+    path: string               // 路由路径
+    name: string               // 路由名称
+    component: string          // 组件路径（相对 views）
+    redirect?: string          // 重定向目标
+    alias?: string | string[]  // 别名
+    props?: boolean            // 是否将 params 作为 props
     meta?: RouteMeta & {
-        title?: string
-        icon?: string
-        requiresAuth?: boolean
-        keepAlive?: boolean
-        layout?: string
-        visible?: boolean
-        enabled?: boolean
+        title?: string         // 页面标题
+        icon?: string          // 菜单图标标识
+        requiresAuth?: boolean // 是否需要登录
+        keepAlive?: boolean    // 是否缓存
+        layout?: string        // 布局标记
+        visible?: boolean      // 是否显示在菜单
+        enabled?: boolean      // 是否可用
+        permission?: string    // 单权限
+        permissions?: string[] // 多权限
+        type?: 'directory' | 'menu' | 'button' // 节点类型
     }
-    children?: JsonRoute[]
+    children?: JsonRoute[]     // 子路由
 }
 
-// 未匹配到组件时的兜底页面
+// 未匹配组件时的兜底（404）
 const fallbackComponent: RouteComponentLoader = () => import('../views/NotFoundView.vue').then(m => m.default)
 
-// 将 JSON 路由配置转换为 vue-router 可识别的 RouteRecordRaw
+// 将 JSON 配置转换为 RouteRecordRaw
 const normalizeRoutes = (config: JsonRoute[]): RouteRecordRaw[] =>
     config.map<RouteRecordRaw>(route => {
-        // redirect 类型：只保留跳转信息
-        if (route.redirect) {
-            return {
-                path: route.path,
-                name: route.name,
-                redirect: route.redirect,
-            } as RouteRecordRaw
-        }
-
-        // 基础路由信息
         const record = {
-            path: route.path,
-            name: route.name,
-            component: resolveComponent(route.component),
-            ...(route.alias ? {alias: route.alias} : {}),
-            ...(route.props !== undefined ? {props: route.props} : {}),
-            ...(route.meta ? {meta: route.meta} : {}),
+            path: route.path,                       // 必填：路径
+            name: route.name,                       // 必填：名称
+            component: resolveComponent(route.component), // 解析成异步组件
+            ...(route.alias ? {alias: route.alias} : {}), // 可选别名
+            ...(route.props !== undefined ? {props: route.props} : {}), // 透传 params
+            ...(route.meta ? {meta: route.meta} : {}),   // meta 信息
+            ...(route.redirect ? {redirect: route.redirect} : {}), // 重定向
         } as RouteRecordRaw
 
-        // 嵌套路由处理
-        if (route.children?.length) {
+        if (route.children?.length) { // 递归处理子路由
             (record as RouteRecordRaw & { children: RouteRecordRaw[] }).children = normalizeRoutes(route.children)
         }
 
         return record
     })
 
-// 根据 JSON 中的 component 名称解析到具体的页面组件
+// 解析 JSON 中的 component 字段 -> 真实组件
 const resolveComponent = (name: string): RouteComponentLoader => {
-    const normalized = normalizeComponentPath(name)
-    const loader = viewModules[normalized]
-    if (loader) return () => loader().then(mod => mod.default)
+    if (name === 'RouterView') { // 特殊关键字：渲染占位 router-view
+        return () => Promise.resolve(RouterView as RouteComponent)
+    }
 
-    // 未找到时回退到 404 页面并输出警告
+    const normalizedPath = normalizeComponentPath(name) // 标准化路径
+    const loader = viewModules[normalizedPath] // 匹配 import.meta.glob 结果
+    if (loader) return () => loader().then(mod => mod.default) // 懒加载组件
+
+    // 未匹配到时警告并使用 404
     console.warn(`[router] Unknown component "${name}" in routes.json, falling back to NotFoundView.`)
     return fallbackComponent
 }
 
-// 兼容多种写法的组件路径：HomeView / HomeView.vue / /HomeView.vue / ../views/HomeView.vue
+// demo/index -> ../views/demo/index.vue
 const normalizeComponentPath = (name: string): string => {
-    const filename = name.endsWith('.vue') ? name : `${name}.vue`
-    if (filename.startsWith('../views/')) return filename
-    if (filename.startsWith('/')) return `../views/${filename.slice(1)}`
+    const cleaned = name.replace(/^\.?\/*/, '') // 去掉开头的 ./ 或 /
+    const filename = cleaned.endsWith('.vue') ? cleaned : `${cleaned}.vue` // 补全 .vue
     return `../views/${filename}`
 }
 
-// 创建路由实例，使用哈希模式方便本地/文件协议
 const router = createRouter({
-    history: createWebHashHistory(),
-    routes: normalizeRoutes(routesConfig as JsonRoute[]),
-    // 保留浏览器原生的返回位置，否则回到顶部
-    scrollBehavior(_to, _from, savedPosition) {
-        if (savedPosition) return savedPosition
-        return {left: 0, top: 0}
+    history: createWebHashHistory(), // 哈希路由，适配 file:// 或本地
+    routes: normalizeRoutes(routesConfig as JsonRoute[]), // 动态路由表
+    scrollBehavior(_to, _from, savedPosition) { // 滚动行为
+        if (savedPosition) return savedPosition // 浏览器返回时保持位置
+        return {left: 0, top: 0} // 默认回顶部
     },
 })
 
-// 页面标题前缀
-const baseTitle = 'electron-vite-vue'
+const baseTitle = 'electron-vite-vue' // 标题前缀
 
-// 全局前置守卫：设置页面标题
 router.beforeEach((to, _from, next) => {
-    document.title = to.meta?.title ? `${to.meta.title} | ${baseTitle}` : baseTitle
+    document.title = to.meta?.title ? `${to.meta.title} | ${baseTitle}` : baseTitle // 设置标题
+
+    const userStore = useUserStore() // 读取登录/权限
+    const requiresAuth = to.meta?.requiresAuth // 是否需要登录
+    const requiredPermissions = [ // 收集权限要求
+        ...(typeof to.meta?.permission === 'string' ? [to.meta.permission] : []),
+        ...(Array.isArray(to.meta?.permissions)
+            ? to.meta.permissions.filter((code): code is string => typeof code === 'string')
+            : []),
+    ]
+    const token = unref(userStore.token) // 当前 token
+
+    if (requiresAuth && !token) { // 需要登录但无 token
+        next({name: 'home'})
+        return
+    }
+
+    if (requiredPermissions.length) { // 权限校验
+        const allowed = requiredPermissions.every(code => userStore.hasPermission(code))
+        if (!allowed) {
+            console.warn(`[router] no permission for route ${to.fullPath}`)
+            next({name: 'home'})
+            return
+        }
+    }
+
     next()
 })
 
-// 导出路由实例
 export default router

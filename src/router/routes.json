@@ -9,30 +9,73 @@
       "keepAlive": true,
       "icon": "home",
       "visible": true,
-      "enabled": true
+      "enabled": true,
+      "permission": "app:home:view",
+      "type": "menu"
     }
   },
   {
-    "path": "/pinia-demo",
-    "name": "pinia-demo",
-    "component": "PiniaDemoView",
+    "path": "/demos",
+    "name": "demos",
+    "component": "RouterView",
     "meta": {
-      "title": "Pinia 示例",
+      "title": "示例合集",
       "requiresAuth": false,
       "visible": true,
-      "enabled": true
-    }
-  },
-  {
-    "path": "/serialport-demo",
-    "name": "serialport-demo",
-    "component": "SerialportView",
-    "meta": {
-      "title": "串口示例",
-      "keepAlive": false,
-      "visible": true,
-      "enabled": true
-    }
+      "enabled": true,
+      "permission": "app:demos:view",
+      "type": "directory"
+    },
+    "children": [
+      {
+        "path": "",
+        "name": "demos-redirect",
+        "redirect": "/demos/pinia-demo",
+        "component": "RouterView"
+      },
+      {
+        "path": "pinia-demo",
+        "name": "pinia-demo",
+        "component": "PiniaDemoView",
+        "alias": "/pinia-demo",
+        "meta": {
+          "title": "Pinia 示例",
+          "requiresAuth": false,
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:pinia",
+          "type": "menu"
+        }
+      },
+      {
+        "path": "serialport-demo",
+        "name": "serialport-demo",
+        "component": "SerialportView",
+        "alias": "/serialport-demo",
+        "meta": {
+          "title": "串口示例",
+          "keepAlive": false,
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:serialport",
+          "type": "menu"
+        },
+        "children": [
+          {
+            "path": "refresh",
+            "name": "serialport-refresh-action",
+            "component": "SerialportView",
+            "meta": {
+              "title": "串口-刷新按钮",
+              "visible": false,
+              "enabled": true,
+              "permission": "app:demos:serialport:refresh",
+              "type": "button"
+            }
+          }
+        ]
+      }
+    ]
   },
   {
     "path": "/:pathMatch(.*)*",

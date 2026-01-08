@@ -2,7 +2,6 @@ import {createRouter, createWebHashHistory} from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import PiniaDemoView from '../views/PiniaDemoView.vue'
 import SerialportView from "../views/SerialportView.vue";
-import WebRtcDemoView from "../views/WebRtcDemoView.vue";
 
 const router = createRouter({
     history: createWebHashHistory(),
@@ -21,12 +20,7 @@ const router = createRouter({
             path: '/serialport-demo',
             name: 'serialport-demo',
             component: SerialportView,
-        },
-        {
-            path: '/webrtc-demo',
-            name: 'webrtc-demo',
-            component: WebRtcDemoView,
-        },
+        }
     ],
 })
 

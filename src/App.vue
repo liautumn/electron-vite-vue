@@ -44,13 +44,7 @@ const items = ref<MenuProps['items']>([
     icon: () => h(AppstoreOutlined),
     label: 'Serialport',
     title: 'Serialport',
-  },
-  {
-    key: '/webrtc-demo',
-    icon: () => h(AppstoreOutlined),
-    label: 'WebRTC',
-    title: 'WebRTC',
-  },
+  }
 ]);
 
 /** 当前选中的菜单 key */

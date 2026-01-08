@@ -32,6 +32,8 @@ type JsonRoute = {
         requiresAuth?: boolean
         keepAlive?: boolean
         layout?: string
+        visible?: boolean
+        enabled?: boolean
     }
     children?: JsonRoute[]
 }

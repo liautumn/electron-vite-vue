@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import {computed, h, ref} from 'vue'
-import {useRouter} from 'vue-router'
+import {useRoute, useRouter} from 'vue-router'
 import {storeToRefs} from 'pinia'
 import {MenuProps, theme as antdTheme} from 'ant-design-vue'
 import {AppstoreOutlined} from '@ant-design/icons-vue';
 import {useThemeStore, type ThemePreference} from './stores/theme'
 
+import routesConfig from './router/routes.json'
+
 const router = useRouter()
+const route = useRoute()
 
 const themeStore = useThemeStore()
 const {preference, resolvedTheme} = storeToRefs(themeStore)
@@ -26,29 +29,38 @@ const antdThemeConfig = computed(() => ({
           : antdTheme.defaultAlgorithm
 }))
 
-const items = ref<MenuProps['items']>([
-  {
-    key: '/',
-    icon: () => h(AppstoreOutlined),
-    label: '首页',
-    title: '首页',
-  },
-  {
-    key: '/pinia-demo',
-    icon: () => h(AppstoreOutlined),
-    label: 'Pinia',
-    title: 'Pinia',
-  },
-  {
-    key: '/serialport-demo',
-    icon: () => h(AppstoreOutlined),
-    label: 'Serialport',
-    title: 'Serialport',
-  }
-]);
+type NavRoute = {
+  path: string
+  name?: string
+  redirect?: string
+  meta?: { title?: string; layout?: string; visible?: boolean; enabled?: boolean }
+  children?: NavRoute[]
+}
+
+const toMenuItems = (routes: NavRoute[]): NonNullable<MenuProps['items']> =>
+  routes
+    .filter(r =>
+      !r.redirect &&
+      r.meta?.layout !== 'blank' &&
+      r.meta?.visible !== false &&
+      !r.path.includes(':')
+    )
+    .map(route => {
+      const children = route.children?.length ? toMenuItems(route.children) : undefined
+      return {
+        key: route.path,
+        icon: () => h(AppstoreOutlined),
+        label: route.meta?.title ?? route.name,
+        title: route.meta?.title ?? route.name,
+        disabled: route.meta?.enabled === false,
+        children,
+      }
+    })
+
+const items = computed<MenuProps['items']>(() => toMenuItems(routesConfig as NavRoute[]))
 
 /** 当前选中的菜单 key */
-const selectedKeys = ref<string[]>(['/']);
+const selectedKeys = computed(() => [route.path]);
 
 /** 菜单点击跳转 */
 function onMenuClick({key}: { key: string }) {
@@ -129,4 +141,3 @@ function onMenuClick({key}: { key: string }) {
   text-align: center;
 }
 </style>
-

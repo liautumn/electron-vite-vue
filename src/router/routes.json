@@ -7,7 +7,9 @@
     "meta": {
       "title": "首页",
       "keepAlive": true,
-      "icon": "home"
+      "icon": "home",
+      "visible": true,
+      "enabled": true
     }
   },
   {
@@ -16,7 +18,9 @@
     "component": "PiniaDemoView",
     "meta": {
       "title": "Pinia 示例",
-      "requiresAuth": false
+      "requiresAuth": false,
+      "visible": true,
+      "enabled": true
     }
   },
   {
@@ -25,7 +29,9 @@
     "component": "SerialportView",
     "meta": {
       "title": "串口示例",
-      "keepAlive": false
+      "keepAlive": false,
+      "visible": true,
+      "enabled": true
     }
   },
   {
@@ -34,7 +40,9 @@
     "component": "NotFoundView",
     "meta": {
       "title": "页面不存在",
-      "layout": "blank"
+      "layout": "blank",
+      "visible": false,
+      "enabled": false
     }
   }
 ]

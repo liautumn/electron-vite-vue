@@ -7,6 +7,7 @@ import router from './router'
 import i18n from './i18n'
 import {useLocaleStore} from './stores/locale'
 import {useThemeStore} from './stores/theme'
+import permissionDirective from './directives/permission'
 import 'ant-design-vue/dist/reset.css'
 import './styles/theme.css'
 
@@ -32,6 +33,9 @@ useLocaleStore(pinia)
 
 // 挂载 ant-design UI
 app.use(Antd)
+
+// 指令：权限控制（v-permission）
+app.directive('permission', permissionDirective)
 
 // 初始化主题（跟随系统 / 用户选择）
 useThemeStore(pinia)

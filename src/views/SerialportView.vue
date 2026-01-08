@@ -141,7 +141,9 @@ onUnmounted(() => {
 
       <a-button type="primary" @click="connect">连接</a-button>
       <a-button danger @click="close">断开</a-button>
-      <a-button @click="refreshPorts">刷新串口</a-button>
+      <a-button @click="refreshPorts" v-permission="'app:demos:serialport:refresh'">
+        刷新串口
+      </a-button>
 
       <a-switch v-model:checked="autoReconnect"/>
       <span>自动重连</span>

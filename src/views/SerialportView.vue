@@ -2,6 +2,8 @@
 import {ref, watch, onMounted, onUnmounted} from 'vue'
 import type {SelectProps} from 'ant-design-vue'
 
+defineOptions({ name: 'serialport-demo' })
+
 /* ========== 基础状态 ========== */
 const log = ref('')
 const portPath = ref('')

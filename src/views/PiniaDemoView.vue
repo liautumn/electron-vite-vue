@@ -2,6 +2,8 @@
 import {useRouter} from 'vue-router'
 import {useUserStore} from "../stores/user";
 
+defineOptions({ name: 'pinia-demo' })
+
 const router = useRouter()
 
 const goHome = () => {

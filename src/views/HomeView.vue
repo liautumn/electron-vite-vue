@@ -5,6 +5,8 @@ import {useI18n} from 'vue-i18n'
 import {storeToRefs} from 'pinia'
 import {useLocaleStore} from '../stores/locale'
 
+defineOptions({ name: 'home' })
+
 const router = useRouter()
 const {t} = useI18n()
 const localeStore = useLocaleStore()

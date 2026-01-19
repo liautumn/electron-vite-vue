@@ -27,4 +27,5 @@ release
 # lockfile
 package-lock.json
 pnpm-lock.yaml
-yarn.lock!/doc/RFID读写器数据通信协议.pdf
+yarn.lock
+!/doc/RFID读写器数据通信协议.pdf

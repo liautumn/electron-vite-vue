@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {ref, watch, onMounted, onUnmounted} from 'vue'
 import type {SelectProps} from 'ant-design-vue'
+import '../components/ProtocolControlWords'
 
 defineOptions({ name: 'serialport-demo' })
 

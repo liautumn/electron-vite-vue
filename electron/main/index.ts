@@ -15,6 +15,7 @@ import os from 'node:os'
 
 // 注册Serial
 import {registerSerial} from './serial'
+import {registerTcp} from './tcp'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
 
@@ -118,6 +119,7 @@ async function createWindow() {
 
     // 注册串口通信
     registerSerial(win)
+    registerTcp(win)
 
     // =======================
     // 加载页面（开发 / 生产）

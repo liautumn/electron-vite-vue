@@ -13,6 +13,8 @@ export const useUserStore = defineStore(
             'app:demos:pinia',
             'app:demos:serialport',
             'app:demos:serialport:refresh',
+            'app:demos:command-example',
+            'app:demos:rs232-tcp',
         ])
 
         const getName = computed(() => name.value)

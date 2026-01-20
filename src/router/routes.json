@@ -74,6 +74,19 @@
             }
           }
         ]
+      },
+      {
+        "path": "rs232-tcp-demo",
+        "name": "rs232-tcp-demo",
+        "component": "Rs232TcpView",
+        "alias": "/rs232-tcp-demo",
+        "meta": {
+          "title": "RS232/TCP 通讯",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:rs232-tcp",
+          "type": "menu"
+        }
       }
     ]
   },

@@ -48,34 +48,6 @@
         }
       },
       {
-        "path": "serialport-demo",
-        "name": "serialport-demo",
-        "component": "SerialportView",
-        "alias": "/serialport-demo",
-        "meta": {
-          "title": "串口示例",
-          "keepAlive": false,
-          "visible": true,
-          "enabled": true,
-          "permission": "app:demos:serialport",
-          "type": "menu"
-        },
-        "children": [
-          {
-            "path": "refresh",
-            "name": "serialport-refresh-action",
-            "component": "SerialportView",
-            "meta": {
-              "title": "串口-刷新按钮",
-              "visible": false,
-              "enabled": true,
-              "permission": "app:demos:serialport:refresh",
-              "type": "button"
-            }
-          }
-        ]
-      },
-      {
         "path": "rs232-tcp-demo",
         "name": "rs232-tcp-demo",
         "component": "Rs232TcpView",

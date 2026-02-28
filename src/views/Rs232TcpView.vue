@@ -26,15 +26,25 @@ const comList = ref<SelectProps['options']>([
 const host = ref('192.168.1.168')
 const tcpPort = ref(8160)
 
-const normalizeHex = (input: string) =>
-    input.replace(/\s+/g, '').toUpperCase()
+// 规范化 HEX 输入，便于校验与发送。
+const normalizeHex = (input: string) => input.replace(/\s+/g, '').toUpperCase()
+const isValidHex = (hex: string) =>
+  hex.length % 2 === 0 && /^[0-9A-F]+$/.test(hex)
+// 统一日志追加，确保格式一致。
+const appendLog = (message: string) => {
+  log.value += `${message}\n`
+}
 
 const sendHex = ref('')
 
+const isRs232 = computed(() => mode.value === 'rs232')
+const modeLabel = computed(() => (isRs232.value ? 'RS232' : 'TCP'))
+
 const isConnected = computed(() =>
-    mode.value === 'rs232' ? serialConnected.value : tcpConnected.value
+  isRs232.value ? serialConnected.value : tcpConnected.value
 )
 
+// 刷新 RS232 串口列表。
 const refreshPorts = async () => {
   comList.value = [{value: '', label: '请选择串口'}]
   try {
@@ -45,103 +55,115 @@ const refreshPorts = async () => {
         label: item.friendlyName || item.path
       })
     })
-    log.value += '串口列表刷新成功\n'
+    appendLog('串口列表刷新成功')
   } catch (e) {
-    log.value += `获取串口失败: ${e}\n`
+    appendLog(`获取串口失败: ${e}`)
   }
 }
 
-const connect = () => {
-  if (mode.value === 'rs232') {
-    if (!portPath.value) {
-      log.value += '请选择串口\n'
-      return
-    }
-    window.serial.open({
-      path: portPath.value,
-      baudRate: baudRate.value
-    })
+// 按模式连接。
+const connectSerial = () => {
+  if (!portPath.value) {
+    appendLog('请选择串口')
     return
   }
+  window.serial.open({
+    path: portPath.value,
+    baudRate: baudRate.value
+  })
+}
 
+const connectTcp = () => {
   if (!host.value || !tcpPort.value) {
-    log.value += '请填写 TCP 地址与端口\n'
+    appendLog('请填写 TCP 地址与端口')
     return
   }
-
   window.tcp.connect({
     host: host.value,
     port: tcpPort.value
   })
 }
 
+const connect = () => {
+  if (isRs232.value) {
+    connectSerial()
+    return
+  }
+  connectTcp()
+}
+
 const disconnect = () => {
-  if (mode.value === 'rs232') {
+  if (isRs232.value) {
     window.serial.close()
     return
   }
   window.tcp.disconnect()
 }
 
+// 校验 HEX 并按当前模式发送。
 const sendData = () => {
-  const payload = normalizeHex(sendHex.value.trim())
+  const payload = normalizeHex(sendHex.value)
   if (!payload) return
-  if (payload.length % 2 !== 0 || !/^[0-9A-F]+$/.test(payload)) {
-    log.value += '发送内容不是有效的 HEX\n'
+  if (!isValidHex(payload)) {
+    appendLog('发送内容不是有效的 HEX')
     return
   }
 
-  if (mode.value === 'rs232') {
-    if (!serialConnected.value) {
-      log.value += 'RS232 未连接\n'
-      return
-    }
+  if (!isConnected.value) {
+    appendLog(`${modeLabel.value} 未连接`)
+    return
+  }
+
+  if (isRs232.value) {
     window.serial.write(payload)
-    log.value += `RS232 TX: ${payload}\n`
-    return
+  } else {
+    window.tcp.write(payload)
   }
-
-  if (!tcpConnected.value) {
-    log.value += 'TCP 未连接\n'
-    return
-  }
-  window.tcp.write(payload)
-  log.value += `TCP TX: ${payload}\n`
+  appendLog(`${modeLabel.value} TX: ${payload}`)
 }
 
+// 统一接收日志。
 const handleRx = (source: 'RS232' | 'TCP', data: string) => {
-  const text = data.trim()
+  const text = String(data).trim()
   if (!text) return
-  log.value += `${source} RX: ${text}\n`
+  appendLog(`${source} RX: ${text}`)
 }
 
 const clearLog = () => {
   log.value = ''
 }
 
-watch(mode, (next, prev) => {
-  if (prev === 'rs232') {
+// 按模式关闭连接。
+const closeByMode = (target: Mode) => {
+  if (target === 'rs232') {
     window.serial.close()
+    return
   }
-  if (prev === 'tcp') {
-    window.tcp.disconnect()
-  }
+  window.tcp.disconnect()
+}
+
+// 切换模式时清理旧连接并准备新模式。
+watch(mode, (next, prev) => {
+  closeByMode(prev)
   if (next === 'rs232') {
     refreshPorts()
   }
 })
 
+// 注册 IPC 事件监听。
 onMounted(() => {
-  refreshPorts()
+  if (mode.value === 'rs232') {
+    refreshPorts()
+  }
 
   window.serial.onOpen(() => {
     serialConnected.value = true
-    log.value += 'RS232 已连接\n'
+    appendLog('RS232 已连接')
   })
 
   window.serial.onClose(() => {
     serialConnected.value = false
-    log.value += 'RS232 已断开\n'
+    appendLog('RS232 已断开')
   })
 
   window.serial.onData((_: any, data: string) => {
@@ -149,17 +171,17 @@ onMounted(() => {
   })
 
   window.serial.onError((_: any, msg: string) => {
-    log.value += `RS232 错误: ${msg}\n`
+    appendLog(`RS232 错误: ${msg}`)
   })
 
   window.tcp.onConnect(() => {
     tcpConnected.value = true
-    log.value += 'TCP 已连接\n'
+    appendLog('TCP 已连接')
   })
 
   window.tcp.onClose(() => {
     tcpConnected.value = false
-    log.value += 'TCP 已断开\n'
+    appendLog('TCP 已断开')
   })
 
   window.tcp.onData((_: any, data: string) => {
@@ -167,13 +189,13 @@ onMounted(() => {
   })
 
   window.tcp.onError((_: any, msg: string) => {
-    log.value += `TCP 错误: ${msg}\n`
+    appendLog(`TCP 错误: ${msg}`)
   })
 })
 
 onUnmounted(() => {
-  window.serial.close()
-  window.tcp.disconnect()
+  closeByMode('rs232')
+  closeByMode('tcp')
 })
 </script>
 
@@ -227,7 +249,7 @@ onUnmounted(() => {
       <a-card title="发送与接收">
         <a-space direction="vertical" size="middle" style="width: 100%">
           <a-form layout="vertical">
-            <a-form-item label="Send">
+            <a-form-item label="发送">
               <a-input v-model:value="sendHex" placeholder="发送 HEX"/>
             </a-form-item>
           </a-form>

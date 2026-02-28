@@ -49,7 +49,7 @@ const toMenuItems = (
             const type = route.meta?.type ?? 'menu' // 默认菜单
             const fullPath = route.path.startsWith('/') ? route.path : joinPath(parentPath, route.path) // 绝对路径
             const aliasPath = Array.isArray(route.alias)
-                ? route.alias.find(p => typeof p === 'string' && p.startsWith('/')) // 取第一个绝对别名
+                ? route.alias.find(p => p.startsWith('/')) // 取第一个绝对别名
                 : (typeof route.alias === 'string' && route.alias.startsWith('/') ? route.alias : undefined)
             const navTarget = aliasPath || fullPath // 实际导航地址
             const visible =

@@ -127,12 +127,12 @@ async function createWindow() {
 
     if (VITE_DEV_SERVER_URL) {
         // 开发模式：加载 Vite dev server
-        win.loadURL(VITE_DEV_SERVER_URL)
+        await win.loadURL(VITE_DEV_SERVER_URL)
         // 自动打开开发者工具
         win.webContents.openDevTools()
     } else {
         // 生产模式：加载本地 HTML
-        win.loadFile(indexHtml)
+        await win.loadFile(indexHtml)
     }
 
     // =======================

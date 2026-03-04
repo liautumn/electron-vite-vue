@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import {SerialMethods} from "./types/serial";
 import {TcpMethods} from "./types/tcp";
+import {MusicMethods} from "./types/music";
 
 declare module '*.vue' {
     import type {DefineComponent} from 'vue'
@@ -15,5 +16,6 @@ declare global {
         ipcRenderer: import('electron').IpcRenderer
         serial: SerialMethods
         tcp: TcpMethods
+        music: MusicMethods
     }
 }

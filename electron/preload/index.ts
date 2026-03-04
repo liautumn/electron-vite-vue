@@ -88,6 +88,25 @@ contextBridge.exposeInMainWorld('tcp', {
         ipcRenderer.on('tcp:error', cb),
 })
 
+contextBridge.exposeInMainWorld('music', {
+    selectDirectory: () => ipcRenderer.invoke('music:select-directory'),
+
+    listDirectory: (dirPath: string) =>
+        ipcRenderer.invoke('music:list-directory', dirPath),
+
+    readMetadata: (filePath: string) =>
+        ipcRenderer.invoke('music:read-metadata', filePath),
+
+    readTextFile: (filePath: string) =>
+        ipcRenderer.invoke('music:read-text-file', filePath),
+
+    readBinaryFile: (filePath: string) =>
+        ipcRenderer.invoke('music:read-binary-file', filePath),
+
+    toFileUrl: (filePath: string) =>
+        ipcRenderer.invoke('music:to-file-url', filePath),
+})
+
 // ------------------------------------------------------------------
 // DOM Ready 工具函数
 // ------------------------------------------------------------------

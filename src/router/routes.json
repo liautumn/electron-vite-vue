@@ -15,6 +15,20 @@
     }
   },
   {
+    "path": "/music-player",
+    "name": "music-player",
+    "component": "MusicPlayerView",
+    "meta": {
+      "title": "音乐播放",
+      "keepAlive": true,
+      "icon": "customer-service",
+      "visible": true,
+      "enabled": true,
+      "permission": "app:music:view",
+      "type": "menu"
+    }
+  },
+  {
     "path": "/demos",
     "name": "demos",
     "component": "RouterView",

@@ -16,6 +16,7 @@ import os from 'node:os'
 // 注册Serial
 import {registerSerial} from './serial'
 import {registerTcp} from './tcp'
+import {registerMusic} from './music'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
 
@@ -105,6 +106,7 @@ async function createWindow() {
             preload,
             nodeIntegration: false,    // 允许 Renderer 直接用 Node
             contextIsolation: true,    // 开启上下文隔离（推荐）
+            webSecurity: false,        // 允许访问本地音乐文件
         },
     })
     // 默认最大化窗口
@@ -120,6 +122,7 @@ async function createWindow() {
     // 注册串口通信
     registerSerial(win)
     registerTcp(win)
+    registerMusic(win)
 
     // =======================
     // 加载页面（开发 / 生产）
@@ -211,6 +214,7 @@ ipcMain.handle('open-win', (_, arg) => {
             preload,
             nodeIntegration: false,    // 允许 Renderer 直接用 Node
             contextIsolation: true,    // 开启上下文隔离（推荐）
+            webSecurity: false,        // 允许访问本地音乐文件
         },
     })
 

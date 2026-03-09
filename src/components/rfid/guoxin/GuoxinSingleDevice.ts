@@ -1,0 +1,222 @@
+import { normalizeHex } from './commonUtils'
+
+export type GuoxinConnectionMode = 'serial' | 'tcp'
+
+type GuoxinEventName = 'data_new'
+type GuoxinDataListener = (data: string) => void
+type GuoxinRawDataListener = (source: GuoxinConnectionMode, data: string) => void
+type GuoxinStatusListener = (state: GuoxinDeviceSnapshot) => void
+
+export interface GuoxinDeviceConfig {
+  antType?: number
+  antStay?: number[]
+}
+
+export interface GuoxinDeviceSnapshot {
+  mode: GuoxinConnectionMode
+  connected: boolean
+  antType: number
+  antStay: number[]
+  lastError: string | null
+}
+
+class GuoxinSingleDevice {
+  private initialized = false
+  private mode: GuoxinConnectionMode = 'tcp'
+  private connected = false
+  private antType = 4
+  private antStay: number[] = []
+  private lastError: string | null = null
+  private commandDataListeners = new Set<GuoxinDataListener>()
+  private rawDataListeners = new Set<GuoxinRawDataListener>()
+  private statusListeners = new Set<GuoxinStatusListener>()
+
+  get ant_type() {
+    return this.antType
+  }
+
+  get ant_stay() {
+    return this.antStay
+  }
+
+  get currentMode() {
+    return this.mode
+  }
+
+  get isConnected() {
+    return this.connected
+  }
+
+  configure(config: GuoxinDeviceConfig) {
+    if (typeof config.antType === 'number') {
+      this.antType = config.antType
+    }
+    if (Array.isArray(config.antStay)) {
+      this.antStay = [...config.antStay]
+    }
+    this.emitStatus()
+  }
+
+  getSnapshot(): GuoxinDeviceSnapshot {
+    return {
+      mode: this.mode,
+      connected: this.connected,
+      antType: this.antType,
+      antStay: [...this.antStay],
+      lastError: this.lastError
+    }
+  }
+
+  subscribeStatus(listener: GuoxinStatusListener) {
+    this.ensureInitialized()
+    this.statusListeners.add(listener)
+    listener(this.getSnapshot())
+    return () => {
+      this.statusListeners.delete(listener)
+    }
+  }
+
+  subscribeRawData(listener: GuoxinRawDataListener) {
+    this.ensureInitialized()
+    this.rawDataListeners.add(listener)
+    return () => {
+      this.rawDataListeners.delete(listener)
+    }
+  }
+
+  setMode(mode: GuoxinConnectionMode) {
+    this.ensureInitialized()
+    this.mode = mode
+    this.connected = false
+    this.lastError = null
+    this.emitStatus()
+  }
+
+  async connectSerial(options: { path: string; baudRate: number }) {
+    this.ensureInitialized()
+    this.mode = 'serial'
+    this.lastError = null
+    this.emitStatus()
+    await window.serial.open(options)
+  }
+
+  async connectTcp(options: { host: string; port: number }) {
+    this.ensureInitialized()
+    this.mode = 'tcp'
+    this.lastError = null
+    this.emitStatus()
+    await window.tcp.connect(options)
+  }
+
+  async disconnect(mode: GuoxinConnectionMode = this.mode) {
+    this.ensureInitialized()
+    if (mode === 'serial') {
+      await window.serial.close()
+    } else {
+      await window.tcp.disconnect()
+    }
+    if (this.mode === mode) {
+      this.connected = false
+      this.emitStatus()
+    }
+  }
+
+  sendMessageNew(hex: string) {
+    this.ensureInitialized()
+    if (!this.connected) {
+      throw new Error('国芯 RFID 设备未连接')
+    }
+    const payload = normalizeHex(hex)
+    if (this.mode === 'serial') {
+      void window.serial.write(payload)
+      return
+    }
+    void window.tcp.write(payload)
+  }
+
+  on(eventName: GuoxinEventName, listener: GuoxinDataListener) {
+    this.ensureInitialized()
+    if (eventName !== 'data_new') return
+    this.commandDataListeners.add(listener)
+  }
+
+  off(eventName: GuoxinEventName, listener?: GuoxinDataListener) {
+    if (eventName !== 'data_new') return
+    if (listener) {
+      this.commandDataListeners.delete(listener)
+      return
+    }
+    this.commandDataListeners.clear()
+  }
+
+  private ensureInitialized() {
+    if (this.initialized) return
+    this.initialized = true
+
+    window.ipcRenderer.on('serial:open', () => {
+      if (this.mode !== 'serial') return
+      this.connected = true
+      this.lastError = null
+      this.emitStatus()
+    })
+    window.ipcRenderer.on('serial:close', () => {
+      if (this.mode !== 'serial') return
+      this.connected = false
+      this.emitStatus()
+    })
+    window.ipcRenderer.on('serial:error', (_, message: string) => {
+      if (this.mode !== 'serial') return
+      this.connected = false
+      this.lastError = message
+      this.emitStatus()
+    })
+    window.ipcRenderer.on('serial:data', (_, data: string) => {
+      this.emitData('serial', data)
+    })
+
+    window.ipcRenderer.on('tcp:connect', () => {
+      if (this.mode !== 'tcp') return
+      this.connected = true
+      this.lastError = null
+      this.emitStatus()
+    })
+    window.ipcRenderer.on('tcp:close', () => {
+      if (this.mode !== 'tcp') return
+      this.connected = false
+      this.emitStatus()
+    })
+    window.ipcRenderer.on('tcp:error', (_, message: string) => {
+      if (this.mode !== 'tcp') return
+      this.connected = false
+      this.lastError = message
+      this.emitStatus()
+    })
+    window.ipcRenderer.on('tcp:data', (_, data: string) => {
+      this.emitData('tcp', data)
+    })
+  }
+
+  private emitData(source: GuoxinConnectionMode, data: string) {
+    const payload = normalizeHex(String(data ?? ''))
+    if (!payload) return
+
+    this.rawDataListeners.forEach((listener) => {
+      listener(source, payload)
+    })
+
+    if (source !== this.mode) return
+
+    this.commandDataListeners.forEach((listener) => {
+      listener(payload)
+    })
+  }
+
+  private emitStatus() {
+    const snapshot = this.getSnapshot()
+    this.statusListeners.forEach((listener) => {
+      listener(snapshot)
+    })
+  }
+}
+
+export const guoxinSingleDevice = new GuoxinSingleDevice()

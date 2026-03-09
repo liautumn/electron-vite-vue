@@ -59,6 +59,19 @@
           "permission": "app:demos:rs232-tcp",
           "type": "menu"
         }
+      },
+      {
+        "path": "guoxin-rfid-demo",
+        "name": "guoxin-rfid-demo",
+        "component": "GuoxinRfidView",
+        "alias": "/guoxin-rfid-demo",
+        "meta": {
+          "title": "国芯 RFID 测试",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:guoxin-rfid",
+          "type": "menu"
+        }
       }
     ]
   },

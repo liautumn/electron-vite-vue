@@ -1,0 +1,668 @@
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { message } from 'ant-design-vue'
+import { guoxinSingleDevice, type GuoxinConnectionMode } from '../components/rfid/guoxin/GuoxinSingleDevice'
+import type { IRFIDTagReadMessage } from '../components/rfid/guoxin/commonUtils'
+import { normalizeHex } from '../components/rfid/guoxin/commonUtils'
+import {
+  configEPCBasebandParam,
+  configPower,
+  readAllAntOutputPower,
+  readEPC,
+  readEPCContinuous,
+  stopReadEPC,
+  writeEPC,
+  writeEPCFirstTime
+} from '../components/rfid/guoxin/RfidHelperNew'
+
+defineOptions({ name: 'guoxin-rfid-demo' })
+
+type ModeOption = {
+  label: string
+  value: GuoxinConnectionMode
+}
+
+const snapshot = guoxinSingleDevice.getSnapshot()
+
+const modeOptions: ModeOption[] = [
+  { label: 'RS232', value: 'serial' },
+  { label: 'TCP', value: 'tcp' }
+]
+
+const mode = ref<GuoxinConnectionMode>(snapshot.mode)
+const connected = ref(snapshot.connected)
+const lastError = ref(snapshot.lastError ?? '')
+
+const portPath = ref('')
+const baudRate = ref(9600)
+const serialOptions = ref<{ label: string; value: string }[]>([{ label: '请选择串口', value: '' }])
+
+const host = ref('192.168.1.168')
+const tcpPort = ref(8160)
+
+const antennaCount = ref(snapshot.antType)
+const antsInput = ref('1')
+
+const readWriteIndex = ref(1)
+const readWritePower = ref(30)
+const otherPower = ref(15)
+
+const epcBasebandRate = ref(0x01)
+const defaultQ = ref(0x04)
+const session = ref(0x02)
+const inventoryFlag = ref(0x00)
+
+const writeAntenna = ref(1)
+const writeTid = ref('')
+const writeEpc = ref('')
+const accessPassword = ref('00000000')
+const oldAccessPassword = ref('00000000')
+const killPassword = ref('00000000')
+
+const rawHex = ref('')
+const inventoryStatus = ref('空闲')
+const latestTag = ref<IRFIDTagReadMessage | null>(null)
+const powerResult = ref<number[]>([])
+const log = ref('')
+
+let stopContinuousRead: null | (() => void) = null
+let disposeStatusListener = () => {}
+let disposeRawListener = () => {}
+
+const isSerial = computed(() => mode.value === 'serial')
+
+function appendLog(messageText: string) {
+  const stamp = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  log.value += `[${stamp}] ${messageText}\n`
+}
+
+function resolveError(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function requireHexValue(input: string, label: string, exactLength?: number) {
+  const value = normalizeHex(input)
+  if (!value) {
+    throw new Error(`${label}不能为空`)
+  }
+  if (!/^[0-9A-F]+$/.test(value) || value.length % 2 !== 0) {
+    throw new Error(`${label}必须是偶数位 HEX`)
+  }
+  if (typeof exactLength === 'number' && value.length !== exactLength) {
+    throw new Error(`${label}必须是 ${exactLength} 位 HEX`)
+  }
+  return value
+}
+
+function parseAntennas(input: string) {
+  const ants = input
+    .split(/[,\s，]+/)
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0)
+
+  if (!ants.length) {
+    throw new Error('请填写有效天线编号，例如 1 或 1,2')
+  }
+
+  return [...new Set(ants)]
+}
+
+function syncDeviceConfig() {
+  guoxinSingleDevice.configure({
+    antType: antennaCount.value
+  })
+}
+
+function handleTagData(data: IRFIDTagReadMessage | null) {
+  if (!data) return
+  latestTag.value = data
+  appendLog(`标签 EPC=${data.epc} 天线=${data.antennaId} RSSI=${data.rssi?.value ?? '-'}`)
+}
+
+async function refreshPorts() {
+  serialOptions.value = [{ label: '请选择串口', value: '' }]
+  try {
+    const ports = await window.serial.list()
+    ports.forEach((item: any) => {
+      serialOptions.value.push({
+        label: item.friendlyName || item.path,
+        value: item.path
+      })
+    })
+    appendLog('串口列表刷新成功')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`获取串口失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function connect() {
+  try {
+    syncDeviceConfig()
+    guoxinSingleDevice.setMode(mode.value)
+
+    if (isSerial.value) {
+      if (!portPath.value) {
+        throw new Error('请选择串口')
+      }
+      await guoxinSingleDevice.connectSerial({
+        path: portPath.value,
+        baudRate: baudRate.value
+      })
+      appendLog(`RS232 连接中: ${portPath.value}@${baudRate.value}`)
+      return
+    }
+
+    if (!host.value || !tcpPort.value) {
+      throw new Error('请填写 TCP 地址与端口')
+    }
+
+    await guoxinSingleDevice.connectTcp({
+      host: host.value,
+      port: tcpPort.value
+    })
+    appendLog(`TCP 连接中: ${host.value}:${tcpPort.value}`)
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`连接失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function disconnect() {
+  try {
+    stopContinuousRead?.()
+    stopContinuousRead = null
+    await guoxinSingleDevice.disconnect(mode.value)
+    inventoryStatus.value = '空闲'
+    appendLog('连接已断开')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`断开失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function startSingleRead() {
+  try {
+    syncDeviceConfig()
+    inventoryStatus.value = '单次读取中'
+    const reason = await readEPC(parseAntennas(antsInput.value), handleTagData)
+    inventoryStatus.value = reason ?? '单次读取完成'
+    appendLog(`单次读取结束: ${inventoryStatus.value}`)
+  } catch (error) {
+    const messageText = resolveError(error)
+    inventoryStatus.value = '读取失败'
+    appendLog(`单次读取失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+function startContinuousRead() {
+  try {
+    syncDeviceConfig()
+    stopContinuousRead?.()
+    stopContinuousRead = readEPCContinuous(parseAntennas(antsInput.value), handleTagData) ?? null
+    inventoryStatus.value = '连续读取中'
+    appendLog(`开始连续读取: 天线 ${antsInput.value}`)
+  } catch (error) {
+    const messageText = resolveError(error)
+    inventoryStatus.value = '读取失败'
+    appendLog(`连续读取失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function stopInventory() {
+  try {
+    await stopReadEPC()
+    stopContinuousRead?.()
+    stopContinuousRead = null
+    inventoryStatus.value = '已停止'
+    appendLog('已发送停止盘存指令')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`停止读取失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function prepareWriteMode() {
+  if (inventoryStatus.value !== '空闲' || stopContinuousRead) {
+    try {
+      await stopReadEPC()
+      appendLog('写标签前已发送停止盘存指令')
+    } catch {
+      // 设备未处于盘存态时忽略停止失败，继续写入。
+    }
+  }
+  stopContinuousRead?.()
+  stopContinuousRead = null
+  inventoryStatus.value = '空闲'
+}
+
+function buildWritePayload() {
+  return {
+    antenna: writeAntenna.value,
+    tid: requireHexValue(writeTid.value, 'TID'),
+    epc: requireHexValue(writeEpc.value, 'EPC'),
+    accessPassword: requireHexValue(accessPassword.value, '访问密码', 8)
+  }
+}
+
+function useLatestTagForWrite() {
+  if (!latestTag.value) {
+    message.error('还没有可用的标签数据')
+    return
+  }
+  if (latestTag.value.tidData?.data) {
+    writeTid.value = latestTag.value.tidData.data
+  }
+  writeEpc.value = latestTag.value.epc
+  if (latestTag.value.antennaId > 0) {
+    writeAntenna.value = latestTag.value.antennaId
+  }
+  appendLog('已带入最近读取到的标签 TID/EPC/天线')
+}
+
+async function firstWriteTag() {
+  try {
+    syncDeviceConfig()
+    await prepareWriteMode()
+    const payload = buildWritePayload()
+    await writeEPCFirstTime({
+      ants: [payload.antenna],
+      newData: payload.epc,
+      tid: payload.tid,
+      accessPassword: payload.accessPassword,
+      oldAccessPassword: requireHexValue(oldAccessPassword.value, '旧访问密码', 8),
+      killPassword: requireHexValue(killPassword.value, '灭活密码', 8),
+      onProgress: appendLog
+    })
+    oldAccessPassword.value = payload.accessPassword
+    appendLog('首次写入完成')
+    message.success('首次写入完成')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`首次写入失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function rewriteTag() {
+  try {
+    syncDeviceConfig()
+    await prepareWriteMode()
+    const payload = buildWritePayload()
+    const writeOk = await writeEPC(
+      [payload.antenna],
+      payload.epc,
+      payload.tid,
+      payload.accessPassword
+    )
+    if (!writeOk) {
+      throw new Error('写EPC失败')
+    }
+    appendLog('再次写入成功')
+    message.success('再次写入成功')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`再次写入失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function applyPowerConfig() {
+  try {
+    syncDeviceConfig()
+    await configPower(readWriteIndex.value, readWritePower.value, otherPower.value)
+    appendLog(
+      `设置功率完成: 主天线=${readWriteIndex.value}, 主功率=${readWritePower.value}, 其他功率=${otherPower.value}`
+    )
+    message.success('功率配置已发送')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`设置功率失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function loadAllPower() {
+  try {
+    await readAllAntOutputPower((data: number[]) => {
+      powerResult.value = data
+    })
+    appendLog(`读取功率成功: ${powerResult.value.join(', ') || '无数据'}`)
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`读取功率失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+async function applyBasebandConfig() {
+  try {
+    const result = await configEPCBasebandParam(
+      epcBasebandRate.value,
+      defaultQ.value,
+      session.value,
+      inventoryFlag.value
+    )
+    appendLog(`EPC 基带参数配置结果: ${result ? '成功' : '失败'}`)
+    if (result) {
+      message.success('EPC 基带参数已发送')
+      return
+    }
+    message.error('EPC 基带参数返回失败')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`配置 EPC 基带参数失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+function sendRawHex() {
+  try {
+    const payload = normalizeHex(rawHex.value)
+    if (!payload) {
+      throw new Error('请输入待发送的 HEX')
+    }
+    guoxinSingleDevice.sendMessageNew(payload)
+    appendLog(`TX: ${payload}`)
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`发送失败: ${messageText}`)
+    message.error(messageText)
+  }
+}
+
+function clearLog() {
+  log.value = ''
+}
+
+watch(mode, async (nextMode, prevMode) => {
+  if (nextMode === prevMode) return
+  stopContinuousRead?.()
+  stopContinuousRead = null
+  try {
+    await guoxinSingleDevice.disconnect(prevMode)
+  } catch {
+    // 旧通道可能本来就未连接，直接切模式即可。
+  }
+  guoxinSingleDevice.setMode(nextMode)
+  if (nextMode === 'serial') {
+    void refreshPorts()
+  }
+})
+
+onMounted(() => {
+  if (mode.value === 'serial') {
+    void refreshPorts()
+  }
+
+  disposeStatusListener = guoxinSingleDevice.subscribeStatus((state) => {
+    connected.value = state.connected
+    lastError.value = state.lastError ?? ''
+    antennaCount.value = state.antType
+  })
+
+  disposeRawListener = guoxinSingleDevice.subscribeRawData((source, data) => {
+    if (source !== mode.value) return
+    appendLog(`${source.toUpperCase()} RX: ${data}`)
+  })
+})
+
+onUnmounted(() => {
+  stopContinuousRead?.()
+  disposeStatusListener()
+  disposeRawListener()
+})
+</script>
+
+<template>
+  <div class="container">
+    <a-space direction="vertical" size="large" style="width: 100%">
+      <a-card title="连接与设备">
+        <div class="grid">
+          <div class="card-section">
+            <a-space direction="vertical" style="width: 100%">
+              <a-segmented v-model:value="mode" :options="modeOptions" />
+
+              <template v-if="isSerial">
+                <a-select
+                  v-model:value="portPath"
+                  :options="serialOptions"
+                  placeholder="选择串口"
+                  style="width: 100%"
+                />
+                <a-input-number
+                  v-model:value="baudRate"
+                  :min="300"
+                  :step="300"
+                  addon-before="波特率"
+                  style="width: 100%"
+                />
+                <a-button @click="refreshPorts">刷新串口</a-button>
+              </template>
+
+              <template v-else>
+                <a-input v-model:value="host" placeholder="TCP 地址" />
+                <a-input-number
+                  v-model:value="tcpPort"
+                  :min="1"
+                  :max="65535"
+                  addon-before="端口"
+                  style="width: 100%"
+                />
+              </template>
+
+              <a-space wrap>
+                <a-button type="primary" @click="connect">连接</a-button>
+                <a-button danger @click="disconnect">断开</a-button>
+                <a-tag :color="connected ? 'green' : 'red'">
+                  {{ connected ? '已连接' : '未连接' }}
+                </a-tag>
+              </a-space>
+
+              <a-alert
+                v-if="lastError"
+                :message="lastError"
+                type="error"
+                show-icon
+              />
+            </a-space>
+          </div>
+        </div>
+      </a-card>
+
+      <div class="grid">
+        <a-card title="盘存测试">
+          <a-space direction="vertical" style="width: 100%">
+            <a-input-number
+              v-model:value="antennaCount"
+              :min="1"
+              :max="32"
+              addon-before="天线数"
+              style="width: 100%"
+            />
+            <a-input
+              v-model:value="antsInput"
+              placeholder="天线编号，支持 1 或 1,2,3"
+            />
+            <a-space wrap>
+              <a-button @click="syncDeviceConfig">应用设备配置</a-button>
+              <a-button type="primary" @click="startSingleRead">单次读取</a-button>
+              <a-button @click="startContinuousRead">连续读取</a-button>
+              <a-button danger @click="stopInventory">停止读取</a-button>
+            </a-space>
+            <a-tag color="blue">{{ inventoryStatus }}</a-tag>
+            <a-descriptions
+              v-if="latestTag"
+              bordered
+              :column="1"
+              size="small"
+              title="最近标签"
+            >
+              <a-descriptions-item label="EPC">{{ latestTag.epc }}</a-descriptions-item>
+              <a-descriptions-item label="PC">{{ latestTag.pcValue }}</a-descriptions-item>
+              <a-descriptions-item label="天线">{{ latestTag.antennaId }}</a-descriptions-item>
+              <a-descriptions-item label="RSSI">
+                {{ latestTag.rssi?.value ?? '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item label="TID">
+                {{ latestTag.tidData?.data ?? '-' }}
+              </a-descriptions-item>
+            </a-descriptions>
+          </a-space>
+        </a-card>
+
+        <a-card title="功率与参数">
+          <a-space direction="vertical" style="width: 100%">
+            <a-input-number
+              v-model:value="readWriteIndex"
+              :min="1"
+              :max="32"
+              addon-before="主天线"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="readWritePower"
+              :min="0"
+              :max="33"
+              addon-before="主功率"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="otherPower"
+              :min="0"
+              :max="33"
+              addon-before="其他功率"
+              style="width: 100%"
+            />
+            <a-space wrap>
+              <a-button @click="applyPowerConfig">设置功率</a-button>
+              <a-button @click="loadAllPower">读取功率</a-button>
+            </a-space>
+            <a-tag v-if="powerResult.length" color="cyan">
+              {{ powerResult.join(', ') }}
+            </a-tag>
+
+            <a-divider style="margin: 8px 0" />
+
+            <a-input-number
+              v-model:value="epcBasebandRate"
+              :min="0"
+              :max="255"
+              addon-before="基带速率"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="defaultQ"
+              :min="0"
+              :max="255"
+              addon-before="默认Q"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="session"
+              :min="0"
+              :max="255"
+              addon-before="Session"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="inventoryFlag"
+              :min="0"
+              :max="255"
+              addon-before="盘存标志"
+              style="width: 100%"
+            />
+            <a-button @click="applyBasebandConfig">配置 EPC 基带参数</a-button>
+          </a-space>
+        </a-card>
+
+        <a-card title="写标签测试">
+          <a-space direction="vertical" style="width: 100%">
+            <a-alert
+              message="首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。"
+              type="info"
+              show-icon
+            />
+            <a-input-number
+              v-model:value="writeAntenna"
+              :min="1"
+              :max="32"
+              addon-before="写入天线"
+              style="width: 100%"
+            />
+            <a-input
+              v-model:value="writeTid"
+              placeholder="标签 TID，HEX"
+            />
+            <a-input
+              v-model:value="writeEpc"
+              placeholder="待写 EPC，HEX"
+            />
+            <a-input
+              v-model:value="accessPassword"
+              placeholder="访问密码，8位HEX"
+            />
+            <a-input
+              v-model:value="oldAccessPassword"
+              placeholder="旧访问密码，8位HEX，仅首次写入使用"
+            />
+            <a-input
+              v-model:value="killPassword"
+              placeholder="灭活密码，8位HEX"
+            />
+            <a-space wrap>
+              <a-button @click="useLatestTagForWrite">带入最近标签</a-button>
+              <a-button type="primary" @click="firstWriteTag">首次写入</a-button>
+              <a-button @click="rewriteTag">再次写入</a-button>
+            </a-space>
+          </a-space>
+        </a-card>
+      </div>
+
+      <a-card title="原始 HEX 调试">
+        <a-space direction="vertical" style="width: 100%">
+          <a-input
+            v-model:value="rawHex"
+            placeholder="输入原始 HEX 帧"
+          />
+          <a-space wrap>
+            <a-button @click="sendRawHex">发送 HEX</a-button>
+            <a-button danger @click="clearLog">清空日志</a-button>
+          </a-space>
+          <a-textarea
+            v-model:value="log"
+            :rows="12"
+            class="log-textarea"
+            placeholder="收发日志"
+          />
+        </a-space>
+      </a-card>
+    </a-space>
+  </div>
+</template>
+
+<style scoped>
+.container {
+  padding: 16px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.card-section {
+  min-width: 0;
+}
+
+.log-textarea :deep(textarea) {
+  font-family: 'SFMono-Regular', 'Monaco', 'Consolas', monospace;
+}
+</style>

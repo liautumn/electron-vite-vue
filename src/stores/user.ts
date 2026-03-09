@@ -15,6 +15,7 @@ export const useUserStore = defineStore(
             'app:demos:serialport:refresh',
             'app:demos:command-example',
             'app:demos:rs232-tcp',
+            'app:demos:guoxin-rfid',
         ])
 
         const getName = computed(() => name.value)

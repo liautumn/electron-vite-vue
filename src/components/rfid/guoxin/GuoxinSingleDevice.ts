@@ -1,4 +1,4 @@
-import { normalizeHex } from './commonUtils'
+import { normalizeHex } from './CommonUtil'
 
 export type GuoxinConnectionMode = 'serial' | 'tcp'
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { guoxinSingleDevice, type GuoxinConnectionMode } from '../components/rfid/guoxin/GuoxinSingleDevice'
-import type { IRFIDTagReadMessage } from '../components/rfid/guoxin/commonUtils'
-import { normalizeHex } from '../components/rfid/guoxin/commonUtils'
+import type { IRFIDTagReadMessage } from '../components/rfid/guoxin/CommonUtil'
+import { normalizeHex } from '../components/rfid/guoxin/CommonUtil'
 import {
   configEPCBasebandParam,
   configPower,
@@ -14,6 +15,7 @@ import {
   writeEPC,
   writeEPCFirstTime
 } from '../components/rfid/guoxin/RfidHelperNew'
+import { useGuoxinRfidStore, type GuoxinRfidConfig } from '../stores/guoxinRfid'
 
 defineOptions({ name: 'guoxin-rfid-demo' })
 
@@ -29,37 +31,19 @@ const modeOptions: ModeOption[] = [
   { label: 'TCP', value: 'tcp' }
 ]
 
-const mode = ref<GuoxinConnectionMode>(snapshot.mode)
+const rfidStore = useGuoxinRfidStore()
+const { config: rfidConfig } = storeToRefs(rfidStore)
+
+if (snapshot.connected) {
+  rfidStore.setConfig({
+    mode: snapshot.mode,
+    antennaCount: snapshot.antType
+  })
+}
+
 const connected = ref(snapshot.connected)
 const lastError = ref(snapshot.lastError ?? '')
-
-const portPath = ref('')
-const baudRate = ref(9600)
 const serialOptions = ref<{ label: string; value: string }[]>([{ label: '请选择串口', value: '' }])
-
-const host = ref('192.168.1.168')
-const tcpPort = ref(8160)
-
-const antennaCount = ref(snapshot.antType)
-const antsInput = ref('1')
-
-const readWriteIndex = ref(1)
-const readWritePower = ref(30)
-const otherPower = ref(15)
-
-const epcBasebandRate = ref(0x01)
-const defaultQ = ref(0x04)
-const session = ref(0x02)
-const inventoryFlag = ref(0x00)
-
-const writeAntenna = ref(1)
-const writeTid = ref('')
-const writeEpc = ref('')
-const accessPassword = ref('00000000')
-const oldAccessPassword = ref('00000000')
-const killPassword = ref('00000000')
-
-const rawHex = ref('')
 const inventoryStatus = ref('空闲')
 const latestTag = ref<IRFIDTagReadMessage | null>(null)
 const powerResult = ref<number[]>([])
@@ -69,7 +53,7 @@ let stopContinuousRead: null | (() => void) = null
 let disposeStatusListener = () => {}
 let disposeRawListener = () => {}
 
-const isSerial = computed(() => mode.value === 'serial')
+const isSerial = computed(() => rfidConfig.value.mode === 'serial')
 
 function appendLog(messageText: string) {
   const stamp = new Date().toLocaleTimeString('zh-CN', { hour12: false })
@@ -109,7 +93,7 @@ function parseAntennas(input: string) {
 
 function syncDeviceConfig() {
   guoxinSingleDevice.configure({
-    antType: antennaCount.value
+    antType: rfidConfig.value.antennaCount
   })
 }
 
@@ -140,29 +124,29 @@ async function refreshPorts() {
 async function connect() {
   try {
     syncDeviceConfig()
-    guoxinSingleDevice.setMode(mode.value)
+    guoxinSingleDevice.setMode(rfidConfig.value.mode)
 
     if (isSerial.value) {
-      if (!portPath.value) {
+      if (!rfidConfig.value.portPath) {
         throw new Error('请选择串口')
       }
       await guoxinSingleDevice.connectSerial({
-        path: portPath.value,
-        baudRate: baudRate.value
+        path: rfidConfig.value.portPath,
+        baudRate: rfidConfig.value.baudRate
       })
-      appendLog(`RS232 连接中: ${portPath.value}@${baudRate.value}`)
+      appendLog(`RS232 连接中: ${rfidConfig.value.portPath}@${rfidConfig.value.baudRate}`)
       return
     }
 
-    if (!host.value || !tcpPort.value) {
+    if (!rfidConfig.value.host || !rfidConfig.value.tcpPort) {
       throw new Error('请填写 TCP 地址与端口')
     }
 
     await guoxinSingleDevice.connectTcp({
-      host: host.value,
-      port: tcpPort.value
+      host: rfidConfig.value.host,
+      port: rfidConfig.value.tcpPort
     })
-    appendLog(`TCP 连接中: ${host.value}:${tcpPort.value}`)
+    appendLog(`TCP 连接中: ${rfidConfig.value.host}:${rfidConfig.value.tcpPort}`)
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`连接失败: ${messageText}`)
@@ -174,7 +158,7 @@ async function disconnect() {
   try {
     stopContinuousRead?.()
     stopContinuousRead = null
-    await guoxinSingleDevice.disconnect(mode.value)
+    await guoxinSingleDevice.disconnect(rfidConfig.value.mode)
     inventoryStatus.value = '空闲'
     appendLog('连接已断开')
   } catch (error) {
@@ -188,7 +172,7 @@ async function startSingleRead() {
   try {
     syncDeviceConfig()
     inventoryStatus.value = '单次读取中'
-    const reason = await readEPC(parseAntennas(antsInput.value), handleTagData)
+    const reason = await readEPC(parseAntennas(rfidConfig.value.antsInput), handleTagData)
     inventoryStatus.value = reason ?? '单次读取完成'
     appendLog(`单次读取结束: ${inventoryStatus.value}`)
   } catch (error) {
@@ -203,9 +187,9 @@ function startContinuousRead() {
   try {
     syncDeviceConfig()
     stopContinuousRead?.()
-    stopContinuousRead = readEPCContinuous(parseAntennas(antsInput.value), handleTagData) ?? null
+    stopContinuousRead = readEPCContinuous(parseAntennas(rfidConfig.value.antsInput), handleTagData) ?? null
     inventoryStatus.value = '连续读取中'
-    appendLog(`开始连续读取: 天线 ${antsInput.value}`)
+    appendLog(`开始连续读取: 天线 ${rfidConfig.value.antsInput}`)
   } catch (error) {
     const messageText = resolveError(error)
     inventoryStatus.value = '读取失败'
@@ -244,10 +228,10 @@ async function prepareWriteMode() {
 
 function buildWritePayload() {
   return {
-    antenna: writeAntenna.value,
-    tid: requireHexValue(writeTid.value, 'TID'),
-    epc: requireHexValue(writeEpc.value, 'EPC'),
-    accessPassword: requireHexValue(accessPassword.value, '访问密码', 8)
+    antenna: rfidConfig.value.writeAntenna,
+    tid: requireHexValue(rfidConfig.value.writeTid, 'TID'),
+    epc: requireHexValue(rfidConfig.value.writeEpc, 'EPC'),
+    accessPassword: requireHexValue(rfidConfig.value.accessPassword, '访问密码', 8)
   }
 }
 
@@ -256,13 +240,16 @@ function useLatestTagForWrite() {
     message.error('还没有可用的标签数据')
     return
   }
+  const nextConfig: Partial<GuoxinRfidConfig> = {
+    writeEpc: latestTag.value.epc
+  }
   if (latestTag.value.tidData?.data) {
-    writeTid.value = latestTag.value.tidData.data
+    nextConfig.writeTid = latestTag.value.tidData.data
   }
-  writeEpc.value = latestTag.value.epc
   if (latestTag.value.antennaId > 0) {
-    writeAntenna.value = latestTag.value.antennaId
+    nextConfig.writeAntenna = latestTag.value.antennaId
   }
+  rfidStore.setConfig(nextConfig)
   appendLog('已带入最近读取到的标签 TID/EPC/天线')
 }
 
@@ -276,11 +263,11 @@ async function firstWriteTag() {
       newData: payload.epc,
       tid: payload.tid,
       accessPassword: payload.accessPassword,
-      oldAccessPassword: requireHexValue(oldAccessPassword.value, '旧访问密码', 8),
-      killPassword: requireHexValue(killPassword.value, '灭活密码', 8),
+      oldAccessPassword: requireHexValue(rfidConfig.value.oldAccessPassword, '旧访问密码', 8),
+      killPassword: requireHexValue(rfidConfig.value.killPassword, '灭活密码', 8),
       onProgress: appendLog
     })
-    oldAccessPassword.value = payload.accessPassword
+    rfidStore.setConfig({ oldAccessPassword: payload.accessPassword })
     appendLog('首次写入完成')
     message.success('首次写入完成')
   } catch (error) {
@@ -316,9 +303,13 @@ async function rewriteTag() {
 async function applyPowerConfig() {
   try {
     syncDeviceConfig()
-    await configPower(readWriteIndex.value, readWritePower.value, otherPower.value)
+    await configPower(
+      rfidConfig.value.readWriteIndex,
+      rfidConfig.value.readWritePower,
+      rfidConfig.value.otherPower
+    )
     appendLog(
-      `设置功率完成: 主天线=${readWriteIndex.value}, 主功率=${readWritePower.value}, 其他功率=${otherPower.value}`
+      `设置功率完成: 主天线=${rfidConfig.value.readWriteIndex}, 主功率=${rfidConfig.value.readWritePower}, 其他功率=${rfidConfig.value.otherPower}`
     )
     message.success('功率配置已发送')
   } catch (error) {
@@ -344,10 +335,10 @@ async function loadAllPower() {
 async function applyBasebandConfig() {
   try {
     const result = await configEPCBasebandParam(
-      epcBasebandRate.value,
-      defaultQ.value,
-      session.value,
-      inventoryFlag.value
+      rfidConfig.value.epcBasebandRate,
+      rfidConfig.value.defaultQ,
+      rfidConfig.value.session,
+      rfidConfig.value.inventoryFlag
     )
     appendLog(`EPC 基带参数配置结果: ${result ? '成功' : '失败'}`)
     if (result) {
@@ -364,7 +355,7 @@ async function applyBasebandConfig() {
 
 function sendRawHex() {
   try {
-    const payload = normalizeHex(rawHex.value)
+    const payload = normalizeHex(rfidConfig.value.rawHex)
     if (!payload) {
       throw new Error('请输入待发送的 HEX')
     }
@@ -381,7 +372,7 @@ function clearLog() {
   log.value = ''
 }
 
-watch(mode, async (nextMode, prevMode) => {
+watch(() => rfidConfig.value.mode, async (nextMode, prevMode) => {
   if (nextMode === prevMode) return
   stopContinuousRead?.()
   stopContinuousRead = null
@@ -397,18 +388,17 @@ watch(mode, async (nextMode, prevMode) => {
 })
 
 onMounted(() => {
-  if (mode.value === 'serial') {
+  if (rfidConfig.value.mode === 'serial') {
     void refreshPorts()
   }
 
   disposeStatusListener = guoxinSingleDevice.subscribeStatus((state) => {
     connected.value = state.connected
     lastError.value = state.lastError ?? ''
-    antennaCount.value = state.antType
   })
 
   disposeRawListener = guoxinSingleDevice.subscribeRawData((source, data) => {
-    if (source !== mode.value) return
+    if (source !== rfidConfig.value.mode) return
     appendLog(`${source.toUpperCase()} RX: ${data}`)
   })
 })
@@ -423,80 +413,151 @@ onUnmounted(() => {
 <template>
   <div class="container">
     <a-space direction="vertical" size="large" style="width: 100%">
-      <a-card title="连接与设备">
-        <div class="grid">
-          <div class="card-section">
-            <a-space direction="vertical" style="width: 100%">
-              <a-segmented v-model:value="mode" :options="modeOptions" />
+      <div class="layout-row layout-row-top">
+        <a-card title="连接与设备">
+          <a-space direction="vertical" style="width: 100%">
+            <a-segmented v-model:value="rfidConfig.mode" :options="modeOptions" />
 
-              <template v-if="isSerial">
+            <template v-if="isSerial">
+              <div class="serial-port-row">
                 <a-select
-                  v-model:value="portPath"
+                  v-model:value="rfidConfig.portPath"
                   :options="serialOptions"
                   placeholder="选择串口"
                   style="width: 100%"
                 />
-                <a-input-number
-                  v-model:value="baudRate"
-                  :min="300"
-                  :step="300"
-                  addon-before="波特率"
-                  style="width: 100%"
-                />
                 <a-button @click="refreshPorts">刷新串口</a-button>
-              </template>
-
-              <template v-else>
-                <a-input v-model:value="host" placeholder="TCP 地址" />
-                <a-input-number
-                  v-model:value="tcpPort"
-                  :min="1"
-                  :max="65535"
-                  addon-before="端口"
-                  style="width: 100%"
-                />
-              </template>
-
-              <a-space wrap>
-                <a-button type="primary" @click="connect">连接</a-button>
-                <a-button danger @click="disconnect">断开</a-button>
-                <a-tag :color="connected ? 'green' : 'red'">
-                  {{ connected ? '已连接' : '未连接' }}
-                </a-tag>
-              </a-space>
-
-              <a-alert
-                v-if="lastError"
-                :message="lastError"
-                type="error"
-                show-icon
+              </div>
+              <a-input-number
+                v-model:value="rfidConfig.baudRate"
+                :min="300"
+                :step="300"
+                addon-before="波特率"
+                style="width: 100%"
               />
-            </a-space>
-          </div>
-        </div>
-      </a-card>
+            </template>
 
-      <div class="grid">
-        <a-card title="盘存测试">
+            <template v-else>
+              <a-input v-model:value="rfidConfig.host" addon-before="TCP 地址" placeholder="TCP 地址" />
+              <a-input-number
+                v-model:value="rfidConfig.tcpPort"
+                :min="1"
+                :max="65535"
+                addon-before="端口"
+                style="width: 100%"
+              />
+            </template>
+
+            <a-space wrap>
+              <a-button type="primary" @click="connect">连接</a-button>
+              <a-button danger @click="disconnect">断开</a-button>
+              <a-tag :color="connected ? 'green' : 'red'">
+                {{ connected ? '已连接' : '未连接' }}
+              </a-tag>
+            </a-space>
+
+            <a-alert
+              v-if="lastError"
+              :message="lastError"
+              type="error"
+              show-icon
+            />
+          </a-space>
+        </a-card>
+
+        <a-card title="功率与参数">
           <a-space direction="vertical" style="width: 100%">
             <a-input-number
-              v-model:value="antennaCount"
+              v-model:value="rfidConfig.antennaCount"
               :min="1"
               :max="32"
               addon-before="天线数"
               style="width: 100%"
             />
+            <a-button @click="syncDeviceConfig">应用设备配置</a-button>
+
+            <a-divider style="margin: 8px 0" />
+
+            <a-input-number
+              v-model:value="rfidConfig.readWriteIndex"
+              :min="1"
+              :max="32"
+              addon-before="主天线"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="rfidConfig.readWritePower"
+              :min="0"
+              :max="33"
+              addon-before="主功率"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="rfidConfig.otherPower"
+              :min="0"
+              :max="33"
+              addon-before="其他功率"
+              style="width: 100%"
+            />
+            <a-space wrap>
+              <a-button @click="applyPowerConfig">设置功率</a-button>
+              <a-button @click="loadAllPower">读取功率</a-button>
+            </a-space>
+            <a-tag v-if="powerResult.length" color="cyan">
+              {{ powerResult.join(', ') }}
+            </a-tag>
+
+            <a-divider style="margin: 8px 0" />
+
+            <a-input-number
+              v-model:value="rfidConfig.epcBasebandRate"
+              :min="0"
+              :max="255"
+              addon-before="基带速率"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="rfidConfig.defaultQ"
+              :min="0"
+              :max="255"
+              addon-before="默认Q"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="rfidConfig.session"
+              :min="0"
+              :max="255"
+              addon-before="Session"
+              style="width: 100%"
+            />
+            <a-input-number
+              v-model:value="rfidConfig.inventoryFlag"
+              :min="0"
+              :max="255"
+              addon-before="盘存标志"
+              style="width: 100%"
+            />
+            <a-button @click="applyBasebandConfig">配置 EPC 基带参数</a-button>
+          </a-space>
+        </a-card>
+      </div>
+
+      <div class="layout-row layout-row-bottom">
+        <a-card title="盘存测试">
+          <template #extra>
+            <a-tag color="blue">{{ inventoryStatus }}</a-tag>
+          </template>
+          <a-space direction="vertical" style="width: 100%">
             <a-input
-              v-model:value="antsInput"
+              v-model:value="rfidConfig.antsInput"
+              addon-before="天线编号"
               placeholder="天线编号，支持 1 或 1,2,3"
             />
             <a-space wrap>
-              <a-button @click="syncDeviceConfig">应用设备配置</a-button>
               <a-button type="primary" @click="startSingleRead">单次读取</a-button>
               <a-button @click="startContinuousRead">连续读取</a-button>
               <a-button danger @click="stopInventory">停止读取</a-button>
             </a-space>
-            <a-tag color="blue">{{ inventoryStatus }}</a-tag>
             <a-descriptions
               v-if="latestTag"
               bordered
@@ -517,71 +578,6 @@ onUnmounted(() => {
           </a-space>
         </a-card>
 
-        <a-card title="功率与参数">
-          <a-space direction="vertical" style="width: 100%">
-            <a-input-number
-              v-model:value="readWriteIndex"
-              :min="1"
-              :max="32"
-              addon-before="主天线"
-              style="width: 100%"
-            />
-            <a-input-number
-              v-model:value="readWritePower"
-              :min="0"
-              :max="33"
-              addon-before="主功率"
-              style="width: 100%"
-            />
-            <a-input-number
-              v-model:value="otherPower"
-              :min="0"
-              :max="33"
-              addon-before="其他功率"
-              style="width: 100%"
-            />
-            <a-space wrap>
-              <a-button @click="applyPowerConfig">设置功率</a-button>
-              <a-button @click="loadAllPower">读取功率</a-button>
-            </a-space>
-            <a-tag v-if="powerResult.length" color="cyan">
-              {{ powerResult.join(', ') }}
-            </a-tag>
-
-            <a-divider style="margin: 8px 0" />
-
-            <a-input-number
-              v-model:value="epcBasebandRate"
-              :min="0"
-              :max="255"
-              addon-before="基带速率"
-              style="width: 100%"
-            />
-            <a-input-number
-              v-model:value="defaultQ"
-              :min="0"
-              :max="255"
-              addon-before="默认Q"
-              style="width: 100%"
-            />
-            <a-input-number
-              v-model:value="session"
-              :min="0"
-              :max="255"
-              addon-before="Session"
-              style="width: 100%"
-            />
-            <a-input-number
-              v-model:value="inventoryFlag"
-              :min="0"
-              :max="255"
-              addon-before="盘存标志"
-              style="width: 100%"
-            />
-            <a-button @click="applyBasebandConfig">配置 EPC 基带参数</a-button>
-          </a-space>
-        </a-card>
-
         <a-card title="写标签测试">
           <a-space direction="vertical" style="width: 100%">
             <a-alert
@@ -590,30 +586,35 @@ onUnmounted(() => {
               show-icon
             />
             <a-input-number
-              v-model:value="writeAntenna"
+              v-model:value="rfidConfig.writeAntenna"
               :min="1"
               :max="32"
               addon-before="写入天线"
               style="width: 100%"
             />
             <a-input
-              v-model:value="writeTid"
+              v-model:value="rfidConfig.writeTid"
+              addon-before="标签 TID"
               placeholder="标签 TID，HEX"
             />
             <a-input
-              v-model:value="writeEpc"
+              v-model:value="rfidConfig.writeEpc"
+              addon-before="待写 EPC"
               placeholder="待写 EPC，HEX"
             />
             <a-input
-              v-model:value="accessPassword"
+              v-model:value="rfidConfig.accessPassword"
+              addon-before="访问密码"
               placeholder="访问密码，8位HEX"
             />
             <a-input
-              v-model:value="oldAccessPassword"
+              v-model:value="rfidConfig.oldAccessPassword"
+              addon-before="旧访问密码"
               placeholder="旧访问密码，8位HEX，仅首次写入使用"
             />
             <a-input
-              v-model:value="killPassword"
+              v-model:value="rfidConfig.killPassword"
+              addon-before="灭活密码"
               placeholder="灭活密码，8位HEX"
             />
             <a-space wrap>
@@ -623,26 +624,27 @@ onUnmounted(() => {
             </a-space>
           </a-space>
         </a-card>
-      </div>
 
-      <a-card title="原始 HEX 调试">
-        <a-space direction="vertical" style="width: 100%">
-          <a-input
-            v-model:value="rawHex"
-            placeholder="输入原始 HEX 帧"
-          />
-          <a-space wrap>
-            <a-button @click="sendRawHex">发送 HEX</a-button>
-            <a-button danger @click="clearLog">清空日志</a-button>
+        <a-card title="原始 HEX 调试">
+          <a-space direction="vertical" style="width: 100%">
+            <a-input
+              v-model:value="rfidConfig.rawHex"
+              addon-before="原始 HEX"
+              placeholder="输入原始 HEX 帧"
+            />
+            <a-space wrap>
+              <a-button @click="sendRawHex">发送 HEX</a-button>
+              <a-button danger @click="clearLog">清空日志</a-button>
+            </a-space>
+            <a-textarea
+              v-model:value="log"
+              :rows="12"
+              class="log-textarea"
+              placeholder="收发日志"
+            />
           </a-space>
-          <a-textarea
-            v-model:value="log"
-            :rows="12"
-            class="log-textarea"
-            placeholder="收发日志"
-          />
-        </a-space>
-      </a-card>
+        </a-card>
+      </div>
     </a-space>
   </div>
 </template>
@@ -652,14 +654,45 @@ onUnmounted(() => {
   padding: 16px;
 }
 
-.grid {
+.layout-row {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: stretch;
 }
 
-.card-section {
+.layout-row > .ant-card {
+  height: 100%;
+}
+
+.layout-row-top {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.layout-row-bottom {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.serial-port-row {
+  display: flex;
+  gap: 8px;
+}
+
+.serial-port-row :deep(.ant-select) {
+  flex: 1;
   min-width: 0;
+}
+
+@media (max-width: 1200px) {
+  .layout-row-bottom {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .layout-row-top,
+  .layout-row-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .log-textarea :deep(textarea) {

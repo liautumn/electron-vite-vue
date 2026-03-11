@@ -25,7 +25,6 @@ interface SingleResponseOptions<T> {
 
 function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T> {
     const {mid, timeoutMs, timeoutMessage, parsePayload, send} = options
-
     return new Promise<T>((resolve, reject) => {
         const handler = (data: string) => {
             try {

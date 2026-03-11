@@ -361,10 +361,7 @@ async function applyPowerConfig() {
 
 async function loadAllPower() {
   try {
-    let powerLevels: number[] = []
-    await readAllAntOutputPower((data: number[]) => {
-      powerLevels = data
-    })
+    const powerLevels = await readAllAntOutputPower()
     if (powerLevels.length) {
       rfidStore.setConfig({
         antennaCount: powerLevels.length,

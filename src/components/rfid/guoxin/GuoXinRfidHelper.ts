@@ -161,17 +161,16 @@ export async function configPower(powerLevels: number[]): Promise<void> {
     })
 }
 
-export async function readAllAntOutputPower(callback: (data: any) => void): Promise<void> {
+export async function readAllAntOutputPower(): Promise<number[]> {
     // 协议控制字
     params.messageId = 0x02
     const controlWord = generateControlWord(params).hex
     const length = '0000'
     const crc = crc16Ccitt(`${controlWord}${length}`)
     const frame = `5A${controlWord}${length}${crc}`
-    const powerValues = await readAllAntOutputPowerParseFrame(() => {
+    return readAllAntOutputPowerParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
-    callback(powerValues)
 }
 
 // ants 天线数组

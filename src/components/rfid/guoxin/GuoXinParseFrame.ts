@@ -48,10 +48,10 @@ function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T>
 
         function cleanup() {
             clearTimeout(timer)
-            guoxinSingleDevice.off('guoxin_data', handler)
+            guoxinSingleDevice.off('GuoXin_Data', handler)
         }
 
-        guoxinSingleDevice.on('guoxin_data', handler)
+        guoxinSingleDevice.on('GuoXin_Data', handler)
 
         if (send) {
             try {
@@ -133,10 +133,10 @@ export function readEPCParseFrame(
 
     function cleanup() {
         clearTimeout(timer)
-        guoxinSingleDevice.off('guoxin_data', handler)
+        guoxinSingleDevice.off('GuoXin_Data', handler)
     }
 
-    guoxinSingleDevice.on('guoxin_data', handler)
+    guoxinSingleDevice.on('GuoXin_Data', handler)
 
     if (send) {
         try {
@@ -161,19 +161,19 @@ export function readEPCContinuousParseFrame(
         }
     }
 
-    guoxinSingleDevice.on('guoxin_data', handler)
+    guoxinSingleDevice.on('GuoXin_Data', handler)
 
     if (send) {
         try {
             send()
         } catch (error) {
-            guoxinSingleDevice.off('guoxin_data', handler)
+            guoxinSingleDevice.off('GuoXin_Data', handler)
             throw error
         }
     }
 
     return () => {
-        guoxinSingleDevice.off('guoxin_data', handler)
+        guoxinSingleDevice.off('GuoXin_Data', handler)
     }
 }
 

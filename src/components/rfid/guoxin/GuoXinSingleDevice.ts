@@ -2,10 +2,10 @@ import { normalizeHex } from './GuoXinCommon'
 
 export type GuoxinConnectionMode = 'serial' | 'tcp'
 
-type GuoxinEventName = 'guoxin_data'
-type GuoxinDataListener = (data: string) => void
-type GuoxinRawDataListener = (source: GuoxinConnectionMode, data: string) => void
-type GuoxinStatusListener = (state: GuoxinDeviceSnapshot) => void
+type GuoXinEventName = 'GuoXin_Data'
+type GuoXinDataListener = (data: string) => void
+type GuoXinRawDataListener = (source: GuoxinConnectionMode, data: string) => void
+type GuoXinStatusListener = (state: GuoxinDeviceSnapshot) => void
 
 export interface GuoxinDeviceConfig {
   antType?: number
@@ -27,9 +27,9 @@ class GuoXinSingleDevice {
   private antType = 4
   private antStay: number[] = []
   private lastError: string | null = null
-  private commandDataListeners = new Set<GuoxinDataListener>()
-  private rawDataListeners = new Set<GuoxinRawDataListener>()
-  private statusListeners = new Set<GuoxinStatusListener>()
+  private commandDataListeners = new Set<GuoXinDataListener>()
+  private rawDataListeners = new Set<GuoXinRawDataListener>()
+  private statusListeners = new Set<GuoXinStatusListener>()
 
   get ant_type() {
     return this.antType
@@ -67,7 +67,7 @@ class GuoXinSingleDevice {
     }
   }
 
-  subscribeStatus(listener: GuoxinStatusListener) {
+  subscribeStatus(listener: GuoXinStatusListener) {
     this.ensureInitialized()
     this.statusListeners.add(listener)
     listener(this.getSnapshot())
@@ -76,7 +76,7 @@ class GuoXinSingleDevice {
     }
   }
 
-  subscribeRawData(listener: GuoxinRawDataListener) {
+  subscribeRawData(listener: GuoXinRawDataListener) {
     this.ensureInitialized()
     this.rawDataListeners.add(listener)
     return () => {
@@ -134,14 +134,14 @@ class GuoXinSingleDevice {
     void window.tcp.write(payload)
   }
 
-  on(eventName: GuoxinEventName, listener: GuoxinDataListener) {
+  on(eventName: GuoXinEventName, listener: GuoXinDataListener) {
     this.ensureInitialized()
-    if (eventName !== 'guoxin_data') return
+    if (eventName !== 'GuoXin_Data') return
     this.commandDataListeners.add(listener)
   }
 
-  off(eventName: GuoxinEventName, listener?: GuoxinDataListener) {
-    if (eventName !== 'guoxin_data') return
+  off(eventName: GuoXinEventName, listener?: GuoXinDataListener) {
+    if (eventName !== 'GuoXin_Data') return
     if (listener) {
       this.commandDataListeners.delete(listener)
       return

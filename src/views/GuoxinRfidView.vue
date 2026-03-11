@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { storeToRefs } from 'pinia'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { message } from 'ant-design-vue'
-import { guoxinSingleDevice, type GuoxinConnectionMode } from '../components/rfid/guoxin/GuoxinSingleDevice'
-import type { IRFIDTagReadMessage } from '../components/rfid/guoxin/CommonUtil'
-import { normalizeHex } from '../components/rfid/guoxin/CommonUtil'
+import {storeToRefs} from 'pinia'
+import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
+import {message} from 'ant-design-vue'
+import {guoxinSingleDevice, type GuoxinConnectionMode} from '../components/rfid/guoxin/GuoXinSingleDevice'
+import type {IRFIDTagReadMessage} from '../components/rfid/guoxin/GuoXinCommon'
+import {normalizeHex} from '../components/rfid/guoxin/GuoXinCommon'
 import {
   configEPCBasebandParam,
   configPower,
@@ -14,10 +14,10 @@ import {
   stopReadEPC,
   writeEPC,
   writeEPCFirstTime
-} from '../components/rfid/guoxin/RfidHelperNew'
-import { useGuoxinRfidStore, type GuoxinRfidConfig } from '../stores/guoxinRfid'
+} from '../components/rfid/guoxin/GuoXinRfidHelper'
+import {useGuoxinRfidStore, type GuoxinRfidConfig} from '../stores/guoxinRfid'
 
-defineOptions({ name: 'guoxin-rfid-demo' })
+defineOptions({name: 'guoxin-rfid-demo'})
 
 type ModeOption = {
   label: string
@@ -27,12 +27,12 @@ type ModeOption = {
 const snapshot = guoxinSingleDevice.getSnapshot()
 
 const modeOptions: ModeOption[] = [
-  { label: 'RS232', value: 'serial' },
-  { label: 'TCP', value: 'tcp' }
+  {label: 'RS232', value: 'serial'},
+  {label: 'TCP', value: 'tcp'}
 ]
 
 const rfidStore = useGuoxinRfidStore()
-const { config: rfidConfig } = storeToRefs(rfidStore)
+const {config: rfidConfig} = storeToRefs(rfidStore)
 
 if (snapshot.connected) {
   rfidStore.setConfig({
@@ -43,20 +43,22 @@ if (snapshot.connected) {
 
 const connected = ref(snapshot.connected)
 const lastError = ref(snapshot.lastError ?? '')
-const serialOptions = ref<{ label: string; value: string }[]>([{ label: '请选择串口', value: '' }])
+const serialOptions = ref<{ label: string; value: string }[]>([{label: '请选择串口', value: ''}])
 const inventoryStatus = ref('空闲')
 const latestTag = ref<IRFIDTagReadMessage | null>(null)
 const powerResult = ref<number[]>([])
 const log = ref('')
 
 let stopContinuousRead: null | (() => void) = null
-let disposeStatusListener = () => {}
-let disposeRawListener = () => {}
+let disposeStatusListener = () => {
+}
+let disposeRawListener = () => {
+}
 
 const isSerial = computed(() => rfidConfig.value.mode === 'serial')
 
 function appendLog(messageText: string) {
-  const stamp = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+  const stamp = new Date().toLocaleTimeString('zh-CN', {hour12: false})
   log.value += `[${stamp}] ${messageText}\n`
 }
 
@@ -80,9 +82,9 @@ function requireHexValue(input: string, label: string, exactLength?: number) {
 
 function parseAntennas(input: string) {
   const ants = input
-    .split(/[,\s，]+/)
-    .map((item) => Number(item))
-    .filter((item) => Number.isInteger(item) && item > 0)
+      .split(/[,\s，]+/)
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0)
 
   if (!ants.length) {
     throw new Error('请填写有效天线编号，例如 1 或 1,2')
@@ -104,7 +106,7 @@ function handleTagData(data: IRFIDTagReadMessage | null) {
 }
 
 async function refreshPorts() {
-  serialOptions.value = [{ label: '请选择串口', value: '' }]
+  serialOptions.value = [{label: '请选择串口', value: ''}]
   try {
     const ports = await window.serial.list()
     ports.forEach((item: any) => {
@@ -267,7 +269,7 @@ async function firstWriteTag() {
       killPassword: requireHexValue(rfidConfig.value.killPassword, '灭活密码', 8),
       onProgress: appendLog
     })
-    rfidStore.setConfig({ oldAccessPassword: payload.accessPassword })
+    rfidStore.setConfig({oldAccessPassword: payload.accessPassword})
     appendLog('首次写入完成')
     message.success('首次写入完成')
   } catch (error) {
@@ -283,10 +285,10 @@ async function rewriteTag() {
     await prepareWriteMode()
     const payload = buildWritePayload()
     await writeEPC(
-      [payload.antenna],
-      payload.epc,
-      payload.tid,
-      payload.accessPassword
+        [payload.antenna],
+        payload.epc,
+        payload.tid,
+        payload.accessPassword
     )
     appendLog('再次写入成功')
     message.success('再次写入成功')
@@ -301,12 +303,12 @@ async function applyPowerConfig() {
   try {
     syncDeviceConfig()
     await configPower(
-      rfidConfig.value.readWriteIndex,
-      rfidConfig.value.readWritePower,
-      rfidConfig.value.otherPower
+        rfidConfig.value.readWriteIndex,
+        rfidConfig.value.readWritePower,
+        rfidConfig.value.otherPower
     )
     appendLog(
-      `设置功率完成: 主天线=${rfidConfig.value.readWriteIndex}, 主功率=${rfidConfig.value.readWritePower}, 其他功率=${rfidConfig.value.otherPower}`
+        `设置功率完成: 主天线=${rfidConfig.value.readWriteIndex}, 主功率=${rfidConfig.value.readWritePower}, 其他功率=${rfidConfig.value.otherPower}`
     )
     message.success('功率配置成功')
   } catch (error) {
@@ -332,10 +334,10 @@ async function loadAllPower() {
 async function applyBasebandConfig() {
   try {
     await configEPCBasebandParam(
-      rfidConfig.value.epcBasebandRate,
-      rfidConfig.value.defaultQ,
-      rfidConfig.value.session,
-      rfidConfig.value.inventoryFlag
+        rfidConfig.value.epcBasebandRate,
+        rfidConfig.value.defaultQ,
+        rfidConfig.value.session,
+        rfidConfig.value.inventoryFlag
     )
     appendLog('EPC 基带参数配置成功')
     message.success('EPC 基带参数配置成功')
@@ -409,35 +411,35 @@ onUnmounted(() => {
       <div class="layout-row layout-row-top">
         <a-card title="连接与设备">
           <a-space direction="vertical" style="width: 100%">
-            <a-segmented v-model:value="rfidConfig.mode" :options="modeOptions" />
+            <a-segmented v-model:value="rfidConfig.mode" :options="modeOptions"/>
 
             <template v-if="isSerial">
               <div class="serial-port-row">
                 <a-select
-                  v-model:value="rfidConfig.portPath"
-                  :options="serialOptions"
-                  placeholder="选择串口"
-                  style="width: 100%"
+                    v-model:value="rfidConfig.portPath"
+                    :options="serialOptions"
+                    placeholder="选择串口"
+                    style="width: 100%"
                 />
                 <a-button @click="refreshPorts">刷新串口</a-button>
               </div>
               <a-input-number
-                v-model:value="rfidConfig.baudRate"
-                :min="300"
-                :step="300"
-                addon-before="波特率"
-                style="width: 100%"
+                  v-model:value="rfidConfig.baudRate"
+                  :min="300"
+                  :step="300"
+                  addon-before="波特率"
+                  style="width: 100%"
               />
             </template>
 
             <template v-else>
-              <a-input v-model:value="rfidConfig.host" addon-before="TCP 地址" placeholder="TCP 地址" />
+              <a-input v-model:value="rfidConfig.host" addon-before="TCP 地址" placeholder="TCP 地址"/>
               <a-input-number
-                v-model:value="rfidConfig.tcpPort"
-                :min="1"
-                :max="65535"
-                addon-before="端口"
-                style="width: 100%"
+                  v-model:value="rfidConfig.tcpPort"
+                  :min="1"
+                  :max="65535"
+                  addon-before="端口"
+                  style="width: 100%"
               />
             </template>
 
@@ -450,10 +452,10 @@ onUnmounted(() => {
             </a-space>
 
             <a-alert
-              v-if="lastError"
-              :message="lastError"
-              type="error"
-              show-icon
+                v-if="lastError"
+                :message="lastError"
+                type="error"
+                show-icon
             />
           </a-space>
         </a-card>
@@ -461,36 +463,36 @@ onUnmounted(() => {
         <a-card title="功率与参数">
           <a-space direction="vertical" style="width: 100%">
             <a-input-number
-              v-model:value="rfidConfig.antennaCount"
-              :min="1"
-              :max="32"
-              addon-before="天线数"
-              style="width: 100%"
+                v-model:value="rfidConfig.antennaCount"
+                :min="1"
+                :max="32"
+                addon-before="天线数"
+                style="width: 100%"
             />
             <a-button @click="syncDeviceConfig">应用设备配置</a-button>
 
-            <a-divider style="margin: 8px 0" />
+            <a-divider style="margin: 8px 0"/>
 
             <a-input-number
-              v-model:value="rfidConfig.readWriteIndex"
-              :min="1"
-              :max="32"
-              addon-before="主天线"
-              style="width: 100%"
+                v-model:value="rfidConfig.readWriteIndex"
+                :min="1"
+                :max="32"
+                addon-before="主天线"
+                style="width: 100%"
             />
             <a-input-number
-              v-model:value="rfidConfig.readWritePower"
-              :min="0"
-              :max="33"
-              addon-before="主功率"
-              style="width: 100%"
+                v-model:value="rfidConfig.readWritePower"
+                :min="0"
+                :max="33"
+                addon-before="主功率"
+                style="width: 100%"
             />
             <a-input-number
-              v-model:value="rfidConfig.otherPower"
-              :min="0"
-              :max="33"
-              addon-before="其他功率"
-              style="width: 100%"
+                v-model:value="rfidConfig.otherPower"
+                :min="0"
+                :max="33"
+                addon-before="其他功率"
+                style="width: 100%"
             />
             <a-space wrap>
               <a-button @click="applyPowerConfig">设置功率</a-button>
@@ -500,35 +502,35 @@ onUnmounted(() => {
               {{ powerResult.join(', ') }}
             </a-tag>
 
-            <a-divider style="margin: 8px 0" />
+            <a-divider style="margin: 8px 0"/>
 
             <a-input-number
-              v-model:value="rfidConfig.epcBasebandRate"
-              :min="0"
-              :max="255"
-              addon-before="基带速率"
-              style="width: 100%"
+                v-model:value="rfidConfig.epcBasebandRate"
+                :min="0"
+                :max="255"
+                addon-before="基带速率"
+                style="width: 100%"
             />
             <a-input-number
-              v-model:value="rfidConfig.defaultQ"
-              :min="0"
-              :max="255"
-              addon-before="默认Q"
-              style="width: 100%"
+                v-model:value="rfidConfig.defaultQ"
+                :min="0"
+                :max="255"
+                addon-before="默认Q"
+                style="width: 100%"
             />
             <a-input-number
-              v-model:value="rfidConfig.session"
-              :min="0"
-              :max="255"
-              addon-before="Session"
-              style="width: 100%"
+                v-model:value="rfidConfig.session"
+                :min="0"
+                :max="255"
+                addon-before="Session"
+                style="width: 100%"
             />
             <a-input-number
-              v-model:value="rfidConfig.inventoryFlag"
-              :min="0"
-              :max="255"
-              addon-before="盘存标志"
-              style="width: 100%"
+                v-model:value="rfidConfig.inventoryFlag"
+                :min="0"
+                :max="255"
+                addon-before="盘存标志"
+                style="width: 100%"
             />
             <a-button @click="applyBasebandConfig">配置 EPC 基带参数</a-button>
           </a-space>
@@ -542,9 +544,9 @@ onUnmounted(() => {
           </template>
           <a-space direction="vertical" style="width: 100%">
             <a-input
-              v-model:value="rfidConfig.antsInput"
-              addon-before="天线编号"
-              placeholder="天线编号，支持 1 或 1,2,3"
+                v-model:value="rfidConfig.antsInput"
+                addon-before="天线编号"
+                placeholder="天线编号，支持 1 或 1,2,3"
             />
             <a-space wrap>
               <a-button type="primary" @click="startSingleRead">单次读取</a-button>
@@ -552,11 +554,11 @@ onUnmounted(() => {
               <a-button danger @click="stopInventory">停止读取</a-button>
             </a-space>
             <a-descriptions
-              v-if="latestTag"
-              bordered
-              :column="1"
-              size="small"
-              title="最近标签"
+                v-if="latestTag"
+                bordered
+                :column="1"
+                size="small"
+                title="最近标签"
             >
               <a-descriptions-item label="EPC">{{ latestTag.epc }}</a-descriptions-item>
               <a-descriptions-item label="PC">{{ latestTag.pcValue }}</a-descriptions-item>
@@ -574,41 +576,41 @@ onUnmounted(() => {
         <a-card title="写标签测试">
           <a-space direction="vertical" style="width: 100%">
             <a-alert
-              message="首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。"
-              type="info"
-              show-icon
+                message="首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。"
+                type="info"
+                show-icon
             />
             <a-input-number
-              v-model:value="rfidConfig.writeAntenna"
-              :min="1"
-              :max="32"
-              addon-before="写入天线"
-              style="width: 100%"
+                v-model:value="rfidConfig.writeAntenna"
+                :min="1"
+                :max="32"
+                addon-before="写入天线"
+                style="width: 100%"
             />
             <a-input
-              v-model:value="rfidConfig.writeTid"
-              addon-before="标签 TID"
-              placeholder="标签 TID，HEX"
+                v-model:value="rfidConfig.writeTid"
+                addon-before="标签 TID"
+                placeholder="标签 TID，HEX"
             />
             <a-input
-              v-model:value="rfidConfig.writeEpc"
-              addon-before="待写 EPC"
-              placeholder="待写 EPC，HEX"
+                v-model:value="rfidConfig.writeEpc"
+                addon-before="待写 EPC"
+                placeholder="待写 EPC，HEX"
             />
             <a-input
-              v-model:value="rfidConfig.accessPassword"
-              addon-before="访问密码"
-              placeholder="访问密码，8位HEX"
+                v-model:value="rfidConfig.accessPassword"
+                addon-before="访问密码"
+                placeholder="访问密码，8位HEX"
             />
             <a-input
-              v-model:value="rfidConfig.oldAccessPassword"
-              addon-before="旧访问密码"
-              placeholder="旧访问密码，8位HEX，仅首次写入使用"
+                v-model:value="rfidConfig.oldAccessPassword"
+                addon-before="旧访问密码"
+                placeholder="旧访问密码，8位HEX，仅首次写入使用"
             />
             <a-input
-              v-model:value="rfidConfig.killPassword"
-              addon-before="灭活密码"
-              placeholder="灭活密码，8位HEX"
+                v-model:value="rfidConfig.killPassword"
+                addon-before="灭活密码"
+                placeholder="灭活密码，8位HEX"
             />
             <a-space wrap>
               <a-button @click="useLatestTagForWrite">带入最近标签</a-button>
@@ -621,19 +623,19 @@ onUnmounted(() => {
         <a-card title="原始 HEX 调试">
           <a-space direction="vertical" style="width: 100%">
             <a-input
-              v-model:value="rfidConfig.rawHex"
-              addon-before="原始 HEX"
-              placeholder="输入原始 HEX 帧"
+                v-model:value="rfidConfig.rawHex"
+                addon-before="原始 HEX"
+                placeholder="输入原始 HEX 帧"
             />
             <a-space wrap>
               <a-button @click="sendRawHex">发送 HEX</a-button>
               <a-button danger @click="clearLog">清空日志</a-button>
             </a-space>
             <a-textarea
-              v-model:value="log"
-              :rows="12"
-              class="log-textarea"
-              placeholder="收发日志"
+                v-model:value="log"
+                :rows="12"
+                class="log-textarea"
+                placeholder="收发日志"
             />
           </a-space>
         </a-card>

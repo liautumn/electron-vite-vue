@@ -1,4 +1,4 @@
-import {guoxinSingleDevice} from './GuoxinSingleDevice'
+import {guoxinSingleDevice} from './GuoXinSingleDevice'
 import {
     antsToHexMask,
     calcMatchBitLength,
@@ -8,7 +8,7 @@ import {
     ControlWordParams,
     generateControlWord,
     crc16Ccitt
-} from './CommonUtil'
+} from './GuoXinCommon'
 import {
     configPowerParseFrame,
     configEPCBasebandParamParseFrame,
@@ -19,7 +19,7 @@ import {
     stopReadEPCParseFrame,
     updateEPCPasswordParseFrame,
     writeEPCParseFrame
-} from './ParseFrame'
+} from './GuoXinParseFrame'
 
 const params: ControlWordParams = {
     protocolType: 0,

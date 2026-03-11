@@ -8,9 +8,9 @@ import {
   IRFIDTagReadMessage,
   parseEPCMessage,
   parseFrame
-} from './CommonUtil'
+} from './GuoXinCommon'
 
-import {guoxinSingleDevice} from './GuoxinSingleDevice'
+import {guoxinSingleDevice} from './GuoXinSingleDevice'
 
 type SendAction = () => void
 
@@ -48,10 +48,10 @@ function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T>
 
     function cleanup() {
       clearTimeout(timer)
-      guoxinSingleDevice.off('data_new', handler)
+      guoxinSingleDevice.off('guoxin_data', handler)
     }
 
-    guoxinSingleDevice.on('data_new', handler)
+    guoxinSingleDevice.on('guoxin_data', handler)
 
     if (send) {
       try {
@@ -133,10 +133,10 @@ export function readEPCParseFrame(
 
     function cleanup() {
         clearTimeout(timer)
-        guoxinSingleDevice.off('data_new', handler)
+        guoxinSingleDevice.off('guoxin_data', handler)
     }
 
-    guoxinSingleDevice.on('data_new', handler)
+    guoxinSingleDevice.on('guoxin_data', handler)
 
     if (send) {
         try {
@@ -161,19 +161,19 @@ export function readEPCContinuousParseFrame(
         }
     }
 
-    guoxinSingleDevice.on('data_new', handler)
+    guoxinSingleDevice.on('guoxin_data', handler)
 
     if (send) {
         try {
             send()
         } catch (error) {
-            guoxinSingleDevice.off('data_new', handler)
+            guoxinSingleDevice.off('guoxin_data', handler)
             throw error
         }
     }
 
     return () => {
-        guoxinSingleDevice.off('data_new', handler)
+        guoxinSingleDevice.off('guoxin_data', handler)
     }
 }
 

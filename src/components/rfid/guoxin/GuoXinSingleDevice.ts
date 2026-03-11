@@ -1,8 +1,8 @@
-import { normalizeHex } from './CommonUtil'
+import { normalizeHex } from './GuoXinCommon'
 
 export type GuoxinConnectionMode = 'serial' | 'tcp'
 
-type GuoxinEventName = 'data_new'
+type GuoxinEventName = 'guoxin_data'
 type GuoxinDataListener = (data: string) => void
 type GuoxinRawDataListener = (source: GuoxinConnectionMode, data: string) => void
 type GuoxinStatusListener = (state: GuoxinDeviceSnapshot) => void
@@ -20,7 +20,7 @@ export interface GuoxinDeviceSnapshot {
   lastError: string | null
 }
 
-class GuoxinSingleDevice {
+class GuoXinSingleDevice {
   private initialized = false
   private mode: GuoxinConnectionMode = 'tcp'
   private connected = false
@@ -136,12 +136,12 @@ class GuoxinSingleDevice {
 
   on(eventName: GuoxinEventName, listener: GuoxinDataListener) {
     this.ensureInitialized()
-    if (eventName !== 'data_new') return
+    if (eventName !== 'guoxin_data') return
     this.commandDataListeners.add(listener)
   }
 
   off(eventName: GuoxinEventName, listener?: GuoxinDataListener) {
-    if (eventName !== 'data_new') return
+    if (eventName !== 'guoxin_data') return
     if (listener) {
       this.commandDataListeners.delete(listener)
       return
@@ -219,4 +219,4 @@ class GuoxinSingleDevice {
   }
 }
 
-export const guoxinSingleDevice = new GuoxinSingleDevice()
+export const guoxinSingleDevice = new GuoXinSingleDevice()

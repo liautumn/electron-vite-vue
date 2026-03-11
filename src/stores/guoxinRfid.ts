@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { GuoxinConnectionMode } from '../components/rfid/guoxin/GuoxinSingleDevice'
+import type { GuoxinConnectionMode } from '../components/rfid/guoxin/GuoXinSingleDevice'
 
 export type GuoxinRfidConfig = {
   mode: GuoxinConnectionMode

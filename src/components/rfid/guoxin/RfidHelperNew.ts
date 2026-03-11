@@ -95,35 +95,38 @@ export function readEPC(
 }
 
 export function readEPCContinuous(ants: number[], callback: (data: any) => void) {
-    // 协议控制字
-    params.messageId = 0x10
-    const controlWord = generateControlWord(params).hex
-    // 动态生成 ants（4 字节）
-    const antMask = antsToHexMask(ants)
-    const isConti = '01' //连续读取
-    const data = normalizeHex(`${antMask} ${isConti} 02 00 06`)
-    const length = calculateDataLength(data, 4).hexLength
-    const crc = crc16Ccitt(`${controlWord}${length}${data}`)
-    const frame = `5A${controlWord}${length}${data}${crc}`
-    return readEPCContinuousParseFrame(
-        (data: IRFIDTagReadMessage | null) => {
-            callback(data)
-        },
-        () => {
-            guoxinSingleDevice.sendMessageNew(frame)
-        }
-    )
+    try {
+        // 协议控制字
+        params.messageId = 0x10
+        const controlWord = generateControlWord(params).hex
+        // 动态生成 ants（4 字节）
+        const antMask = antsToHexMask(ants)
+        const isConti = '01' //连续读取
+        const data = normalizeHex(`${antMask} ${isConti} 02 00 06`)
+        const length = calculateDataLength(data, 4).hexLength
+        const crc = crc16Ccitt(`${controlWord}${length}${data}`)
+        const frame = `5A${controlWord}${length}${data}${crc}`
+        return readEPCContinuousParseFrame(
+            (data: IRFIDTagReadMessage | null) => {
+                callback(data)
+            },
+            () => {
+                guoxinSingleDevice.sendMessageNew(frame)
+            }
+        )
+    } catch (error) {
+        throw new Error(`readEPCContinuous error: ${error}`)
+    }
 }
 
-export async function stopReadEPC() {
-    await Promise.resolve()
+export async function stopReadEPC(): Promise<void> {
     // 协议控制字
     params.messageId = 0xff
     const controlWord = generateControlWord(params).hex
     const length = '0000'
     const crc = crc16Ccitt(`${controlWord}${length}`)
     const frame = `5A${controlWord}${length}${crc}`
-    return await stopReadEPCParseFrame(() => {
+    return stopReadEPCParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
 }
@@ -138,8 +141,7 @@ export async function configPower(
     readWriteIndex: number,
     readWritePower: number,
     otherPower: number
-) {
-    await Promise.resolve()
+): Promise<void> {
     // 协议控制字
     params.messageId = 0x01
     const controlWord = generateControlWord(params).hex
@@ -153,23 +155,22 @@ export async function configPower(
     const length = calculateDataLength(result, 4).hexLength
     const crc = crc16Ccitt(`${controlWord}${length}${result}`)
     const frame = `5A${controlWord}${length}${result}${crc}`
-    return await configPowerParseFrame(() => {
+    return configPowerParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
 }
 
-export async function readAllAntOutputPower(callback: (data: any) => void) {
-    await Promise.resolve()
+export async function readAllAntOutputPower(callback: (data: any) => void): Promise<void> {
     // 协议控制字
     params.messageId = 0x02
     const controlWord = generateControlWord(params).hex
     const length = '0000'
     const crc = crc16Ccitt(`${controlWord}${length}`)
     const frame = `5A${controlWord}${length}${crc}`
-    const data_1 = await readAllAntOutputPowerParseFrame(() => {
+    const powerValues = await readAllAntOutputPowerParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
-    callback(data_1)
+    callback(powerValues)
 }
 
 // ants 天线数组
@@ -184,13 +185,12 @@ export async function lockRfid(
     tid: string,
     accessPassword: string
 ): Promise<void> {
-    await Promise.resolve()
     // 协议控制字
     params.messageId = 0x12
     const controlWord = generateControlWord(params).hex
-    const antMask = antsToHexMask(ants); //天线
-    const lockType1 = lockType.toString(16).padStart(2, '0').toUpperCase(); //类型
-    const lockGoal1 = lockGoal.toString(16).padStart(2, '0').toUpperCase(); //lockGoal
+    const antMask = antsToHexMask(ants) //天线
+    const lockType1 = lockType.toString(16).padStart(2, '0').toUpperCase() //类型
+    const lockGoal1 = lockGoal.toString(16).padStart(2, '0').toUpperCase() //lockGoal
     const tidLength = calcMatchBitLength(tid).hexField
     const data1 = normalizeHex(`02 0000 ${tidLength} ${tid}`)
     const data1Length = calculateDataLength(data1, 4).hexLength
@@ -201,7 +201,7 @@ export async function lockRfid(
     const crc = crc16Ccitt(`${controlWord}${length}${data}`)
     const frame = `5A${controlWord}${length}${data}${crc}`
     console.log('lockRfid: ', frame)
-    return await lockRfidParseFrame(() => {
+    return lockRfidParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
 }
@@ -215,11 +215,10 @@ export async function writeEPC(
     tid: string,
     accessPassword: string
 ): Promise<void> {
-    await Promise.resolve()
     // 协议控制字
     params.messageId = 0x11
     const controlWord = generateControlWord(params).hex
-    const antsMask = antsToHexMask(ants); //天线
+    const antsMask = antsToHexMask(ants) //天线
     const newDataLength = calculateDataLength(`3400${newData}`, 4).hexLength
     const tidLength = calcMatchBitLength(tid).hexField
     const data2 = normalizeHex(`02 0000 ${tidLength} ${tid}`)
@@ -231,7 +230,7 @@ export async function writeEPC(
     const crc = crc16Ccitt(`${controlWord}${length}${data}`)
     const frame = `5A${controlWord}${length}${data}${crc}`
     console.log('writeEPC: ', frame)
-    return await writeEPCParseFrame(() => {
+    return writeEPCParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
 }
@@ -247,11 +246,10 @@ export async function updateEPCPassword(
     oldAccessPassword: string,
     tid: string
 ): Promise<void> {
-    await Promise.resolve()
     // 协议控制字
     params.messageId = 0x11
     const controlWord = generateControlWord(params).hex
-    const antMask = antsToHexMask(ants); //天线
+    const antMask = antsToHexMask(ants) //天线
     const reserverLength = calculateDataLength(`${killPassword}${accessPassword}`, 4).hexLength
     const tidLength = calcMatchBitLength(tid).hexField
     const data2 = `02 0000 ${tidLength} ${tid}`.replace(/\s+/g, '')
@@ -263,7 +261,7 @@ export async function updateEPCPassword(
     const crc = crc16Ccitt(`${controlWord}${length}${data}`)
     const frame = `5A${controlWord}${length}${data}${crc}`
     console.log('updateEPCPassword: ', frame)
-    return await updateEPCPasswordParseFrame(() => {
+    return updateEPCPasswordParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
 }
@@ -310,8 +308,7 @@ export async function configEPCBasebandParam(
     session: number = 0x02,
     inventoryFlag: number = 0x00
 ): Promise<void> {
-    await Promise.resolve()
-    const toHexByte = (value_2: number) => value_2.toString(16).padStart(2, '0').toUpperCase()
+    const toHexByte = (value: number) => value.toString(16).padStart(2, '0').toUpperCase()
     // 协议控制字
     params.messageId = 0x0b
     const controlWord = generateControlWord(params).hex
@@ -322,7 +319,7 @@ export async function configEPCBasebandParam(
     const crc = crc16Ccitt(`${controlWord}${length}${data}`)
     const frame = `5A${controlWord}${length}${data}${crc}`
     console.log('configEPCBasebandParam: ', frame)
-    return await configEPCBasebandParamParseFrame(() => {
+    return configEPCBasebandParamParseFrame(() => {
         guoxinSingleDevice.sendMessageNew(frame)
     })
 }

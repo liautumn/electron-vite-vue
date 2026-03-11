@@ -22,7 +22,7 @@ interface SingleResponseOptions<T> {
   send?: SendAction
 }
 
-function waitForSingleResponse<T>(options: SingleResponseOptions<T>) {
+function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T> {
   const {mid, timeoutMs, timeoutMessage, parsePayload, send} = options
 
   return new Promise<T>((resolve, reject) => {
@@ -64,7 +64,7 @@ function waitForSingleResponse<T>(options: SingleResponseOptions<T>) {
   })
 }
 
-export function configPowerParseFrame(send?: SendAction) {
+export function configPowerParseFrame(send?: SendAction): Promise<void> {
   return waitForSingleResponse<void>({
     mid: '0x01',
     timeoutMs: 3000,
@@ -78,7 +78,7 @@ export function configPowerParseFrame(send?: SendAction) {
   })
 }
 
-export function stopReadEPCParseFrame(send?: SendAction) {
+export function stopReadEPCParseFrame(send?: SendAction): Promise<void> {
   return waitForSingleResponse<void>({
     mid: '0xFF',
     timeoutMs: 3000,
@@ -177,7 +177,7 @@ export function readEPCContinuousParseFrame(
     }
 }
 
-export function lockRfidParseFrame(send?: SendAction) {
+export function lockRfidParseFrame(send?: SendAction): Promise<void> {
     return waitForSingleResponse<void>({
         mid: '0x12',
         timeoutMs: 3000,
@@ -192,7 +192,7 @@ export function lockRfidParseFrame(send?: SendAction) {
     })
 }
 
-export function writeEPCParseFrame(send?: SendAction) {
+export function writeEPCParseFrame(send?: SendAction): Promise<void> {
     return waitForSingleResponse<void>({
         mid: '0x11',
         timeoutMs: 3000,
@@ -207,7 +207,7 @@ export function writeEPCParseFrame(send?: SendAction) {
     })
 }
 
-export function updateEPCPasswordParseFrame(send?: SendAction) {
+export function updateEPCPasswordParseFrame(send?: SendAction): Promise<void> {
     return waitForSingleResponse<void>({
         mid: '0x11',
         timeoutMs: 3000,
@@ -222,7 +222,7 @@ export function updateEPCPasswordParseFrame(send?: SendAction) {
     })
 }
 
-export function configEPCBasebandParamParseFrame(send?: SendAction) {
+export function configEPCBasebandParamParseFrame(send?: SendAction): Promise<void> {
     return waitForSingleResponse<void>({
         mid: '0x0B',
         timeoutMs: 3000,

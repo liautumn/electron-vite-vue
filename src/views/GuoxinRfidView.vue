@@ -426,6 +426,7 @@ watch(() => rfidConfig.value.mode, async (nextMode, prevMode) => {
 })
 
 watch(() => rfidConfig.value.antennaCount, (nextCount) => {
+  syncDeviceAntNum()
   const antennas = normalizeAntennaSelection(rfidConfig.value.antsInput, nextCount)
   const nextValue = antennas.join(',')
   if (nextValue !== rfidConfig.value.antsInput) {
@@ -520,7 +521,6 @@ onUnmounted(() => {
                 addon-before="天线数"
                 style="width: 100%"
             />
-            <a-button @click="syncDeviceAntNum">应用设备配置</a-button>
 
             <a-divider style="margin: 8px 0"/>
 

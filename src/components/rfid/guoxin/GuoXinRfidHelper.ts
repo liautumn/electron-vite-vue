@@ -115,7 +115,7 @@ export function readEPCContinuous(ants: number[], callback: (data: any) => void)
             }
         )
     } catch (error) {
-        throw new Error(`readEPCContinuous error: ${error}`)
+        throw error
     }
 }
 

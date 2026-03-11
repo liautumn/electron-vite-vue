@@ -67,6 +67,19 @@ const antennaCountModel = computed({
     rfidStore.setConfig({antennaCount: value})
   }
 })
+const inventoryAntennaOptions = computed(() =>
+  Array.from({length: rfidConfig.value.antennaCount}, (_, index) => ({
+    label: `天线${index + 1}`,
+    value: index + 1
+  }))
+)
+const inventoryAntennasModel = computed<number[]>({
+  get: () => normalizeAntennaSelection(rfidConfig.value.antsInput, rfidConfig.value.antennaCount),
+  set: (value) => {
+    const antennas = normalizeAntennaSelection(value, rfidConfig.value.antennaCount)
+    rfidStore.setConfig({antsInput: antennas.join(',')})
+  }
+})
 
 function appendLog(messageText: string) {
   const stamp = new Date().toLocaleTimeString('zh-CN', {hour12: false})
@@ -100,17 +113,23 @@ function requireHexValue(input: string, label: string, exactLength?: number) {
   return value
 }
 
-function parseAntennas(input: string) {
-  const ants = input
-      .split(/[,\s，]+/)
-      .map((item) => Number(item))
-      .filter((item) => Number.isInteger(item) && item > 0)
+function normalizeAntennaSelection(input: string | number[], antennaCount = Number.POSITIVE_INFINITY) {
+  const rawValues = Array.isArray(input) ? input : input.split(/[,\s，]+/)
 
+  return [...new Set(
+    rawValues
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0 && item <= antennaCount)
+  )]
+}
+
+function parseAntennas(input: string, antennaCount = Number.POSITIVE_INFINITY) {
+  const ants = normalizeAntennaSelection(input, antennaCount)
   if (!ants.length) {
-    throw new Error('请填写有效天线编号，例如 1 或 1,2')
+    throw new Error('请选择至少一个有效天线')
   }
 
-  return [...new Set(ants)]
+  return ants
 }
 
 function syncDeviceConfig() {
@@ -194,7 +213,8 @@ async function startSingleRead() {
   try {
     syncDeviceConfig()
     inventoryStatus.value = '单次读取中'
-    const reason = await readEPC(parseAntennas(rfidConfig.value.antsInput), handleTagData)
+    const antennas = parseAntennas(rfidConfig.value.antsInput, rfidConfig.value.antennaCount)
+    const reason = await readEPC(antennas, handleTagData)
     inventoryStatus.value = reason ?? '单次读取完成'
     appendLog(`单次读取结束: ${inventoryStatus.value}`)
   } catch (error) {
@@ -209,9 +229,10 @@ function startContinuousRead() {
   try {
     syncDeviceConfig()
     stopContinuousRead?.()
-    stopContinuousRead = readEPCContinuous(parseAntennas(rfidConfig.value.antsInput), handleTagData) ?? null
+    const antennas = parseAntennas(rfidConfig.value.antsInput, rfidConfig.value.antennaCount)
+    stopContinuousRead = readEPCContinuous(antennas, handleTagData) ?? null
     inventoryStatus.value = '连续读取中'
-    appendLog(`开始连续读取: 天线 ${rfidConfig.value.antsInput}`)
+    appendLog(`开始连续读取: 天线 ${antennas.join(',')}`)
   } catch (error) {
     const messageText = resolveError(error)
     inventoryStatus.value = '读取失败'
@@ -409,6 +430,14 @@ watch(() => rfidConfig.value.mode, async (nextMode, prevMode) => {
   }
 })
 
+watch(() => rfidConfig.value.antennaCount, (nextCount) => {
+  const antennas = normalizeAntennaSelection(rfidConfig.value.antsInput, nextCount)
+  const nextValue = antennas.join(',')
+  if (nextValue !== rfidConfig.value.antsInput) {
+    rfidStore.setConfig({antsInput: nextValue})
+  }
+})
+
 onMounted(() => {
   if (rfidConfig.value.mode === 'serial') {
     void refreshPorts()
@@ -549,10 +578,12 @@ onUnmounted(() => {
             <a-tag color="blue">{{ inventoryStatus }}</a-tag>
           </template>
           <a-space direction="vertical" style="width: 100%">
-            <a-input
-                v-model:value="rfidConfig.antsInput"
-                addon-before="天线编号"
-                placeholder="天线编号，支持 1 或 1,2,3"
+            <a-select
+                v-model:value="inventoryAntennasModel"
+                :options="inventoryAntennaOptions"
+                mode="multiple"
+                placeholder="选择盘存天线"
+                style="width: 100%"
             />
             <a-space wrap>
               <a-button type="primary" @click="startSingleRead">单次读取</a-button>

@@ -7,16 +7,10 @@ type GuoXinDataListener = (data: string) => void
 type GuoXinRawDataListener = (source: GuoxinConnectionMode, data: string) => void
 type GuoXinStatusListener = (state: GuoxinDeviceSnapshot) => void
 
-export interface GuoxinDeviceConfig {
-  antType?: number
-  antStay?: number[]
-}
-
 export interface GuoxinDeviceSnapshot {
   mode: GuoxinConnectionMode
   connected: boolean
-  antType: number
-  antStay: number[]
+  antNum: number
   lastError: string | null
 }
 
@@ -24,9 +18,10 @@ class GuoXinSingleDevice {
   private initialized = false
   private mode: GuoxinConnectionMode = 'tcp'
   private connected = false
-  private antType = 4
-  private antStay: number[] = []
+  // Cache the antenna count selected in the UI so helper methods can build per-antenna commands.
+  private antNumValue = 4
   private lastError: string | null = null
+  // Serial/TCP can both deliver partial frames, so each transport keeps its own RX buffer.
   private rxBuffers: Record<GuoxinConnectionMode, string> = {
     serial: '',
     tcp: ''
@@ -35,12 +30,8 @@ class GuoXinSingleDevice {
   private rawDataListeners = new Set<GuoXinRawDataListener>()
   private statusListeners = new Set<GuoXinStatusListener>()
 
-  get ant_type() {
-    return this.antType
-  }
-
-  get ant_stay() {
-    return this.antStay
+  get antNum() {
+    return this.antNumValue
   }
 
   get currentMode() {
@@ -51,13 +42,16 @@ class GuoXinSingleDevice {
     return this.connected
   }
 
-  configure(config: GuoxinDeviceConfig) {
-    if (typeof config.antType === 'number') {
-      this.antType = config.antType
+  setAntNum(antNum: number) {
+    if (!Number.isInteger(antNum) || antNum <= 0) {
+      throw new Error('天线数量必须是大于 0 的整数')
     }
-    if (Array.isArray(config.antStay)) {
-      this.antStay = [...config.antStay]
+
+    if (this.antNumValue === antNum) {
+      return
     }
+
+    this.antNumValue = antNum
     this.emitStatus()
   }
 
@@ -65,8 +59,7 @@ class GuoXinSingleDevice {
     return {
       mode: this.mode,
       connected: this.connected,
-      antType: this.antType,
-      antStay: [...this.antStay],
+      antNum: this.antNumValue,
       lastError: this.lastError
     }
   }
@@ -232,13 +225,13 @@ class GuoXinSingleDevice {
     })
   }
 
-  private handleNewRx(source: GuoxinConnectionMode, data: string) {
+  private handleNewRx(source: GuoxinConnectionMode, data: string): string[] {
     const normalized = normalizeHex(String(data ?? ''))
     if (!normalized) {
       return []
     }
 
-    // Serial/TCP may split or merge protocol frames, so reassemble before dispatch.
+    // Reassemble complete protocol frames before business parsers see the payload.
     let buffer = (this.rxBuffers[source] || '') + normalized
     const frames: string[] = []
 

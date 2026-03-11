@@ -37,7 +37,7 @@ const {config: rfidConfig} = storeToRefs(rfidStore)
 if (snapshot.connected) {
   rfidStore.setConfig({
     mode: snapshot.mode,
-    antennaCount: snapshot.antType
+    antennaCount: snapshot.antNum
   })
 }
 
@@ -132,10 +132,8 @@ function parseAntennas(input: string, antennaCount = Number.POSITIVE_INFINITY) {
   return ants
 }
 
-function syncDeviceConfig() {
-  guoxinSingleDevice.configure({
-    antType: rfidConfig.value.antennaCount
-  })
+function syncDeviceAntNum() {
+  guoxinSingleDevice.setAntNum(rfidConfig.value.antennaCount)
 }
 
 function handleTagData(data: IRFIDTagReadMessage | null) {
@@ -164,7 +162,7 @@ async function refreshPorts() {
 
 async function connect() {
   try {
-    syncDeviceConfig()
+    syncDeviceAntNum()
     guoxinSingleDevice.setMode(rfidConfig.value.mode)
 
     if (isSerial.value) {
@@ -211,7 +209,7 @@ async function disconnect() {
 
 async function startSingleRead() {
   try {
-    syncDeviceConfig()
+    syncDeviceAntNum()
     inventoryStatus.value = '单次读取中'
     const antennas = parseAntennas(rfidConfig.value.antsInput, rfidConfig.value.antennaCount)
     const reason = await readEPC(antennas, handleTagData)
@@ -227,7 +225,7 @@ async function startSingleRead() {
 
 function startContinuousRead() {
   try {
-    syncDeviceConfig()
+    syncDeviceAntNum()
     stopContinuousRead?.()
     const antennas = parseAntennas(rfidConfig.value.antsInput, rfidConfig.value.antennaCount)
     stopContinuousRead = readEPCContinuous(antennas, handleTagData) ?? null
@@ -298,7 +296,7 @@ function useLatestTagForWrite() {
 
 async function firstWriteTag() {
   try {
-    syncDeviceConfig()
+    syncDeviceAntNum()
     await prepareWriteMode()
     const payload = buildWritePayload()
     await writeEPCFirstTime({
@@ -322,7 +320,7 @@ async function firstWriteTag() {
 
 async function rewriteTag() {
   try {
-    syncDeviceConfig()
+    syncDeviceAntNum()
     await prepareWriteMode()
     const payload = buildWritePayload()
     await writeEPC(
@@ -343,7 +341,7 @@ async function rewriteTag() {
 async function applyPowerConfig() {
   try {
     powerSubmitting.value = true
-    syncDeviceConfig()
+    syncDeviceAntNum()
     const powerLevels = [...powerEditor.value]
     rfidStore.setConfig({powerLevels})
     await configPower(powerLevels)
@@ -522,7 +520,7 @@ onUnmounted(() => {
                 addon-before="天线数"
                 style="width: 100%"
             />
-            <a-button @click="syncDeviceConfig">应用设备配置</a-button>
+            <a-button @click="syncDeviceAntNum">应用设备配置</a-button>
 
             <a-divider style="margin: 8px 0"/>
 

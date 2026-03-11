@@ -1,13 +1,13 @@
 import {
-  extractPowerValues,
-  getLockResultDesc,
-  getPowerConfigDesc,
-  getReadDesc,
-  getStopReadDesc,
-  getWriteResultDesc,
-  IRFIDTagReadMessage,
-  parseEPCMessage,
-  parseFrame
+    extractPowerValues,
+    getLockResultDesc,
+    getPowerConfigDesc,
+    getReadDesc,
+    getStopReadDesc,
+    getWriteResultDesc,
+    IRFIDTagReadMessage,
+    parseEPCMessage,
+    parseFrame
 } from './GuoXinCommon'
 
 import {guoxinSingleDevice} from './GuoXinSingleDevice'
@@ -15,81 +15,81 @@ import {guoxinSingleDevice} from './GuoXinSingleDevice'
 type SendAction = () => void
 
 interface SingleResponseOptions<T> {
-  mid: string
-  timeoutMs: number
-  timeoutMessage: string
-  parsePayload: (payload: string, rawData: string) => T
-  send?: SendAction
+    mid: string
+    timeoutMs: number
+    timeoutMessage: string
+    parsePayload: (payload: string, rawData: string) => T
+    send?: SendAction
 }
 
 function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T> {
-  const {mid, timeoutMs, timeoutMessage, parsePayload, send} = options
+    const {mid, timeoutMs, timeoutMessage, parsePayload, send} = options
 
-  return new Promise<T>((resolve, reject) => {
-    const handler = (data: string) => {
-      try {
-        const res = parseFrame(data)
-        if (res.mid !== mid) {
-          return
+    return new Promise<T>((resolve, reject) => {
+        const handler = (data: string) => {
+            try {
+                const res = parseFrame(data)
+                if (res.mid !== mid) {
+                    return
+                }
+                cleanup()
+                resolve(parsePayload((res.payload ?? '') as string, data))
+            } catch (error) {
+                cleanup()
+                reject(error instanceof Error ? error : new Error(String(error)))
+            }
         }
-        cleanup()
-        resolve(parsePayload((res.payload ?? '') as string, data))
-      } catch (error) {
-        cleanup()
-        reject(error instanceof Error ? error : new Error(String(error)))
-      }
-    }
 
-    const timer = setTimeout(() => {
-      cleanup()
-      console.warn(timeoutMessage)
-      reject(new Error(timeoutMessage))
-    }, timeoutMs)
+        const timer = setTimeout(() => {
+            cleanup()
+            console.warn(timeoutMessage)
+            reject(new Error(timeoutMessage))
+        }, timeoutMs)
 
-    function cleanup() {
-      clearTimeout(timer)
-      guoxinSingleDevice.off('guoxin_data', handler)
-    }
+        function cleanup() {
+            clearTimeout(timer)
+            guoxinSingleDevice.off('guoxin_data', handler)
+        }
 
-    guoxinSingleDevice.on('guoxin_data', handler)
+        guoxinSingleDevice.on('guoxin_data', handler)
 
-    if (send) {
-      try {
-        send()
-      } catch (error) {
-        cleanup()
-        reject(error instanceof Error ? error : new Error(String(error)))
-      }
-    }
-  })
+        if (send) {
+            try {
+                send()
+            } catch (error) {
+                cleanup()
+                reject(error instanceof Error ? error : new Error(String(error)))
+            }
+        }
+    })
 }
 
 export function configPowerParseFrame(send?: SendAction): Promise<void> {
-  return waitForSingleResponse<void>({
-    mid: '0x01',
-    timeoutMs: 3000,
-    timeoutMessage: 'Timeout waiting for configPowerParseFrame',
-    send,
-    parsePayload: (payload) => {
-      if (payload !== '00') {
-        throw new Error(getPowerConfigDesc(payload))
-      }
-    }
-  })
+    return waitForSingleResponse<void>({
+        mid: '0x01',
+        timeoutMs: 3000,
+        timeoutMessage: 'Timeout waiting for configPowerParseFrame',
+        send,
+        parsePayload: (payload) => {
+            if (payload !== '00') {
+                throw new Error(getPowerConfigDesc(payload))
+            }
+        }
+    })
 }
 
 export function stopReadEPCParseFrame(send?: SendAction): Promise<void> {
-  return waitForSingleResponse<void>({
-    mid: '0xFF',
-    timeoutMs: 3000,
-    timeoutMessage: 'Timeout waiting for stopReadEPCParseFrame',
-    send,
-    parsePayload: (payload) => {
-      if (payload !== '00') {
-        throw new Error(getStopReadDesc(payload))
-      }
-    }
-  })
+    return waitForSingleResponse<void>({
+        mid: '0xFF',
+        timeoutMs: 3000,
+        timeoutMessage: 'Timeout waiting for stopReadEPCParseFrame',
+        send,
+        parsePayload: (payload) => {
+            if (payload !== '00') {
+                throw new Error(getStopReadDesc(payload))
+            }
+        }
+    })
 }
 
 export function readAllAntOutputPowerParseFrame(send?: SendAction) {

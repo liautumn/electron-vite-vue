@@ -148,6 +148,40 @@ export function getLockResultDesc(payload: string): string {
   }
 }
 
+export enum EPCBasebandParamConfigCode {
+  Success = 0x00,
+  UnsupportedBasebandRate = 0x01,
+  InvalidQValue = 0x02,
+  InvalidSession = 0x03,
+  InvalidInventoryFlag = 0x04,
+  OtherParamError = 0x05,
+  SaveFailed = 0x06
+}
+
+export function getEPCBasebandParamConfigDesc(payload: string): string {
+  const cleanPayload = normalizeHex(payload)
+  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as EPCBasebandParamConfigCode
+  switch (code) {
+    case EPCBasebandParamConfigCode.Success:
+      return '配置成功'
+    case EPCBasebandParamConfigCode.UnsupportedBasebandRate:
+      return '读写器不支持的基带速率'
+    case EPCBasebandParamConfigCode.InvalidQValue:
+      return 'Q 值参数错误'
+    case EPCBasebandParamConfigCode.InvalidSession:
+      return 'Session 参数错误'
+    case EPCBasebandParamConfigCode.InvalidInventoryFlag:
+      return '盘存参数错误'
+    case EPCBasebandParamConfigCode.OtherParamError:
+      return '其他参数错误'
+    case EPCBasebandParamConfigCode.SaveFailed:
+      return '保存失败'
+    default:
+      console.warn('未知 EPC 基带参数配置结果:', payload)
+      return '未知 EPC 基带参数配置结果: ' + payload
+  }
+}
+
 export enum StopReadResultCode {
   Success = 0x00,
   SystemError = 0x01

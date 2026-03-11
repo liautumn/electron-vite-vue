@@ -1,9 +1,10 @@
 import {
-    extractPowerValues,
-    getLockResultDesc,
-    getPowerConfigDesc,
-    getReadDesc,
-    getStopReadDesc,
+  extractPowerValues,
+  getEPCBasebandParamConfigDesc,
+  getLockResultDesc,
+  getPowerConfigDesc,
+  getReadDesc,
+  getStopReadDesc,
     getWriteResultDesc,
     IRFIDTagReadMessage,
     parseEPCMessage,
@@ -231,7 +232,7 @@ export function configEPCBasebandParamParseFrame(send?: SendAction): Promise<voi
         parsePayload: (payload, rawData) => {
             console.log('configEPCBasebandParamParseFrame: ', rawData)
             if (payload !== '00') {
-                throw new Error(`EPC 基带参数配置失败: ${payload}`)
+                throw new Error(getEPCBasebandParamConfigDesc(payload))
             }
         }
     })

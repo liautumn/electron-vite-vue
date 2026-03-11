@@ -46,8 +46,10 @@ const lastError = ref(snapshot.lastError ?? '')
 const serialOptions = ref<{ label: string; value: string }[]>([{label: '请选择串口', value: ''}])
 const inventoryStatus = ref('空闲')
 const latestTag = ref<IRFIDTagReadMessage | null>(null)
-const powerResult = ref<number[]>([])
 const log = ref('')
+const powerModalVisible = ref(false)
+const powerSubmitting = ref(false)
+const powerEditor = ref<number[]>([])
 
 let stopContinuousRead: null | (() => void) = null
 let disposeStatusListener = () => {
@@ -56,10 +58,28 @@ let disposeRawListener = () => {
 }
 
 const isSerial = computed(() => rfidConfig.value.mode === 'serial')
+const antennaCountModel = computed({
+  get: () => rfidConfig.value.antennaCount,
+  set: (value) => {
+    if (typeof value !== 'number') {
+      return
+    }
+    rfidStore.setConfig({antennaCount: value})
+  }
+})
 
 function appendLog(messageText: string) {
   const stamp = new Date().toLocaleTimeString('zh-CN', {hour12: false})
   log.value += `[${stamp}] ${messageText}\n`
+}
+
+function formatPowerLevels(powerLevels: number[]) {
+  return powerLevels.map((power, index) => `天线${index + 1}=${power}`).join(', ')
+}
+
+function openPowerConfigModal() {
+  powerEditor.value = [...rfidConfig.value.powerLevels]
+  powerModalVisible.value = true
 }
 
 function resolveError(error: unknown) {
@@ -301,29 +321,36 @@ async function rewriteTag() {
 
 async function applyPowerConfig() {
   try {
+    powerSubmitting.value = true
     syncDeviceConfig()
-    await configPower(
-        rfidConfig.value.readWriteIndex,
-        rfidConfig.value.readWritePower,
-        rfidConfig.value.otherPower
-    )
-    appendLog(
-        `设置功率完成: 主天线=${rfidConfig.value.readWriteIndex}, 主功率=${rfidConfig.value.readWritePower}, 其他功率=${rfidConfig.value.otherPower}`
-    )
+    const powerLevels = [...powerEditor.value]
+    rfidStore.setConfig({powerLevels})
+    await configPower(powerLevels)
+    appendLog(`设置功率完成: ${formatPowerLevels(powerLevels)}`)
+    powerModalVisible.value = false
     message.success('功率配置成功')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`设置功率失败: ${messageText}`)
     message.error(messageText)
+  } finally {
+    powerSubmitting.value = false
   }
 }
 
 async function loadAllPower() {
   try {
+    let powerLevels: number[] = []
     await readAllAntOutputPower((data: number[]) => {
-      powerResult.value = data
+      powerLevels = data
     })
-    appendLog(`读取功率成功: ${powerResult.value.join(', ') || '无数据'}`)
+    if (powerLevels.length) {
+      rfidStore.setConfig({
+        antennaCount: powerLevels.length,
+        powerLevels
+      })
+    }
+    appendLog(`读取功率成功: ${powerLevels.length ? formatPowerLevels(powerLevels) : '无数据'}`)
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`读取功率失败: ${messageText}`)
@@ -463,7 +490,7 @@ onUnmounted(() => {
         <a-card title="功率与参数">
           <a-space direction="vertical" style="width: 100%">
             <a-input-number
-                v-model:value="rfidConfig.antennaCount"
+                v-model:value="antennaCountModel"
                 :min="1"
                 :max="32"
                 addon-before="天线数"
@@ -473,34 +500,13 @@ onUnmounted(() => {
 
             <a-divider style="margin: 8px 0"/>
 
-            <a-input-number
-                v-model:value="rfidConfig.readWriteIndex"
-                :min="1"
-                :max="32"
-                addon-before="主天线"
-                style="width: 100%"
-            />
-            <a-input-number
-                v-model:value="rfidConfig.readWritePower"
-                :min="0"
-                :max="33"
-                addon-before="主功率"
-                style="width: 100%"
-            />
-            <a-input-number
-                v-model:value="rfidConfig.otherPower"
-                :min="0"
-                :max="33"
-                addon-before="其他功率"
-                style="width: 100%"
-            />
+            <a-typography-text type="secondary">
+              {{ formatPowerLevels(rfidConfig.powerLevels) }}
+            </a-typography-text>
             <a-space wrap>
-              <a-button @click="applyPowerConfig">设置功率</a-button>
+              <a-button @click="openPowerConfigModal">设置功率</a-button>
               <a-button @click="loadAllPower">读取功率</a-button>
             </a-space>
-            <a-tag v-if="powerResult.length" color="cyan">
-              {{ powerResult.join(', ') }}
-            </a-tag>
 
             <a-divider style="margin: 8px 0"/>
 
@@ -641,6 +647,30 @@ onUnmounted(() => {
         </a-card>
       </div>
     </a-space>
+
+    <a-modal
+        v-model:open="powerModalVisible"
+        title="设置天线功率"
+        :confirm-loading="powerSubmitting"
+        @ok="applyPowerConfig"
+    >
+      <a-space direction="vertical" style="width: 100%">
+        <a-typography-text type="secondary">
+          当前设备天线数：{{ rfidConfig.antennaCount }}
+        </a-typography-text>
+        <div class="power-grid">
+          <a-input-number
+              v-for="(_, index) in powerEditor"
+              :key="`power-editor-${index}`"
+              v-model:value="powerEditor[index]"
+              :min="0"
+              :max="33"
+              :addon-before="`天线${index + 1}`"
+              style="width: 100%"
+          />
+        </div>
+      </a-space>
+    </a-modal>
   </div>
 </template>
 
@@ -677,6 +707,12 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+.power-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 1200px) {
   .layout-row-bottom {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -686,6 +722,10 @@ onUnmounted(() => {
 @media (max-width: 900px) {
   .layout-row-top,
   .layout-row-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .power-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }

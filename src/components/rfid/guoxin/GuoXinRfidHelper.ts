@@ -133,22 +133,23 @@ export async function stopReadEPC(): Promise<void> {
 
 /**
  * 设置天线的功率
- * @param {number} readWriteIndex 读写天线索引
- * @param {number} readWritePower 0~33 功率
- * @param {number} otherPower 0~33 功率
+ * @param {number[]} powerLevels 每个天线的功率数组，索引 0 对应天线 1
  */
-export async function configPower(
-    readWriteIndex: number,
-    readWritePower: number,
-    otherPower: number
-): Promise<void> {
+export async function configPower(powerLevels: number[]): Promise<void> {
+    if (powerLevels.length < guoxinSingleDevice.ant_type) {
+        throw new Error(`请提供 ${guoxinSingleDevice.ant_type} 个天线功率值`)
+    }
+
     // 协议控制字
     params.messageId = 0x01
     const controlWord = generateControlWord(params).hex
     let result = ''
     for (let i = 1; i <= guoxinSingleDevice.ant_type; i++) {
         const antennaHex = i.toString(16).padStart(2, '0').toUpperCase()
-        const power = i === readWriteIndex ? readWritePower : otherPower
+        const power = powerLevels[i - 1]
+        if (!Number.isInteger(power) || power < 0 || power > 33) {
+            throw new Error(`天线 ${i} 功率必须是 0~33 的整数`)
+        }
         const powerHex = power.toString(16).padStart(2, '0').toUpperCase()
         result += antennaHex + powerHex
     }

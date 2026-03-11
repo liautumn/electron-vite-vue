@@ -27,6 +27,10 @@ class GuoXinSingleDevice {
   private antType = 4
   private antStay: number[] = []
   private lastError: string | null = null
+  private rxBuffers: Record<GuoxinConnectionMode, string> = {
+    serial: '',
+    tcp: ''
+  }
   private commandDataListeners = new Set<GuoXinDataListener>()
   private rawDataListeners = new Set<GuoXinRawDataListener>()
   private statusListeners = new Set<GuoXinStatusListener>()
@@ -89,6 +93,7 @@ class GuoXinSingleDevice {
     this.mode = mode
     this.connected = false
     this.lastError = null
+    this.resetRxBuffers()
     this.emitStatus()
   }
 
@@ -96,6 +101,7 @@ class GuoXinSingleDevice {
     this.ensureInitialized()
     this.mode = 'serial'
     this.lastError = null
+    this.resetRxBuffer('serial')
     this.emitStatus()
     await window.serial.open(options)
   }
@@ -104,6 +110,7 @@ class GuoXinSingleDevice {
     this.ensureInitialized()
     this.mode = 'tcp'
     this.lastError = null
+    this.resetRxBuffer('tcp')
     this.emitStatus()
     await window.tcp.connect(options)
   }
@@ -115,6 +122,7 @@ class GuoXinSingleDevice {
     } else {
       await window.tcp.disconnect()
     }
+    this.resetRxBuffer(mode)
     if (this.mode === mode) {
       this.connected = false
       this.emitStatus()
@@ -162,12 +170,14 @@ class GuoXinSingleDevice {
     window.ipcRenderer.on('serial:close', () => {
       if (this.mode !== 'serial') return
       this.connected = false
+      this.resetRxBuffer('serial')
       this.emitStatus()
     })
     window.ipcRenderer.on('serial:error', (_, message: string) => {
       if (this.mode !== 'serial') return
       this.connected = false
       this.lastError = message
+      this.resetRxBuffer('serial')
       this.emitStatus()
     })
     window.ipcRenderer.on('serial:data', (_, data: string) => {
@@ -183,12 +193,14 @@ class GuoXinSingleDevice {
     window.ipcRenderer.on('tcp:close', () => {
       if (this.mode !== 'tcp') return
       this.connected = false
+      this.resetRxBuffer('tcp')
       this.emitStatus()
     })
     window.ipcRenderer.on('tcp:error', (_, message: string) => {
       if (this.mode !== 'tcp') return
       this.connected = false
       this.lastError = message
+      this.resetRxBuffer('tcp')
       this.emitStatus()
     })
     window.ipcRenderer.on('tcp:data', (_, data: string) => {
@@ -197,17 +209,19 @@ class GuoXinSingleDevice {
   }
 
   private emitData(source: GuoxinConnectionMode, data: string) {
-    const payload = normalizeHex(String(data ?? ''))
-    if (!payload) return
+    const frames = this.handleNewRx(source, data)
+    if (!frames.length) return
 
-    this.rawDataListeners.forEach((listener) => {
-      listener(source, payload)
-    })
+    frames.forEach((frame) => {
+      this.rawDataListeners.forEach((listener) => {
+        listener(source, frame)
+      })
 
-    if (source !== this.mode) return
+      if (source !== this.mode) return
 
-    this.commandDataListeners.forEach((listener) => {
-      listener(payload)
+      this.commandDataListeners.forEach((listener) => {
+        listener(frame)
+      })
     })
   }
 
@@ -216,6 +230,58 @@ class GuoXinSingleDevice {
     this.statusListeners.forEach((listener) => {
       listener(snapshot)
     })
+  }
+
+  private handleNewRx(source: GuoxinConnectionMode, data: string) {
+    const normalized = normalizeHex(String(data ?? ''))
+    if (!normalized) {
+      return []
+    }
+
+    // Serial/TCP may split or merge protocol frames, so reassemble before dispatch.
+    let buffer = (this.rxBuffers[source] || '') + normalized
+    const frames: string[] = []
+
+    while (true) {
+      const startIndex = buffer.indexOf('5A')
+      if (startIndex === -1) {
+        buffer = ''
+        break
+      }
+      if (startIndex > 0) {
+        buffer = buffer.slice(startIndex)
+      }
+      if (buffer.length < 14) {
+        break
+      }
+
+      const lengthHex = buffer.slice(10, 14)
+      const payloadLength = parseInt(lengthHex, 16)
+      if (Number.isNaN(payloadLength)) {
+        buffer = buffer.slice(2)
+        continue
+      }
+
+      const frameLength = 18 + payloadLength * 2
+      if (buffer.length < frameLength) {
+        break
+      }
+
+      frames.push(buffer.slice(0, frameLength))
+      buffer = buffer.slice(frameLength)
+    }
+
+    this.rxBuffers[source] = buffer
+    return frames
+  }
+
+  private resetRxBuffer(mode: GuoxinConnectionMode) {
+    this.rxBuffers[mode] = ''
+  }
+
+  private resetRxBuffers() {
+    this.resetRxBuffer('serial')
+    this.resetRxBuffer('tcp')
   }
 }
 

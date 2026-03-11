@@ -204,7 +204,7 @@ async function stopInventory() {
     stopContinuousRead?.()
     stopContinuousRead = null
     inventoryStatus.value = '已停止'
-    appendLog('已发送停止盘存指令')
+    appendLog('停止盘存成功')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`停止读取失败: ${messageText}`)
@@ -216,7 +216,7 @@ async function prepareWriteMode() {
   if (inventoryStatus.value !== '空闲' || stopContinuousRead) {
     try {
       await stopReadEPC()
-      appendLog('写标签前已发送停止盘存指令')
+      appendLog('写标签前已停止盘存')
     } catch {
       // 设备未处于盘存态时忽略停止失败，继续写入。
     }
@@ -282,15 +282,12 @@ async function rewriteTag() {
     syncDeviceConfig()
     await prepareWriteMode()
     const payload = buildWritePayload()
-    const writeOk = await writeEPC(
+    await writeEPC(
       [payload.antenna],
       payload.epc,
       payload.tid,
       payload.accessPassword
     )
-    if (!writeOk) {
-      throw new Error('写EPC失败')
-    }
     appendLog('再次写入成功')
     message.success('再次写入成功')
   } catch (error) {
@@ -311,7 +308,7 @@ async function applyPowerConfig() {
     appendLog(
       `设置功率完成: 主天线=${rfidConfig.value.readWriteIndex}, 主功率=${rfidConfig.value.readWritePower}, 其他功率=${rfidConfig.value.otherPower}`
     )
-    message.success('功率配置已发送')
+    message.success('功率配置成功')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`设置功率失败: ${messageText}`)
@@ -334,18 +331,14 @@ async function loadAllPower() {
 
 async function applyBasebandConfig() {
   try {
-    const result = await configEPCBasebandParam(
+    await configEPCBasebandParam(
       rfidConfig.value.epcBasebandRate,
       rfidConfig.value.defaultQ,
       rfidConfig.value.session,
       rfidConfig.value.inventoryFlag
     )
-    appendLog(`EPC 基带参数配置结果: ${result ? '成功' : '失败'}`)
-    if (result) {
-      message.success('EPC 基带参数已发送')
-      return
-    }
-    message.error('EPC 基带参数返回失败')
+    appendLog('EPC 基带参数配置成功')
+    message.success('EPC 基带参数配置成功')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`配置 EPC 基带参数失败: ${messageText}`)

@@ -1,42 +1,111 @@
 import {
-    extractPowerValues,
-    getReadDesc,
-    IRFIDTagReadMessage,
-    parseEPCMessage,
-    parseFrame
+  extractPowerValues,
+  getLockResultDesc,
+  getPowerConfigDesc,
+  getReadDesc,
+  getStopReadDesc,
+  getWriteResultDesc,
+  IRFIDTagReadMessage,
+  parseEPCMessage,
+  parseFrame
 } from './CommonUtil'
 
 import {guoxinSingleDevice} from './GuoxinSingleDevice'
 
-export function readAllAntOutputPowerParseFrame(
-    onData: (data: number[]) => void,
-    onDone: (reason: string) => void
-) {
-    const handler = (data: any) => {
+type SendAction = () => void
+
+interface SingleResponseOptions<T> {
+  mid: string
+  timeoutMs: number
+  timeoutMessage: string
+  parsePayload: (payload: string, rawData: string) => T
+  send?: SendAction
+}
+
+function waitForSingleResponse<T>(options: SingleResponseOptions<T>) {
+  const {mid, timeoutMs, timeoutMessage, parsePayload, send} = options
+
+  return new Promise<T>((resolve, reject) => {
+    const handler = (data: string) => {
+      try {
         const res = parseFrame(data)
-        if (res.mid === '0x02') {
-            cleanup()
-            onData(extractPowerValues(res.payload as string))
+        if (res.mid !== mid) {
+          return
         }
+        cleanup()
+        resolve(parsePayload((res.payload ?? '') as string, data))
+      } catch (error) {
+        cleanup()
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
     }
 
     const timer = setTimeout(() => {
-        cleanup()
-        console.warn('Timeout waiting for readAllAntOutputPowerParseFrame')
-        onDone('Timeout waiting for readAllAntOutputPowerParseFrame')
-    }, 3000)
+      cleanup()
+      console.warn(timeoutMessage)
+      reject(new Error(timeoutMessage))
+    }, timeoutMs)
 
     function cleanup() {
-        clearTimeout(timer)
-        guoxinSingleDevice.off('data_new', handler)
+      clearTimeout(timer)
+      guoxinSingleDevice.off('data_new', handler)
     }
 
     guoxinSingleDevice.on('data_new', handler)
+
+    if (send) {
+      try {
+        send()
+      } catch (error) {
+        cleanup()
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
+    }
+  })
+}
+
+export function configPowerParseFrame(send?: SendAction) {
+  return waitForSingleResponse<void>({
+    mid: '0x01',
+    timeoutMs: 3000,
+    timeoutMessage: 'Timeout waiting for configPowerParseFrame',
+    send,
+    parsePayload: (payload) => {
+      if (payload !== '00') {
+        throw new Error(getPowerConfigDesc(payload))
+      }
+    }
+  })
+}
+
+export function stopReadEPCParseFrame(send?: SendAction) {
+  return waitForSingleResponse<void>({
+    mid: '0xFF',
+    timeoutMs: 3000,
+    timeoutMessage: 'Timeout waiting for stopReadEPCParseFrame',
+    send,
+    parsePayload: (payload) => {
+      if (payload !== '00') {
+        throw new Error(getStopReadDesc(payload))
+      }
+    }
+  })
+}
+
+export function readAllAntOutputPowerParseFrame(send?: SendAction) {
+    return waitForSingleResponse<number[]>({
+        mid: '0x02',
+        timeoutMs: 3000,
+        timeoutMessage: 'Timeout waiting for readAllAntOutputPowerParseFrame',
+        send,
+        parsePayload: (payload) => extractPowerValues(payload)
+    })
 }
 
 export function readEPCParseFrame(
     onData: (data: IRFIDTagReadMessage) => void,
-    onDone: (reason: string) => void
+    onDone: (reason: string) => void,
+    send?: SendAction
 ) {
     const handler = (data: any) => {
         console.log(data)
@@ -68,10 +137,20 @@ export function readEPCParseFrame(
     }
 
     guoxinSingleDevice.on('data_new', handler)
+
+    if (send) {
+        try {
+            send()
+        } catch (error) {
+            cleanup()
+            throw error
+        }
+    }
 }
 
 export function readEPCContinuousParseFrame(
-    callback: (data: IRFIDTagReadMessage | null) => void
+    callback: (data: IRFIDTagReadMessage | null) => void,
+    send?: SendAction
 ) {
     const handler = (res: any) => {
         const parsed = parseFrame(res)
@@ -84,117 +163,76 @@ export function readEPCContinuousParseFrame(
 
     guoxinSingleDevice.on('data_new', handler)
 
+    if (send) {
+        try {
+            send()
+        } catch (error) {
+            guoxinSingleDevice.off('data_new', handler)
+            throw error
+        }
+    }
+
     return () => {
         guoxinSingleDevice.off('data_new', handler)
     }
 }
 
-export function lockRfidParseFrame(
-    onData: (data: boolean) => void,
-    onDone: (reason: string) => void
-) {
-    const handler = (data: any) => {
-        const res = parseFrame(data)
-        if (res.mid === '0x12') {
-            console.log('lockRfidParseFrame: ', data)
-            const payload = res.payload ?? ''
-            cleanup()
-            onData(payload === '00')
+export function lockRfidParseFrame(send?: SendAction) {
+    return waitForSingleResponse<void>({
+        mid: '0x12',
+        timeoutMs: 3000,
+        timeoutMessage: 'Timeout waiting for lockRfidParseFrame',
+        send,
+        parsePayload: (payload, rawData) => {
+            console.log('lockRfidParseFrame: ', rawData)
+            if (payload !== '00') {
+                throw new Error(getLockResultDesc(payload))
+            }
         }
-    }
-
-    const timer = setTimeout(() => {
-        cleanup()
-        console.warn('Timeout waiting for lockRfidParseFrame')
-        onDone('Timeout waiting for lockRfidParseFrame')
-    }, 3000)
-
-    function cleanup() {
-        clearTimeout(timer)
-        guoxinSingleDevice.off('data_new', handler)
-    }
-
-    guoxinSingleDevice.on('data_new', handler)
+    })
 }
 
-export function writeEPCParseFrame(
-    onData: (data: boolean) => void,
-    onDone: (reason: string) => void
-) {
-    const handler = (data: any) => {
-        const res = parseFrame(data)
-        if (res.mid === '0x11') {
-            console.log('writeEPCParseFrame: ', data)
-            const payload = res.payload ?? ''
-            cleanup()
-            onData(payload === '00')
+export function writeEPCParseFrame(send?: SendAction) {
+    return waitForSingleResponse<void>({
+        mid: '0x11',
+        timeoutMs: 3000,
+        timeoutMessage: 'Timeout waiting for writeEPCParseFrame',
+        send,
+        parsePayload: (payload, rawData) => {
+            console.log('writeEPCParseFrame: ', rawData)
+            if (payload !== '00') {
+                throw new Error(getWriteResultDesc(payload))
+            }
         }
-    }
-    const timer = setTimeout(() => {
-        cleanup()
-        console.warn('Timeout waiting for writeEPCParseFrame')
-        onDone('Timeout waiting for writeEPCParseFrame')
-    }, 3000)
-
-    function cleanup() {
-        clearTimeout(timer)
-        guoxinSingleDevice.off('data_new', handler)
-    }
-
-    guoxinSingleDevice.on('data_new', handler)
+    })
 }
 
-export function updateEPCPasswordParseFrame(
-    onData: (data: boolean) => void,
-    onDone: (reason: string) => void
-) {
-    const handler = (data: any) => {
-        const res = parseFrame(data)
-        if (res.mid === '0x11') {
-            console.log('updateEPCPasswordParseFrame: ', data)
-            const payload = res.payload ?? ''
-            cleanup()
-            onData(payload === '00')
+export function updateEPCPasswordParseFrame(send?: SendAction) {
+    return waitForSingleResponse<void>({
+        mid: '0x11',
+        timeoutMs: 3000,
+        timeoutMessage: 'Timeout waiting for updateEPCPasswordParseFrame',
+        send,
+        parsePayload: (payload, rawData) => {
+            console.log('updateEPCPasswordParseFrame: ', rawData)
+            if (payload !== '00') {
+                throw new Error(getWriteResultDesc(payload))
+            }
         }
-    }
-    const timer = setTimeout(() => {
-        cleanup()
-        console.warn('Timeout waiting for updateEPCPasswordParseFrame')
-        onDone('Timeout waiting for updateEPCPasswordParseFrame')
-    }, 3000)
-
-    function cleanup() {
-        clearTimeout(timer)
-        guoxinSingleDevice.off('data_new', handler)
-    }
-
-    guoxinSingleDevice.on('data_new', handler)
+    })
 }
 
-export function configEPCBasebandParamParseFrame(
-    onData: (data: boolean) => void,
-    onDone: (reason: string) => void
-) {
-    const handler = (data: any) => {
-        const res = parseFrame(data)
-        if (res.mid === '0x0B') {
-            console.log('configEPCBasebandParamParseFrame: ', data)
-            const payload = res.payload ?? ''
-            cleanup()
-            onData(payload === '00')
+export function configEPCBasebandParamParseFrame(send?: SendAction) {
+    return waitForSingleResponse<void>({
+        mid: '0x0B',
+        timeoutMs: 3000,
+        timeoutMessage: 'Timeout waiting for configEPCBasebandParamParseFrame',
+        send,
+        parsePayload: (payload, rawData) => {
+            console.log('configEPCBasebandParamParseFrame: ', rawData)
+            if (payload !== '00') {
+                throw new Error(`EPC 基带参数配置失败: ${payload}`)
+            }
         }
-    }
-
-    const timer = setTimeout(() => {
-        cleanup()
-        console.warn('Timeout waiting for configEPCBasebandParamParseFrame')
-        onDone('Timeout waiting for configEPCBasebandParamParseFrame')
-    }, 3000)
-
-    function cleanup() {
-        clearTimeout(timer)
-        guoxinSingleDevice.off('data_new', handler)
-    }
-
-    guoxinSingleDevice.on('data_new', handler)
+    })
 }

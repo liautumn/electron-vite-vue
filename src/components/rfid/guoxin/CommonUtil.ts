@@ -25,6 +25,148 @@ export function getReadDesc(payload: string): string {
   }
 }
 
+export enum PowerConfigCode {
+  Success = 0x00,
+  PortParamUnsupported = 0x01,
+  PowerParamUnsupported = 0x02,
+  SaveFailed = 0x03
+}
+
+export function getPowerConfigDesc(payload: string): string {
+  const cleanPayload = normalizeHex(payload)
+  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as PowerConfigCode
+  switch (code) {
+    case PowerConfigCode.Success:
+      return '配置成功'
+    case PowerConfigCode.PortParamUnsupported:
+      return '端口参数读写器硬件不支持'
+    case PowerConfigCode.PowerParamUnsupported:
+      return '功率参数读写器硬件不支持'
+    case PowerConfigCode.SaveFailed:
+      return '保存失败'
+    default:
+      console.warn('未知功率配置结果:', payload)
+      return '未知功率配置结果: ' + payload
+  }
+}
+
+export enum WriteResultCode {
+  Success = 0x00,
+  AntennaPortError = 0x01,
+  SelectParamError = 0x02,
+  WriteParamError = 0x03,
+  CrcError = 0x04,
+  PowerInsufficient = 0x05,
+  MemoryOverflow = 0x06,
+  MemoryLocked = 0x07,
+  AccessPasswordError = 0x08,
+  OtherTagError = 0x09,
+  TagLost = 0x0a,
+  ReaderSendCommandError = 0x0b
+}
+
+export function getWriteResultDesc(payload: string): string {
+  const cleanPayload = normalizeHex(payload)
+  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as WriteResultCode
+  switch (code) {
+    case WriteResultCode.Success:
+      return '写入成功'
+    case WriteResultCode.AntennaPortError:
+      return '天线端口参数错误'
+    case WriteResultCode.SelectParamError:
+      return '选择参数错误'
+    case WriteResultCode.WriteParamError:
+      return '写入参数错误'
+    case WriteResultCode.CrcError:
+      return 'CRC 校验错误'
+    case WriteResultCode.PowerInsufficient:
+      return '功率不足'
+    case WriteResultCode.MemoryOverflow:
+      return '数据区溢出'
+    case WriteResultCode.MemoryLocked:
+      return '数据区被锁定'
+    case WriteResultCode.AccessPasswordError:
+      return '访问密码错误'
+    case WriteResultCode.OtherTagError:
+      return '其他标签错误'
+    case WriteResultCode.TagLost:
+      return '标签丢失'
+    case WriteResultCode.ReaderSendCommandError:
+      return '读写器发送指令错误'
+    default:
+      console.warn('未知写入结果:', payload)
+      return '未知写入结果: ' + payload
+  }
+}
+
+export enum LockResultCode {
+  Success = 0x00,
+  AntennaPortError = 0x01,
+  SelectParamError = 0x02,
+  LockParamError = 0x03,
+  CrcError = 0x04,
+  PowerInsufficient = 0x05,
+  MemoryOverflow = 0x06,
+  MemoryLocked = 0x07,
+  AccessPasswordError = 0x08,
+  OtherTagError = 0x09,
+  TagLost = 0x0a,
+  ReaderSendCommandError = 0x0b
+}
+
+export function getLockResultDesc(payload: string): string {
+  const cleanPayload = normalizeHex(payload)
+  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as LockResultCode
+  switch (code) {
+    case LockResultCode.Success:
+      return '锁操作成功'
+    case LockResultCode.AntennaPortError:
+      return '天线端口错误'
+    case LockResultCode.SelectParamError:
+      return '选择参数错误'
+    case LockResultCode.LockParamError:
+      return '锁操作参数错误'
+    case LockResultCode.CrcError:
+      return 'CRC 校验错误'
+    case LockResultCode.PowerInsufficient:
+      return '功率不足'
+    case LockResultCode.MemoryOverflow:
+      return '数据区溢出'
+    case LockResultCode.MemoryLocked:
+      return '数据区被锁定'
+    case LockResultCode.AccessPasswordError:
+      return '访问密码错误'
+    case LockResultCode.OtherTagError:
+      return '其他标签错误'
+    case LockResultCode.TagLost:
+      return '标签丢失'
+    case LockResultCode.ReaderSendCommandError:
+      return '读写器发送指令错误'
+    default:
+      console.warn('未知锁操作结果:', payload)
+      return '未知锁操作结果: ' + payload
+  }
+}
+
+export enum StopReadResultCode {
+  Success = 0x00,
+  SystemError = 0x01
+}
+
+export function getStopReadDesc(payload: string): string {
+  const cleanPayload = normalizeHex(payload)
+  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as StopReadResultCode
+  switch (code) {
+    case StopReadResultCode.Success:
+      return '停止成功'
+    case StopReadResultCode.SystemError:
+      return '系统错误'
+    default:
+      console.warn('未知停止盘存结果:', payload)
+      return '未知停止盘存结果: ' + payload
+  }
+}
+
 /**
  * 从十六进制字符串转换为字节数组
  * @param hex 十六进制字符串
@@ -560,4 +702,3 @@ export function generateControlWord(params: ControlWordParams): {
 
   return { value, hex, bytes, byteString };
 }
-

@@ -1,0 +1,160 @@
+import {BrowserWindow, ipcMain} from 'electron'
+import {connect, type IClientOptions, type MqttClient} from 'mqtt'
+
+type MqttQoS = 0 | 1 | 2
+
+type MqttConnectOptions = {
+    url: string
+    clientId?: string
+    username?: string
+    password?: string
+    clean?: boolean
+    reconnectPeriod?: number
+    connectTimeout?: number
+}
+
+type MqttSubscribeOptions = {
+    topic: string
+    qos?: MqttQoS
+}
+
+type MqttPublishOptions = {
+    topic: string
+    payload: string
+    qos?: MqttQoS
+    retain?: boolean
+}
+
+let client: MqttClient | null = null
+let win: BrowserWindow | null = null
+let mqttRegistered = false
+
+const sendToRenderer = (channel: string, payload?: unknown) => {
+    if (!win || win.isDestroyed()) return
+
+    if (payload === undefined) {
+        win.webContents.send(channel)
+        return
+    }
+
+    win.webContents.send(channel, payload)
+}
+
+const buildClientOptions = (options: MqttConnectOptions): IClientOptions => ({
+    clientId: options.clientId?.trim() || undefined,
+    username: options.username?.trim() || undefined,
+    password: options.password || undefined,
+    clean: options.clean ?? true,
+    reconnectPeriod: options.reconnectPeriod ?? 1000,
+    connectTimeout: options.connectTimeout ?? 30_000,
+})
+
+const detachClient = async () => {
+    const activeClient = client
+    client = null
+
+    if (!activeClient) return
+
+    activeClient.removeAllListeners()
+
+    try {
+        await activeClient.endAsync(true)
+    } catch {
+        activeClient.end(true)
+    }
+}
+
+const bindClientEvents = (target: MqttClient) => {
+    target.on('connect', () => {
+        sendToRenderer('mqtt:connect')
+    })
+
+    target.on('reconnect', () => {
+        sendToRenderer('mqtt:reconnect')
+    })
+
+    target.on('offline', () => {
+        sendToRenderer('mqtt:offline')
+    })
+
+    target.on('close', () => {
+        sendToRenderer('mqtt:close')
+    })
+
+    target.on('error', error => {
+        sendToRenderer('mqtt:error', error.message)
+    })
+
+    target.on('message', (topic, payload, packet) => {
+        sendToRenderer('mqtt:message', {
+            topic,
+            payloadText: payload.toString(),
+            payloadHex: payload.toString('hex').toUpperCase(),
+            qos: packet.qos ?? 0,
+            retain: Boolean(packet.retain),
+            dup: Boolean(packet.dup),
+            timestamp: new Date().toISOString(),
+        })
+    })
+}
+
+export function registerMqtt(mainWindow: BrowserWindow) {
+    win = mainWindow
+
+    if (mqttRegistered) return
+    mqttRegistered = true
+
+    ipcMain.handle('mqtt:connect', async (_, options: MqttConnectOptions) => {
+        const url = options.url?.trim()
+        if (!url) throw new Error('MQTT Broker URL 不能为空')
+
+        await detachClient()
+
+        const nextClient = connect(url, buildClientOptions(options))
+        bindClientEvents(nextClient)
+        client = nextClient
+
+        return true
+    })
+
+    ipcMain.handle('mqtt:disconnect', async () => {
+        await detachClient()
+        sendToRenderer('mqtt:close')
+        return true
+    })
+
+    ipcMain.handle('mqtt:subscribe', async (_, options: MqttSubscribeOptions) => {
+        if (!client) throw new Error('MQTT 未连接')
+
+        const topic = options.topic?.trim()
+        if (!topic) throw new Error('订阅 Topic 不能为空')
+
+        return await client.subscribeAsync(topic, {
+            qos: options.qos ?? 0,
+        })
+    })
+
+    ipcMain.handle('mqtt:unsubscribe', async (_, topic: string) => {
+        if (!client) throw new Error('MQTT 未连接')
+
+        const normalizedTopic = topic?.trim()
+        if (!normalizedTopic) throw new Error('取消订阅 Topic 不能为空')
+
+        await client.unsubscribeAsync(normalizedTopic)
+        return true
+    })
+
+    ipcMain.handle('mqtt:publish', async (_, options: MqttPublishOptions) => {
+        if (!client) throw new Error('MQTT 未连接')
+
+        const topic = options.topic?.trim()
+        if (!topic) throw new Error('发布 Topic 不能为空')
+
+        await client.publishAsync(topic, options.payload, {
+            qos: options.qos ?? 0,
+            retain: options.retain ?? false,
+        })
+
+        return true
+    })
+}

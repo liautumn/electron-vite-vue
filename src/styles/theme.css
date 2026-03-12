@@ -3,13 +3,19 @@
     --bg-color: rgb(245, 245, 245);
     --text-color: rgb(0, 0, 0);
     --app-header: rgb(255, 255, 255);
+    --app-surface: rgb(255, 255, 255);
+    --app-border: rgb(229, 231, 235);
+    --app-text-secondary: rgb(107, 114, 128);
 }
 
 /* 暗黑模式 */
 html[data-theme='dark'] {
     --bg-color: rgb(0, 0, 0);
     --text-color: rgb(245, 245, 245);
-    --app-header: rgb(20, 20, 20)
+    --app-header: rgb(20, 20, 20);
+    --app-surface: rgb(20, 20, 20);
+    --app-border: rgb(58, 58, 58);
+    --app-text-secondary: rgb(163, 163, 163);
 }
 
 body {

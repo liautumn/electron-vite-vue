@@ -7,6 +7,7 @@ import router from './router'
 import i18n from './i18n'
 import {useLocaleStore} from './stores/locale'
 import {useThemeStore} from './stores/theme'
+import {useUserStore} from './stores/user'
 import permissionDirective from './directives/permission'
 import 'ant-design-vue/dist/reset.css'
 import './styles/theme.css'
@@ -30,6 +31,9 @@ app.use(i18n)
 
 // 初始化语言（store 内部会同步 i18n）
 useLocaleStore(pinia)
+
+// 启动时刷新一遍默认权限，避免旧的持久化权限把新菜单过滤掉
+useUserStore(pinia).refreshPermissions()
 
 // 挂载 ant-design UI
 app.use(Antd)

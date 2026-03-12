@@ -61,6 +61,19 @@
         }
       },
       {
+        "path": "mqtt-demo",
+        "name": "mqtt-demo",
+        "component": "MqttDemoView",
+        "alias": "/mqtt-demo",
+        "meta": {
+          "title": "MQTT Demo",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:mqtt",
+          "type": "menu"
+        }
+      },
+      {
         "path": "guoxin-rfid-demo",
         "name": "guoxin-rfid-demo",
         "component": "GuoxinRfidView",

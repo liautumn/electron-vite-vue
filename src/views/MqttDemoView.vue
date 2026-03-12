@@ -228,10 +228,10 @@ onUnmounted(() => {
 
 <template>
   <div class="container">
-    <a-row :gutter="[16, 16]">
-      <a-col :xs="24" :lg="12">
-        <a-card title="Broker 配置">
-          <a-space direction="vertical" size="middle" style="width: 100%">
+    <a-row :gutter="[16, 16]" class="panel-grid">
+      <a-col :xs="24" :lg="12" class="panel-col">
+        <a-card title="Broker 配置" class="panel-card">
+          <div class="panel-stack">
             <a-form layout="vertical">
               <a-form-item label="Broker URL">
                 <a-input v-model:value="brokerUrl" placeholder="mqtt://127.0.0.1:1883"/>
@@ -272,24 +272,26 @@ onUnmounted(() => {
                 <a-button danger @click="disconnect">断开</a-button>
               </a-space>
             </div>
-          </a-space>
-        </a-card>
-      </a-col>
-
-      <a-col :xs="24" :lg="12">
-        <a-card title="运行日志">
-          <template #extra>
-            <a-button size="small" @click="clearLog">清空日志</a-button>
-          </template>
-          <div class="output-box">
-            <pre class="output-content">{{ log || '连接、订阅、发布、接收日志' }}</pre>
           </div>
         </a-card>
       </a-col>
 
-      <a-col :xs="24" :lg="12">
-        <a-card title="订阅">
-          <a-space direction="vertical" size="middle" style="width: 100%">
+      <a-col :xs="24" :lg="12" class="panel-col">
+        <a-card title="运行日志" class="panel-card">
+          <template #extra>
+            <a-button size="small" @click="clearLog">清空日志</a-button>
+          </template>
+          <div class="panel-fill">
+            <div class="output-box output-box--fill">
+              <pre class="output-content">{{ log || '连接、订阅、发布、接收日志' }}</pre>
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+
+      <a-col :xs="24" :lg="12" class="panel-col">
+        <a-card title="订阅" class="panel-card">
+          <div class="panel-stack panel-stack--fill">
             <a-form layout="vertical">
               <a-form-item label="Topic">
                 <a-input v-model:value="subscribeTopic" placeholder="订阅 Topic"/>
@@ -304,7 +306,7 @@ onUnmounted(() => {
               <a-button :disabled="!isConnected" @click="unsubscribe">取消订阅</a-button>
             </a-space>
 
-            <div>
+            <div class="panel-fill">
               <div class="output-header">
                 <span class="output-title">订阅消息</span>
                 <a-space>
@@ -312,17 +314,17 @@ onUnmounted(() => {
                   <a-button size="small" @click="clearMessages">清空消息</a-button>
                 </a-space>
               </div>
-              <div class="output-box output-box--records">
+              <div class="output-box output-box--fill output-box--records">
                 <pre class="output-content">{{ messageRecordsText || '收到的 MQTT 消息会格式化为 JSON 输出到这里' }}</pre>
               </div>
             </div>
-          </a-space>
+          </div>
         </a-card>
       </a-col>
 
-      <a-col :xs="24" :lg="12">
-        <a-card title="发布">
-          <a-space direction="vertical" size="middle" style="width: 100%">
+      <a-col :xs="24" :lg="12" class="panel-col">
+        <a-card title="发布" class="panel-card">
+          <div class="panel-stack panel-stack--fill">
             <a-form layout="vertical">
               <a-form-item label="Topic">
                 <a-input v-model:value="publishTopic" placeholder="发布 Topic"/>
@@ -339,7 +341,7 @@ onUnmounted(() => {
               <a-checkbox v-model:checked="retain">Retain</a-checkbox>
               <a-button type="primary" :disabled="!isConnected" @click="publish">发布</a-button>
             </a-space>
-          </a-space>
+          </div>
         </a-card>
       </a-col>
     </a-row>
@@ -349,6 +351,47 @@ onUnmounted(() => {
 <style scoped>
 .container {
   padding: 16px;
+}
+
+.panel-grid {
+  align-items: stretch;
+}
+
+.panel-col {
+  display: flex;
+}
+
+.panel-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.panel-card :deep(.ant-card-body) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.panel-stack--fill {
+  flex: 1;
+  min-height: 0;
+}
+
+.panel-fill {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .actions-row {
@@ -379,10 +422,16 @@ onUnmounted(() => {
   background: var(--app-surface);
   padding: 12px;
   min-height: 260px;
+  max-height: 360px;
+}
+
+.output-box--fill {
+  flex: 1;
 }
 
 .output-box--records {
-  min-height: 200px;
+  min-height: 220px;
+  max-height: 320px;
 }
 
 .output-content {
@@ -398,5 +447,11 @@ onUnmounted(() => {
   min-height: 140px;
   resize: none;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+@media (max-width: 991px) {
+  .panel-card {
+    height: auto;
+  }
 }
 </style>

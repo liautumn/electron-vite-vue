@@ -50,6 +50,7 @@ const log = ref('')
 const powerModalVisible = ref(false)
 const powerSubmitting = ref(false)
 const powerEditor = ref<number[]>([])
+const DEFAULT_WRITE_EPC_DEMO = '192012345678901234567895'
 
 let stopContinuousRead: null | (() => void) = null
 let disposeStatusListener = () => {
@@ -80,10 +81,40 @@ const inventoryAntennasModel = computed<number[]>({
     rfidStore.setConfig({antsInput: antennas.join(',')})
   }
 })
+const writeAntennaModel = computed<number>({
+  get: () =>
+    Math.min(
+      Math.max(rfidConfig.value.writeAntenna, 1),
+      rfidConfig.value.antennaCount
+    ),
+  set: (value) => {
+    if (typeof value !== 'number') {
+      return
+    }
+    rfidStore.setConfig({writeAntenna: value})
+  }
+})
 
 function appendLog(messageText: string) {
   const stamp = new Date().toLocaleTimeString('zh-CN', {hour12: false})
   log.value += `[${stamp}] ${messageText}\n`
+}
+
+function randomHex(length: number) {
+  const safeLength = Math.max(2, length)
+  const bytes = new Uint8Array(Math.ceil(safeLength / 2))
+
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    globalThis.crypto.getRandomValues(bytes)
+  } else {
+    bytes.forEach((_, index) => {
+      bytes[index] = Math.floor(Math.random() * 256)
+    })
+  }
+
+  return Array.from(bytes, (item) => item.toString(16).padStart(2, '0').toUpperCase())
+    .join('')
+    .slice(0, safeLength)
 }
 
 function formatPowerLevels(powerLevels: number[]) {
@@ -292,6 +323,17 @@ function useLatestTagForWrite() {
   }
   rfidStore.setConfig(nextConfig)
   appendLog('已带入最近读取到的标签 TID/EPC/天线')
+}
+
+function randomizeWriteEpc() {
+  const currentValue = normalizeHex(rfidConfig.value.writeEpc)
+  const targetLength =
+    currentValue && /^[0-9A-F]+$/.test(currentValue) && currentValue.length % 2 === 0
+      ? currentValue.length
+      : DEFAULT_WRITE_EPC_DEMO.length
+  const nextValue = randomHex(targetLength)
+  rfidStore.setConfig({writeEpc: nextValue})
+  appendLog(`已生成随机待写 EPC: ${nextValue}`)
 }
 
 async function firstWriteTag() {
@@ -612,11 +654,10 @@ onUnmounted(() => {
                 type="info"
                 show-icon
             />
-            <a-input-number
-                v-model:value="rfidConfig.writeAntenna"
-                :min="1"
-                :max="32"
-                addon-before="写入天线"
+            <a-select
+                v-model:value="writeAntennaModel"
+                :options="inventoryAntennaOptions"
+                placeholder="选择写入天线"
                 style="width: 100%"
             />
             <a-input
@@ -624,11 +665,14 @@ onUnmounted(() => {
                 addon-before="标签 TID"
                 placeholder="标签 TID，HEX"
             />
-            <a-input
-                v-model:value="rfidConfig.writeEpc"
-                addon-before="待写 EPC"
-                placeholder="待写 EPC，HEX"
-            />
+            <div class="write-epc-row">
+              <a-input
+                  v-model:value="rfidConfig.writeEpc"
+                  addon-before="待写 EPC"
+                  placeholder="待写 EPC，HEX，例如 192012345678901234567895"
+              />
+              <a-button @click="randomizeWriteEpc">随机生成</a-button>
+            </div>
             <a-input
                 v-model:value="rfidConfig.accessPassword"
                 addon-before="访问密码"
@@ -729,6 +773,16 @@ onUnmounted(() => {
 }
 
 .serial-port-row :deep(.ant-select) {
+  flex: 1;
+  min-width: 0;
+}
+
+.write-epc-row {
+  display: flex;
+  gap: 8px;
+}
+
+.write-epc-row :deep(.ant-input-group-wrapper) {
   flex: 1;
   min-width: 0;
 }

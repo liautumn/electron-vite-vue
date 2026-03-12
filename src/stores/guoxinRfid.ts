@@ -126,7 +126,13 @@ function normalizeConfig(input: LegacyGuoxinRfidConfig = {}): GuoxinRfidConfig {
     ...defaults,
     ...rest,
     antennaCount,
-    powerLevels
+    powerLevels,
+    writeAntenna: clampInteger(
+      rest.writeAntenna,
+      defaults.writeAntenna,
+      MIN_ANTENNA_COUNT,
+      antennaCount
+    )
   }
 }
 

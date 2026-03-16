@@ -13,10 +13,10 @@ import path from 'node:path'
 // Node.js 操作系统信息
 import os from 'node:os'
 
-// 注册Serial
-import {registerSerial} from './serial'
-import {registerTcp} from './tcp'
-import {registerMqtt} from './mqtt'
+// 注册 mod
+import {registerSerial} from './mod/serial'
+import {registerTcp} from './mod/tcp'
+import {registerMqtt} from './mod/mqtt'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
 
@@ -118,7 +118,7 @@ async function createWindow() {
     //     app.dock.setIcon(path.join(process.env.VITE_PUBLIC, 'icon/icon.png'));
     // }
 
-    // 注册串口通信
+    // 注册 mod
     registerSerial(win)
     registerTcp(win)
     registerMqtt(win)

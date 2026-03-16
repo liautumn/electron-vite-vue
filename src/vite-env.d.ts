@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-import {SerialMethods} from "./types/serial";
-import {TcpMethods} from "./types/tcp";
-import {MqttMethods} from "./types/mqtt";
+import {SerialMethods} from "../shared/types/serial";
+import {TcpMethods} from "../shared/types/tcp";
+import {MqttMethods} from "../shared/types/mqtt";
 
 declare module '*.vue' {
     import type {DefineComponent} from 'vue'

@@ -1,4 +1,5 @@
 import {contextBridge, ipcRenderer} from 'electron'
+import {MqttMethods} from '../../../shared/types/mqtt';
 
 export function registerMqttRenderer() {
   contextBridge.exposeInMainWorld('mqtt', {
@@ -64,5 +65,5 @@ export function registerMqttRenderer() {
       ipcRenderer.on('mqtt:message', cb)
       return () => ipcRenderer.off('mqtt:message', cb)
     },
-  })
+  } as MqttMethods)
 }

@@ -1,4 +1,5 @@
 import {contextBridge, ipcRenderer} from 'electron'
+import {SerialMethods} from '../../../shared/types/serial';
 
 export function registerSerialRenderer() {
   contextBridge.exposeInMainWorld('serial', {
@@ -22,5 +23,5 @@ export function registerSerialRenderer() {
 
     onError: (cb: (_: any, msg: string) => void) =>
       ipcRenderer.on('serial:error', cb),
-  })
+  } as SerialMethods)
 }

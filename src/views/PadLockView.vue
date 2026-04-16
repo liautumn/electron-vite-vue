@@ -3,7 +3,6 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { padSingleDevice } from '../components/pad/PadSingleDevice'
 import {
-  describePadFrame,
   formatPadHex,
   getPadFrameLabel,
   resolvePadFrameStatusText,
@@ -23,6 +22,13 @@ defineOptions({ name: 'pad-lock-demo' })
 type PadTargetConfig = {
   boardAddress: number | null
   lockAddress: number | null
+}
+
+type FeedbackPanelData = {
+  typeLabel: string
+  rawHex: string
+  statusText: string
+  bccText: string
 }
 
 const snapshot = padSingleDevice.getSnapshot()
@@ -51,44 +57,63 @@ const microswitchTarget = reactive<PadTargetConfig>({
 })
 
 const latestNormalLockFrame = ref<PadParsedFrame | null>(null)
-const latestNormalLockCloseFrame = ref<PadParsedFrame | null>(null)
 const latestMagneticLockFrame = ref<PadParsedFrame | null>(null)
 const latestMicroswitchFrame = ref<PadParsedFrame | null>(null)
 const latestMagneticRawResponse = ref('')
 
 let disposeStatusListener = () => {}
-let disposeRawListener = () => {}
 let disposeFrameListener = () => {}
 
-const normalLockSummary = computed(() => {
-  if (!latestNormalLockFrame.value) {
-    return '暂无普通锁开锁/查询反馈'
+const normalLockPanel = computed<FeedbackPanelData>(() => {
+  const frame = latestNormalLockFrame.value
+  if (!frame) {
+    return buildEmptyPanel()
   }
-  return describePadFrame(latestNormalLockFrame.value)
+
+  const isCloseFeedback = frame.header === '81'
+  return {
+    typeLabel: isCloseFeedback ? '手动关锁反馈' : getPadFrameLabel(frame),
+    rawHex: formatPadHex(frame.rawHex),
+    statusText: `0x${frame.statusHex} / ${isCloseFeedback ? resolveNormalLockCloseFeedbackText(frame) : resolvePadFrameStatusText(frame)}`,
+    bccText: frame.bccValid ? '通过' : `错误，应为 0x${frame.expectedBccHex}`
+  }
 })
 
-const normalLockCloseSummary = computed(() => {
-  if (!latestNormalLockCloseFrame.value) {
-    return '暂无普通锁手动关锁反馈'
+const magneticLockPanel = computed<FeedbackPanelData>(() => {
+  const frame = latestMagneticLockFrame.value
+  if (frame) {
+    return {
+      typeLabel: getPadFrameLabel(frame),
+      rawHex: formatPadHex(frame.rawHex),
+      statusText: `0x${frame.statusHex} / ${resolvePadFrameStatusText(frame)}`,
+      bccText: frame.bccValid ? '通过' : `错误，应为 0x${frame.expectedBccHex}`
+    }
   }
-  return describeNormalLockCloseFrame(latestNormalLockCloseFrame.value)
-})
 
-const magneticLockSummary = computed(() => {
-  if (latestMagneticLockFrame.value) {
-    return describePadFrame(latestMagneticLockFrame.value)
-  }
   if (latestMagneticRawResponse.value) {
-    return `收到原始反馈：${formatPadHex(latestMagneticRawResponse.value)}`
+    return {
+      typeLabel: '原始反馈',
+      rawHex: formatPadHex(latestMagneticRawResponse.value),
+      statusText: '',
+      bccText: ''
+    }
   }
-  return '暂无电磁锁反馈'
+
+  return buildEmptyPanel()
 })
 
-const microswitchSummary = computed(() => {
-  if (!latestMicroswitchFrame.value) {
-    return '暂无微动开关反馈'
+const microswitchPanel = computed<FeedbackPanelData>(() => {
+  const frame = latestMicroswitchFrame.value
+  if (!frame) {
+    return buildEmptyPanel()
   }
-  return describeMicroswitchFrame(latestMicroswitchFrame.value)
+
+  return {
+    typeLabel: '微动开关反馈',
+    rawHex: formatPadHex(frame.rawHex),
+    statusText: `0x${frame.statusHex} / ${resolveMicroswitchText(frame)}`,
+    bccText: frame.bccValid ? '通过' : `错误，应为 0x${frame.expectedBccHex}`
+  }
 })
 
 function appendLog(messageText: string) {
@@ -154,13 +179,6 @@ function resolveNormalLockCloseFeedbackText(frame: PadParsedFrame) {
   return `手动关锁反馈 / 状态位 ${frame.statusHex}`
 }
 
-function describeNormalLockCloseFrame(frame: PadParsedFrame) {
-  const bccText = frame.bccValid
-    ? 'BCC 通过'
-    : `BCC 错误(期望 ${frame.expectedBccHex})`
-  return `手动关锁反馈 板=${frame.boardAddress} 锁=${frame.lockAddress} 状态=${frame.statusHex}(${resolveNormalLockCloseFeedbackText(frame)}) ${bccText}`
-}
-
 function resolveMicroswitchText(frame: PadParsedFrame) {
   if (frame.statusHex === '11') {
     return '微动按下'
@@ -171,11 +189,13 @@ function resolveMicroswitchText(frame: PadParsedFrame) {
   return `微动状态 ${frame.statusHex}`
 }
 
-function describeMicroswitchFrame(frame: PadParsedFrame) {
-  const bccText = frame.bccValid
-    ? 'BCC 通过'
-    : `BCC 错误(期望 ${frame.expectedBccHex})`
-  return `微动开关反馈 板=${frame.boardAddress} 锁=${frame.lockAddress} 状态=${frame.statusHex}(${resolveMicroswitchText(frame)}) ${bccText}`
+function buildEmptyPanel(): FeedbackPanelData {
+  return {
+    typeLabel: '',
+    rawHex: '',
+    statusText: '',
+    bccText: ''
+  }
 }
 
 function clearLog() {
@@ -192,11 +212,8 @@ async function refreshPorts() {
         value: item.path
       })
     })
-    appendLog('串口列表刷新成功')
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`获取串口失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
@@ -210,22 +227,16 @@ async function connect() {
       path: portPath.value,
       baudRate: speed
     })
-    appendLog(`串口连接中: ${portPath.value}@${speed}`)
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`连接失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
 async function disconnect() {
   try {
     await padSingleDevice.disconnect()
-    appendLog('串口已断开')
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`断开失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
@@ -234,12 +245,10 @@ async function handleOpenNormalLock() {
     const { board, lock } = getTargetAddress(normalLockTarget, '普通锁')
     const { commandHex, frame } = await openPadLock(board, lock)
     latestNormalLockFrame.value = frame
-    appendLog(`普通锁 TX 开锁: ${formatPadHex(commandHex)}`)
+    appendLog(`TX ${formatPadHex(commandHex)}`)
     message.success(resolvePadFrameStatusText(frame))
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`普通锁开锁失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
@@ -248,12 +257,10 @@ async function handleQueryNormalLockStatus() {
     const { board, lock } = getTargetAddress(normalLockTarget, '普通锁')
     const { commandHex, frame } = await queryPadLockStatus(board, lock)
     latestNormalLockFrame.value = frame
-    appendLog(`普通锁 TX 查询状态: ${formatPadHex(commandHex)}`)
+    appendLog(`TX ${formatPadHex(commandHex)}`)
     message.success(resolvePadFrameStatusText(frame))
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`普通锁查询状态失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
@@ -264,28 +271,27 @@ async function handleEnableMagneticHoldOpen() {
     const commandFrames = parsedResponse.parsedFrames.filter((frame) => frame.header === '9A')
 
     latestMagneticRawResponse.value = rawResponseHex
-    appendLog(`电磁锁 TX 开启长通电: ${formatPadHex(commandHex)}`)
+    appendLog(`TX ${formatPadHex(commandHex)}`)
 
     if (commandFrames.length) {
       const latestFrame = commandFrames[commandFrames.length - 1]
       latestMagneticLockFrame.value = latestFrame
-      appendLog(`电磁锁 RX 解析: ${describePadFrame(latestFrame)}`)
+      if (rawResponseHex) {
+        appendLog(`RX ${formatPadHex(rawResponseHex)}`)
+      }
       message.success(resolvePadFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
-      appendLog(`电磁锁 RX 原始反馈: ${formatPadHex(rawResponseHex)}`)
+      appendLog(`RX ${formatPadHex(rawResponseHex)}`)
       message.success('开启长通电指令已发送，收到原始反馈')
       return
     }
 
-    appendLog('电磁锁 RX: 未收到可识别的专用反馈，建议再执行一次查询状态')
     message.success('开启长通电指令已发送')
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`电磁锁开启长通电失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
@@ -296,76 +302,57 @@ async function handleDisableMagneticHoldOpen() {
     const commandFrames = parsedResponse.parsedFrames.filter((frame) => frame.header === '9B')
 
     latestMagneticRawResponse.value = rawResponseHex
-    appendLog(`电磁锁 TX 关闭长通电: ${formatPadHex(commandHex)}`)
+    appendLog(`TX ${formatPadHex(commandHex)}`)
 
     if (commandFrames.length) {
       const latestFrame = commandFrames[commandFrames.length - 1]
       latestMagneticLockFrame.value = latestFrame
-      appendLog(`电磁锁 RX 解析: ${describePadFrame(latestFrame)}`)
+      if (rawResponseHex) {
+        appendLog(`RX ${formatPadHex(rawResponseHex)}`)
+      }
       message.success(resolvePadFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
-      appendLog(`电磁锁 RX 原始反馈: ${formatPadHex(rawResponseHex)}`)
+      appendLog(`RX ${formatPadHex(rawResponseHex)}`)
       message.success('关闭长通电指令已发送，收到原始反馈')
       return
     }
 
-    appendLog('电磁锁 RX: 未收到可识别的专用反馈，建议再执行一次查询状态')
     message.success('关闭长通电指令已发送')
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`电磁锁关闭长通电失败: ${messageText}`)
-    message.error(messageText)
-  }
-}
-
-async function handleQueryMagneticLockStatus() {
-  try {
-    const { board, lock } = getTargetAddress(magneticLockTarget, '电磁锁')
-    const { commandHex, frame } = await queryPadLockStatus(board, lock)
-    latestMagneticLockFrame.value = frame
-    appendLog(`电磁锁 TX 查询状态: ${formatPadHex(commandHex)}`)
-    message.success(resolvePadFrameStatusText(frame))
-  } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`电磁锁查询状态失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
 async function handleSendRawHex() {
   try {
     const commandHex = await sendPadRawHex(rawHex.value)
-    appendLog(`TX 自定义: ${formatPadHex(commandHex)}`)
+    appendLog(`TX ${formatPadHex(commandHex)}`)
     message.success('自定义 HEX 已发送')
   } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`发送自定义 HEX 失败: ${messageText}`)
-    message.error(messageText)
+    message.error(resolveError(error))
   }
 }
 
 function routeIncomingFrame(frame: PadParsedFrame) {
+  appendLog(`RX ${formatPadHex(frame.rawHex)}`)
+
   if (frame.header === '81' && matchesTarget(frame, normalLockTarget)) {
-    latestNormalLockCloseFrame.value = frame
-    appendLog(`普通锁 手动关锁 RX: ${describeNormalLockCloseFrame(frame)}`)
+    latestNormalLockFrame.value = frame
   }
 
   if (frame.header === '81' && matchesTarget(frame, microswitchTarget)) {
     latestMicroswitchFrame.value = frame
-    appendLog(`微动开关 RX: ${describeMicroswitchFrame(frame)}`)
   }
 
   if ((frame.header === '8A' || frame.header === '80') && matchesTarget(frame, normalLockTarget)) {
     latestNormalLockFrame.value = frame
-    appendLog(`普通锁 RX: ${describePadFrame(frame)}`)
   }
 
-  if ((frame.header === '80' || frame.header === '9A' || frame.header === '9B') && matchesTarget(frame, magneticLockTarget)) {
+  if ((frame.header === '9A' || frame.header === '9B') && matchesTarget(frame, magneticLockTarget)) {
     latestMagneticLockFrame.value = frame
-    appendLog(`电磁锁 RX: ${describePadFrame(frame)}`)
   }
 }
 
@@ -381,10 +368,6 @@ onMounted(() => {
     baudRate.value = state.baudRate
   })
 
-  disposeRawListener = padSingleDevice.subscribeRawData((data) => {
-    appendLog(`RX 原始: ${formatPadHex(data)}`)
-  })
-
   disposeFrameListener = padSingleDevice.subscribeFrame((frame) => {
     routeIncomingFrame(frame)
   })
@@ -392,7 +375,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   disposeStatusListener()
-  disposeRawListener()
   disposeFrameListener()
 })
 </script>
@@ -400,13 +382,6 @@ onUnmounted(() => {
 <template>
   <div class="container">
     <a-space direction="vertical" size="large" style="width: 100%">
-      <a-alert
-        show-icon
-        type="info"
-        message="PAD 模块划分"
-        description="页面按普通锁、电磁锁、微动开关三块拆开；每块单独维护板地址和锁地址。普通锁补充展示 81 手动关锁反馈，电磁锁不再显示指令预览白块。"
-      />
-
       <a-card title="串口连接">
         <a-space direction="vertical" style="width: 100%">
           <div class="serial-port-row">
@@ -475,55 +450,20 @@ onUnmounted(() => {
           </div>
 
           <div class="module-column">
-            <div class="feedback-stack">
-              <div class="feedback-block">
-                <div class="feedback-title">开锁/状态查询反馈</div>
-                <a-descriptions v-if="latestNormalLockFrame" :column="1" size="small" bordered>
-                  <a-descriptions-item label="反馈类型">
-                    {{ getPadFrameLabel(latestNormalLockFrame) }}
-                  </a-descriptions-item>
-                  <a-descriptions-item label="原始 HEX">
-                    <code>{{ formatPadHex(latestNormalLockFrame.rawHex) }}</code>
-                  </a-descriptions-item>
-                  <a-descriptions-item label="状态位">
-                    0x{{ latestNormalLockFrame.statusHex }} / {{ resolvePadFrameStatusText(latestNormalLockFrame) }}
-                  </a-descriptions-item>
-                  <a-descriptions-item label="BCC">
-                    <a-tag :color="latestNormalLockFrame.bccValid ? 'green' : 'red'">
-                      {{ latestNormalLockFrame.bccValid ? '通过' : `错误，应为 0x${latestNormalLockFrame.expectedBccHex}` }}
-                    </a-tag>
-                  </a-descriptions-item>
-                </a-descriptions>
-                <div v-else class="empty-block">暂无普通锁开锁/查询反馈</div>
-                <a-typography-paragraph class="summary-text">
-                  {{ normalLockSummary }}
-                </a-typography-paragraph>
-              </div>
-
-              <div class="feedback-block">
-                <div class="feedback-title">手动关锁反馈</div>
-                <a-descriptions v-if="latestNormalLockCloseFrame" :column="1" size="small" bordered>
-                  <a-descriptions-item label="反馈类型">
-                    手动关锁反馈
-                  </a-descriptions-item>
-                  <a-descriptions-item label="原始 HEX">
-                    <code>{{ formatPadHex(latestNormalLockCloseFrame.rawHex) }}</code>
-                  </a-descriptions-item>
-                  <a-descriptions-item label="状态位">
-                    0x{{ latestNormalLockCloseFrame.statusHex }} / {{ resolveNormalLockCloseFeedbackText(latestNormalLockCloseFrame) }}
-                  </a-descriptions-item>
-                  <a-descriptions-item label="BCC">
-                    <a-tag :color="latestNormalLockCloseFrame.bccValid ? 'green' : 'red'">
-                      {{ latestNormalLockCloseFrame.bccValid ? '通过' : `错误，应为 0x${latestNormalLockCloseFrame.expectedBccHex}` }}
-                    </a-tag>
-                  </a-descriptions-item>
-                </a-descriptions>
-                <div v-else class="empty-block">暂无普通锁手动关锁反馈</div>
-                <a-typography-paragraph class="summary-text">
-                  {{ normalLockCloseSummary }}
-                </a-typography-paragraph>
-              </div>
-            </div>
+            <a-descriptions :column="1" size="small" bordered class="feedback-descriptions">
+              <a-descriptions-item label="反馈类型">
+                {{ normalLockPanel.typeLabel }}
+              </a-descriptions-item>
+              <a-descriptions-item label="原始 HEX">
+                <code>{{ normalLockPanel.rawHex }}</code>
+              </a-descriptions-item>
+              <a-descriptions-item label="状态位">
+                {{ normalLockPanel.statusText }}
+              </a-descriptions-item>
+              <a-descriptions-item label="BCC">
+                {{ normalLockPanel.bccText }}
+              </a-descriptions-item>
+            </a-descriptions>
           </div>
         </div>
       </a-card>
@@ -555,34 +495,26 @@ onUnmounted(() => {
             <a-space wrap>
               <a-button type="primary" @click="handleEnableMagneticHoldOpen">开启长通电</a-button>
               <a-button @click="handleDisableMagneticHoldOpen">关闭长通电</a-button>
-              <a-button @click="handleQueryMagneticLockStatus">查询状态</a-button>
             </a-space>
           </div>
 
           <div class="module-column">
-            <a-descriptions v-if="latestMagneticLockFrame" :column="1" size="small" bordered>
+            <a-descriptions :column="1" size="small" bordered class="feedback-descriptions">
               <a-descriptions-item label="反馈类型">
-                {{ getPadFrameLabel(latestMagneticLockFrame) }}
+                {{ magneticLockPanel.typeLabel }}
               </a-descriptions-item>
               <a-descriptions-item label="原始 HEX">
-                <code>{{ formatPadHex(latestMagneticLockFrame.rawHex) }}</code>
+                <code>{{ magneticLockPanel.rawHex }}</code>
               </a-descriptions-item>
               <a-descriptions-item label="状态位">
-                0x{{ latestMagneticLockFrame.statusHex }} / {{ resolvePadFrameStatusText(latestMagneticLockFrame) }}
+                {{ magneticLockPanel.statusText }}
               </a-descriptions-item>
               <a-descriptions-item label="BCC">
-                <a-tag :color="latestMagneticLockFrame.bccValid ? 'green' : 'red'">
-                  {{ latestMagneticLockFrame.bccValid ? '通过' : `错误，应为 0x${latestMagneticLockFrame.expectedBccHex}` }}
-                </a-tag>
+                {{ magneticLockPanel.bccText }}
               </a-descriptions-item>
             </a-descriptions>
-            <div v-else class="empty-block">暂无电磁锁解析反馈</div>
-
-            <a-typography-paragraph class="summary-text">
-              {{ magneticLockSummary }}
-            </a-typography-paragraph>
             <a-typography-text type="secondary">
-              `9A/9B` 不强行按统一长度拆包；如果没有可识别的专用反馈，建议再执行一次查询状态。
+              `9A/9B` 不强行按统一长度拆包。
             </a-typography-text>
           </div>
         </div>
@@ -611,37 +543,23 @@ onUnmounted(() => {
             <a-typography-text type="secondary">
               {{ formatTargetPreview(microswitchTarget) }}
             </a-typography-text>
-
-            <a-alert
-              show-icon
-              type="warning"
-              message="微动开关只监听 81 主动上报"
-              description="这里不发送控制命令，只根据你配置的地址筛选并展示对应的微动反馈。"
-            />
           </div>
 
           <div class="module-column">
-            <a-descriptions v-if="latestMicroswitchFrame" :column="1" size="small" bordered>
+            <a-descriptions :column="1" size="small" bordered class="feedback-descriptions">
               <a-descriptions-item label="反馈类型">
-                {{ getPadFrameLabel(latestMicroswitchFrame) }}
+                {{ microswitchPanel.typeLabel }}
               </a-descriptions-item>
               <a-descriptions-item label="原始 HEX">
-                <code>{{ formatPadHex(latestMicroswitchFrame.rawHex) }}</code>
+                <code>{{ microswitchPanel.rawHex }}</code>
               </a-descriptions-item>
               <a-descriptions-item label="状态位">
-                0x{{ latestMicroswitchFrame.statusHex }} / {{ resolveMicroswitchText(latestMicroswitchFrame) }}
+                {{ microswitchPanel.statusText }}
               </a-descriptions-item>
               <a-descriptions-item label="BCC">
-                <a-tag :color="latestMicroswitchFrame.bccValid ? 'green' : 'red'">
-                  {{ latestMicroswitchFrame.bccValid ? '通过' : `错误，应为 0x${latestMicroswitchFrame.expectedBccHex}` }}
-                </a-tag>
+                {{ microswitchPanel.bccText }}
               </a-descriptions-item>
             </a-descriptions>
-            <div v-else class="empty-block">暂无微动开关反馈</div>
-
-            <a-typography-paragraph class="summary-text">
-              {{ microswitchSummary }}
-            </a-typography-paragraph>
             <a-typography-text type="secondary">
               这里固定按微动事件展示：`11=微动按下`，`00=微动松开`。
             </a-typography-text>
@@ -707,43 +625,24 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.feedback-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.feedback-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.feedback-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.88);
-}
-
 .address-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.summary-text,
-.log-textarea :deep(textarea) {
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+.feedback-descriptions :deep(table) {
+  table-layout: fixed;
 }
 
-.empty-block {
-  min-height: 156px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(0, 0, 0, 0.45);
-  background: #fafafa;
-  border-radius: 8px;
+.feedback-descriptions :deep(.ant-descriptions-row > th) {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+}
+
+.log-textarea :deep(textarea) {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
 }
 
 @media (max-width: 1080px) {

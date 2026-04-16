@@ -1,5 +1,7 @@
+// PAD 协议当前页面会遇到的响应头集合。
 export const PAD_RESPONSE_HEADS = ['80', '81', '8A', '9A', '9B'] as const
 
+// 已确认固定长度的 PAD 状态类响应统一为 5 字节。
 export const PAD_STANDARD_STATUS_FRAME_BYTE_LENGTH = 5
 
 export type PadCommandHead = (typeof PAD_RESPONSE_HEADS)[number]
@@ -17,6 +19,7 @@ export type PadFixedResponseRuleKey =
   | 'manual-status-report'
   | 'open-lock-feedback'
 
+// 固定长度响应的抽象规则，便于接收层统一拆帧。
 export interface PadFixedLengthResponseRule {
   key: PadFixedResponseRuleKey
   requestHead?: PadCommandHead
@@ -25,6 +28,7 @@ export interface PadFixedLengthResponseRule {
   description: string
 }
 
+// 解析完成后的 PAD 帧结构，页面和 helper 都以这份数据为准。
 export interface PadParsedFrame {
   rawHex: string
   header: string
@@ -40,6 +44,7 @@ export interface PadParsedFrame {
   bccValid: boolean
 }
 
+// 文档中已经明确长度的几类响应放在这里统一管理。
 export const PAD_FIXED_LENGTH_RESPONSE_RULES: readonly PadFixedLengthResponseRule[] = [
   {
     key: 'status-query-feedback',
@@ -63,10 +68,12 @@ export const PAD_FIXED_LENGTH_RESPONSE_RULES: readonly PadFixedLengthResponseRul
   }
 ] as const
 
+// 统一把输入转成连续的大写 HEX，便于后续校验和比较。
 export function normalizePadHex(input: string) {
   return String(input ?? '').replace(/\s+/g, '').toUpperCase()
 }
 
+// 要求输入必须是合法的偶数位 HEX，否则直接报错。
 export function requirePadHexPayload(input: string, label = 'HEX') {
   const value = normalizePadHex(input)
   if (!value) {
@@ -78,6 +85,7 @@ export function requirePadHexPayload(input: string, label = 'HEX') {
   return value
 }
 
+// 日志和页面展示时统一按空格分隔字节，便于肉眼查看。
 export function formatPadHex(hex: string) {
   const normalized = normalizePadHex(hex)
   if (!normalized) {
@@ -86,10 +94,12 @@ export function formatPadHex(hex: string) {
   return normalized.match(/.{1,2}/g)?.join(' ') ?? ''
 }
 
+// 判断某个字节是否属于当前已知的响应头。
 export function isPadResponseHead(head: string): head is PadCommandHead {
   return PAD_RESPONSE_HEADS.includes(head as PadCommandHead)
 }
 
+// 十进制地址统一转成单字节 HEX。
 export function toPadHexByte(value: number, label: string) {
   if (!Number.isInteger(value) || value < 0 || value > 0xFF) {
     throw new Error(`${label}必须是 0-255 的整数`)
@@ -97,6 +107,7 @@ export function toPadHexByte(value: number, label: string) {
   return value.toString(16).toUpperCase().padStart(2, '0')
 }
 
+// PAD 协议的 BCC 规则是前面所有字节逐个异或。
 export function computePadBccHex(hexBytes: readonly string[]) {
   const result = hexBytes.reduce((current, item) => {
     const hex = requirePadHexPayload(item, 'HEX 字节')
@@ -109,6 +120,7 @@ export function computePadBccHex(hexBytes: readonly string[]) {
   return result.toString(16).toUpperCase().padStart(2, '0')
 }
 
+// 组装通用 PAD 指令：命令头 + 板地址 + 锁地址 + 功能码 + BCC。
 function buildPadCommand(head: string, boardAddress: number, lockAddress: number, functionCode: string) {
   const boardHex = toPadHexByte(boardAddress, '板地址')
   const lockHex = toPadHexByte(lockAddress, '锁地址')
@@ -120,22 +132,27 @@ function buildPadCommand(head: string, boardAddress: number, lockAddress: number
   return `${payload.join('')}${computePadBccHex(payload)}`
 }
 
+// 开锁命令。
 export function buildOpenLockCommand(boardAddress: number, lockAddress: number) {
   return buildPadCommand('8A', boardAddress, lockAddress, '11')
 }
 
+// 单锁状态查询命令。
 export function buildQueryLockStatusCommand(boardAddress: number, lockAddress: number) {
   return buildPadCommand('80', boardAddress, lockAddress, '33')
 }
 
+// 开启长通电命令。
 export function buildEnableHoldOpenCommand(boardAddress: number, lockAddress: number) {
   return buildPadCommand('9A', boardAddress, lockAddress, '11')
 }
 
+// 关闭长通电命令。
 export function buildDisableHoldOpenCommand(boardAddress: number, lockAddress: number) {
   return buildPadCommand('9B', boardAddress, lockAddress, '11')
 }
 
+// 按固定长度规则从缓冲里提取完整帧，并保留未消费的尾巴供下次继续拼接。
 export function extractPadFixedLengthFrames(
   buffer: string,
   rules: readonly PadFixedLengthResponseRule[] = PAD_FIXED_LENGTH_RESPONSE_RULES
@@ -178,11 +195,14 @@ export function extractPadFixedLengthFrames(
   }
 
   return {
+    // 本次成功提取出的完整帧。
     frames,
+    // 仍然不足一帧的残留数据。
     rest
   }
 }
 
+// 把标准 5 字节 PAD 响应解析成结构化对象。
 export function parsePadFrame(rawHex: string): PadParsedFrame | null {
   const hex = normalizePadHex(rawHex)
   if (!/^[0-9A-F]{10}$/.test(hex)) {
@@ -221,6 +241,7 @@ export function parsePadFrame(rawHex: string): PadParsedFrame | null {
   }
 }
 
+// 9A/9B 的反馈格式不完全稳定，因此这里先保留原始响应，再尽量提取可识别的帧。
 export function parsePadVariableCommandResponse(commandHead: '9A' | '9B', rawHex: string) {
   const normalized = normalizePadHex(rawHex)
   if (!normalized) {
@@ -264,6 +285,7 @@ export function parsePadVariableCommandResponse(commandHead: '9A' | '9B', rawHex
   }
 }
 
+// 页面展示时使用的人类可读反馈名称。
 export function getPadFrameLabel(frame: Pick<PadParsedFrame, 'header' | 'type'>) {
   switch (frame.type) {
     case 'status-query-feedback':
@@ -281,6 +303,7 @@ export function getPadFrameLabel(frame: Pick<PadParsedFrame, 'header' | 'type'>)
   }
 }
 
+// 当前页面采用的状态文案解释规则。
 export function resolvePadFrameStatusText(frame: PadParsedFrame) {
   switch (frame.type) {
     case 'open-lock-feedback':
@@ -315,6 +338,7 @@ export function resolvePadFrameStatusText(frame: PadParsedFrame) {
   return `未知状态 ${frame.statusHex}`
 }
 
+// 把结构化帧拼成一条简短的中文摘要，便于页面展示。
 export function describePadFrame(frame: PadParsedFrame) {
   const statusText = resolvePadFrameStatusText(frame)
   const bccText = frame.bccValid
@@ -324,6 +348,7 @@ export function describePadFrame(frame: PadParsedFrame) {
   return `${getPadFrameLabel(frame)} 板=${frame.boardAddress} 锁=${frame.lockAddress} 状态=${frame.statusHex}(${statusText}) ${bccText}`
 }
 
+// 根据响应头映射出页面内部使用的帧类型。
 function getPadFrameType(header: string): PadFrameType {
   switch (header) {
     case '80':
@@ -341,6 +366,7 @@ function getPadFrameType(header: string): PadFrameType {
   }
 }
 
+// 从缓冲里找到一个已知响应头的起始位置，用于固定长度拆帧。
 function findFixedFrameHeadIndex(buffer: string, rules: readonly PadFixedLengthResponseRule[]) {
   for (let index = 0; index <= buffer.length - 2; index += 2) {
     const head = buffer.slice(index, index + 2)

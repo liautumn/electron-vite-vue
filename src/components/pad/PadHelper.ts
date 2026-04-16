@@ -9,6 +9,7 @@ import {
   requirePadHexPayload
 } from './PadProtocol'
 
+// 普通锁开锁：发送 8A，并等待对应地址的 8A 响应。
 export async function openPadLock(boardAddress: number, lockAddress: number, timeout = 2000) {
   const commandHex = buildOpenLockCommand(boardAddress, lockAddress)
   const frame = await padSingleDevice.requestFrame(
@@ -26,6 +27,7 @@ export async function openPadLock(boardAddress: number, lockAddress: number, tim
   }
 }
 
+// 单锁状态查询：发送 80，并等待对应地址的 80 响应。
 export async function queryPadLockStatus(boardAddress: number, lockAddress: number, timeout = 2000) {
   const commandHex = buildQueryLockStatusCommand(boardAddress, lockAddress)
   const frame = await padSingleDevice.requestFrame(
@@ -43,6 +45,7 @@ export async function queryPadLockStatus(boardAddress: number, lockAddress: numb
   }
 }
 
+// 电磁锁开启长通电：先保留原始返回，再按 9A 规则尽量解析。
 export async function enablePadLockKeepOpen(
   boardAddress: number,
   lockAddress: number,
@@ -64,6 +67,7 @@ export async function enablePadLockKeepOpen(
   }
 }
 
+// 电磁锁关闭长通电：先保留原始返回，再按 9B 规则尽量解析。
 export async function disablePadLockKeepOpen(
   boardAddress: number,
   lockAddress: number,
@@ -85,6 +89,7 @@ export async function disablePadLockKeepOpen(
   }
 }
 
+// 自定义 HEX 直接透传到设备，主要用于联调和补测。
 export async function sendPadRawHex(rawHex: string) {
   const commandHex = requirePadHexPayload(normalizePadHex(rawHex), '自定义 HEX')
   await padSingleDevice.sendHex(commandHex)

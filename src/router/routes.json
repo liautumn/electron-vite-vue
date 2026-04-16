@@ -85,6 +85,19 @@
           "permission": "app:demos:guoxin-rfid",
           "type": "menu"
         }
+      },
+      {
+        "path": "pad-lock-demo",
+        "name": "pad-lock-demo",
+        "component": "PadLockView",
+        "alias": "/pad-lock-demo",
+        "meta": {
+          "title": "PAD 锁控板 Demo",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:pad-lock",
+          "type": "menu"
+        }
       }
     ]
   },

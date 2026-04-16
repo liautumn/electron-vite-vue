@@ -12,6 +12,7 @@ const DEFAULT_PERMISSIONS = [
     'app:demos:rs232-tcp',
     'app:demos:mqtt',
     'app:demos:guoxin-rfid',
+    'app:demos:pad-lock',
 ] as const
 
 const mergeDefaultPermissions = (list: string[] | undefined) => {

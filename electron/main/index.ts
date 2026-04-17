@@ -184,7 +184,12 @@ app.on('window-all-closed', () => {
 // =======================
 
 app.on('second-instance', () => {
-    // 已有实例在运行时，直接忽略后续启动请求
+    if (win) {
+        // 如果窗口最小化，先恢复
+        if (win.isMinimized()) win.restore()
+        // 聚焦窗口
+        win.focus()
+    }
 })
 
 // macOS：点击 Dock 图标重新激活

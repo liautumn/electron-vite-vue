@@ -59,7 +59,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
     ? path.join(process.env.APP_ROOT, 'public')
     : RENDERER_DIST
 
-log.info('=========>> Main process bootstrapped <<=========', {
+log.info('=========>> Main process bootstrapped', {
     isPackaged: app.isPackaged,
     logDirectory: getLogDirectory(),
     logFile: getLogFilePath(),

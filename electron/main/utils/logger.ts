@@ -10,9 +10,17 @@ const formatLogDate = (date: Date) => {
     return `${year}-${month}-${day}`
 }
 
+const resolvePackagedLogDirectory = () => {
+    if (process.platform === 'linux' && process.env.APPIMAGE) {
+        return path.join(path.dirname(process.env.APPIMAGE), 'logs')
+    }
+
+    return path.join(process.resourcesPath, 'logs')
+}
+
 const resolveLogDirectory = () => {
     if (app.isPackaged) {
-        return path.join(process.resourcesPath, 'logs')
+        return resolvePackagedLogDirectory()
     }
 
     return path.join(process.cwd(), 'logs')

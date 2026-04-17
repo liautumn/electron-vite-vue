@@ -17,6 +17,7 @@ import os from 'node:os'
 import {registerSerial} from './mod/serial'
 import {registerTcp} from './mod/tcp'
 import {registerMqtt} from './mod/mqtt'
+import log, {getLogDirectory, getLogFilePath} from './utils/logger'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
 
@@ -58,6 +59,12 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
     ? path.join(process.env.APP_ROOT, 'public')
     : RENDERER_DIST
 
+log.info('Main process bootstrapped', {
+    isPackaged: app.isPackaged,
+    logDirectory: getLogDirectory(),
+    logFile: getLogFilePath(),
+})
+
 // =======================
 // Windows 7 特殊处理
 // =======================
@@ -91,6 +98,8 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html')
 // 创建主窗口
 // =======================
 async function createWindow() {
+    log.info('Creating main window')
+
     const window = new BrowserWindow({
         // 窗口标题
         title: 'Main window',
@@ -170,10 +179,18 @@ async function createWindow() {
 // =======================
 
 // Electron 准备完成后创建窗口
-app.whenReady().then(createWindow)
+app.whenReady()
+    .then(async () => {
+        log.info('Electron app is ready')
+        await createWindow()
+    })
+    .catch(error => {
+        log.error('Failed to create the main window', error)
+    })
 
 // 所有窗口关闭时触发
 app.on('window-all-closed', () => {
+    log.info('All windows closed')
     win = null
     // macOS：关闭窗口不退出应用
     if (process.platform !== 'darwin') app.quit()
@@ -184,6 +201,7 @@ app.on('window-all-closed', () => {
 // =======================
 
 app.on('second-instance', () => {
+    log.warn('A second instance was blocked')
     if (win) {
         // 如果窗口最小化，先恢复
         if (win.isMinimized()) win.restore()
@@ -194,6 +212,7 @@ app.on('second-instance', () => {
 
 // macOS：点击 Dock 图标重新激活
 app.on('activate', () => {
+    log.info('App activated')
     const allWindows = BrowserWindow.getAllWindows()
     if (allWindows.length) {
         allWindows[0].focus()
@@ -208,6 +227,8 @@ app.on('activate', () => {
 
 // Renderer 调用 ipcRenderer.invoke('open-win', arg)
 ipcMain.handle('open-win', (_, arg) => {
+    log.info('Opening child window', {hash: arg})
+
     const childWindow = new BrowserWindow({
         webPreferences: {
             // 预加载脚本（安全桥）

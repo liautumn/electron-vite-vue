@@ -9,6 +9,7 @@ import {useLocaleStore} from './stores/locale'
 import {useThemeStore} from './stores/theme'
 import {useUserStore} from './stores/user'
 import permissionDirective from './directives/permission'
+import log from './utils/logger'
 import 'ant-design-vue/dist/reset.css'
 import './styles/theme.css'
 
@@ -17,6 +18,8 @@ import './styles/theme.css'
 // import './demos/node'
 
 const app = createApp(App)
+
+log.info('Renderer process bootstrapped')
 
 // 创建 pinia 实例
 const pinia = createPinia()

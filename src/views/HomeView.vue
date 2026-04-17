@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import {computed} from 'vue'
+import {computed, onMounted} from 'vue'
 import {useRouter} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 import {storeToRefs} from 'pinia'
 import {useLocaleStore} from '../stores/locale'
+import logger, {createLogger} from '../utils/logger'
 
 defineOptions({ name: 'home' })
 
@@ -11,6 +12,7 @@ const router = useRouter()
 const {t} = useI18n()
 const localeStore = useLocaleStore()
 const {locale} = storeToRefs(localeStore)
+const pageLog = createLogger('home-page')
 
 const goPiniaDemo = () => {
   router.push({name: 'pinia-demo'})
@@ -18,7 +20,14 @@ const goPiniaDemo = () => {
 
 const nextLocale = computed(() => (locale.value === 'zh' ? 'en' : 'zh'))
 const toggleLocale = () => {
-  localeStore.setLocale(nextLocale.value)
+  const fromLocale = locale.value
+  const toLocale = nextLocale.value
+
+  localeStore.setLocale(toLocale)
+  pageLog.info('Language switched', {
+    from: fromLocale,
+    to: toLocale,
+  })
 }
 const currentLanguageText = computed(() =>
     t('home.currentLanguage', {lang: t(`localeName.${locale.value}`)})
@@ -26,6 +35,21 @@ const currentLanguageText = computed(() =>
 const switchLabel = computed(() =>
     t('home.switchLabel', {lang: t(`localeName.${nextLocale.value}`)})
 )
+
+const emitInfoLog = () => {
+  logger.info('Home page info log example')
+}
+
+const emitErrorLog = () => {
+  const error = new Error('Home page log example error')
+  pageLog.error('Home page error log example', error.message)
+}
+
+onMounted(() => {
+  pageLog.info('Home page mounted', {
+    locale: locale.value,
+  })
+})
 </script>
 
 <template>
@@ -53,6 +77,15 @@ const switchLabel = computed(() =>
         <a-button @click="toggleLocale">{{ switchLabel }}</a-button>
       </div>
     </div>
+
+    <div class="card">
+      <p>{{ t('home.logTitle') }}</p>
+      <p class="muted">{{ t('home.logTip') }}</p>
+      <div class="log-actions">
+        <a-button type="primary" @click="emitInfoLog">{{ t('home.logInfoButton') }}</a-button>
+        <a-button danger @click="emitErrorLog">{{ t('home.logErrorButton') }}</a-button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -74,6 +107,12 @@ const switchLabel = computed(() =>
 .language-row {
   display: flex;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.log-actions {
+  display: flex;
   gap: 12px;
   flex-wrap: wrap;
 }

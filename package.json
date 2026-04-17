@@ -39,6 +39,7 @@
     "vue-tsc": "^3.2.6"
   },
   "dependencies": {
+    "electron-log": "^5.4.3",
     "mqtt": "^5.15.1",
     "serialport": "^13.0.0"
   }

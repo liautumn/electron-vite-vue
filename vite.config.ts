@@ -4,6 +4,11 @@ import vue from '@vitejs/plugin-vue'
 import electron from 'vite-plugin-electron/simple'
 import pkg from './package.json'
 
+const electronExternals = [
+    ...Object.keys(pkg.dependencies ?? {}),
+    /^electron-log(\/.*)?$/,
+]
+
 export default defineConfig(({command, mode}) => {
     const env = loadEnv(mode, process.cwd(), '')
     fs.rmSync('dist-electron', {recursive: true, force: true})
@@ -33,7 +38,7 @@ export default defineConfig(({command, mode}) => {
                             minify: isBuild,
                             outDir: 'dist-electron/main',
                             rollupOptions: {
-                                external: Object.keys(pkg.dependencies ?? {}),
+                                external: electronExternals,
                             },
                         },
                     },
@@ -47,7 +52,7 @@ export default defineConfig(({command, mode}) => {
                             minify: isBuild,
                             outDir: 'dist-electron/preload',
                             rollupOptions: {
-                                external: Object.keys(pkg.dependencies ?? {}),
+                                external: electronExternals,
                             },
                         },
                     },

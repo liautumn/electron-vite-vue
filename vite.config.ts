@@ -37,7 +37,7 @@ export default defineConfig(({command, mode}) => {
                             sourcemap: isServe,
                             minify: isBuild,
                             outDir: 'dist-electron/main',
-                            rollupOptions: {
+                            rolldownOptions: {
                                 external: electronExternals,
                             },
                         },
@@ -51,7 +51,7 @@ export default defineConfig(({command, mode}) => {
                             sourcemap: isServe ? 'inline' : false,
                             minify: isBuild,
                             outDir: 'dist-electron/preload',
-                            rollupOptions: {
+                            rolldownOptions: {
                                 external: electronExternals,
                             },
                         },

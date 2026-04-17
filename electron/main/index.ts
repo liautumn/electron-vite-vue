@@ -91,7 +91,7 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html')
 // 创建主窗口
 // =======================
 async function createWindow() {
-    win = new BrowserWindow({
+    const window = new BrowserWindow({
         // 窗口标题
         title: 'Main window',
         // 防止启动闪一下
@@ -108,10 +108,11 @@ async function createWindow() {
             contextIsolation: true,    // 开启上下文隔离（推荐）
         },
     })
+    win = window
     // 默认最大化窗口
-    win.once('ready-to-show', () => {
-        win.maximize()
-        win.show()
+    window.once('ready-to-show', () => {
+        window.maximize()
+        window.show()
     })
     // 针对 macOS 设置 Dock 图标
     // if (process.platform === 'darwin') {
@@ -119,9 +120,9 @@ async function createWindow() {
     // }
 
     // 注册 mod
-    registerSerial(win)
-    registerTcp(win)
-    registerMqtt(win)
+    registerSerial(window)
+    registerTcp(window)
+    registerMqtt(window)
 
     // =======================
     // 加载页面（开发 / 生产）
@@ -129,12 +130,12 @@ async function createWindow() {
 
     if (VITE_DEV_SERVER_URL) {
         // 开发模式：加载 Vite dev server
-        await win.loadURL(VITE_DEV_SERVER_URL)
+        await window.loadURL(VITE_DEV_SERVER_URL)
         // 自动打开开发者工具
-        win.webContents.openDevTools()
+        window.webContents.openDevTools()
     } else {
         // 生产模式：加载本地 HTML
-        await win.loadFile(indexHtml)
+        await window.loadFile(indexHtml)
     }
 
     // =======================
@@ -153,7 +154,7 @@ async function createWindow() {
     // 外部链接用系统浏览器打开
     // =======================
 
-    win.webContents.setWindowOpenHandler(({url}) => {
+    window.webContents.setWindowOpenHandler(({url}) => {
         // https 链接用默认浏览器打开
         if (url.startsWith('https:')) shell.openExternal(url)
         // 阻止 Electron 内部新开窗口
@@ -183,12 +184,7 @@ app.on('window-all-closed', () => {
 // =======================
 
 app.on('second-instance', () => {
-    if (win) {
-        // 如果窗口最小化，先恢复
-        if (win.isMinimized()) win.restore()
-        // 聚焦窗口
-        win.focus()
-    }
+    // 已有实例在运行时，直接忽略后续启动请求
 })
 
 // macOS：点击 Dock 图标重新激活

@@ -29,10 +29,38 @@ const resolveLogDirectory = () => {
 const resolveLogFilePath = (date = new Date()) =>
     path.join(resolveLogDirectory(), `${formatLogDate(date)}.log`)
 
+const isBrokenPipeError = (error: unknown): error is NodeJS.ErrnoException =>
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'EPIPE'
+
+const consoleTransportEnabled =
+    !app.isPackaged || process.env.ELECTRON_LOG_CONSOLE === '1'
+
+const defaultConsoleWrite = log.transports.console.writeFn.bind(log.transports.console)
+
+// Some packaged launches do not provide a live stdout/stderr stream.
+log.transports.console.writeFn = options => {
+    try {
+        defaultConsoleWrite(options)
+    } catch (error) {
+        if (isBrokenPipeError(error)) {
+            return
+        }
+
+        throw error
+    }
+}
+
 log.transports.file.resolvePathFn = (_variables, message) =>
     resolveLogFilePath(message?.date instanceof Date ? message.date : new Date())
 log.transports.file.level = 'info'
-log.transports.console.level = app.isPackaged ? 'info' : 'silly'
+log.transports.console.level = consoleTransportEnabled
+    ? app.isPackaged
+        ? 'info'
+        : 'silly'
+    : false
 
 try {
     app.setAppLogsPath(resolveLogDirectory())

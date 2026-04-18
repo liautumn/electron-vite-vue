@@ -31,3 +31,4 @@ yarn.lock
 !/doc/RFID读写器数据通信协议.pdf
 /tsconfig.node.tsbuildinfo
 /.codex
+/squashfs-root/

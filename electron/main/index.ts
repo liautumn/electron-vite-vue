@@ -1,5 +1,5 @@
 // 从 electron 中导入核心模块
-import {app, BrowserWindow, shell, ipcMain} from 'electron'
+import {app, BrowserWindow, shell, ipcMain, Menu} from 'electron'
 
 // Node.js 的 ESM 模式下，用来创建 require
 import {createRequire} from 'node:module'
@@ -104,9 +104,11 @@ async function createWindow() {
         // 窗口标题
         title: 'Main window',
         // 防止启动闪一下
-        show: false,
+        show: true,
         // 默认全屏
-        // fullscreen: true,
+        fullscreen: true,
+        // 隐藏原生菜单栏
+        autoHideMenuBar: true,
         // 应用图标
         icon: path.join(process.env.VITE_PUBLIC, 'icon/icon.ico'),
         // Web 相关配置
@@ -118,6 +120,7 @@ async function createWindow() {
         },
     })
     win = window
+    window.removeMenu()
     // 默认最大化窗口
     window.once('ready-to-show', () => {
         window.maximize()
@@ -182,6 +185,7 @@ async function createWindow() {
 app.whenReady()
     .then(async () => {
         log.info('Electron app is ready')
+        Menu.setApplicationMenu(null)
         await createWindow()
     })
     .catch(error => {
@@ -230,6 +234,7 @@ ipcMain.handle('open-win', (_, arg) => {
     log.info('Opening child window', {hash: arg})
 
     const childWindow = new BrowserWindow({
+        autoHideMenuBar: true,
         webPreferences: {
             // 预加载脚本（安全桥）
             preload,
@@ -237,6 +242,7 @@ ipcMain.handle('open-win', (_, arg) => {
             contextIsolation: true,    // 开启上下文隔离（推荐）
         },
     })
+    childWindow.removeMenu()
 
     // 开发模式
     if (VITE_DEV_SERVER_URL) {

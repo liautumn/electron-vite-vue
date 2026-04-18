@@ -5,7 +5,7 @@
     <scripts>
       <script value="typecheck" />
     </scripts>
-    <node-interpreter value="docker://nvm-dev:latest//root/.nvm/versions/node/*/bin/node" />
+    <node-interpreter value="project" />
     <envs />
     <EXTENSION ID="NodeDockerRunConfigurationExtension">
       <option name="envVars">

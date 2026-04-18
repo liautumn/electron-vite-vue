@@ -67,32 +67,15 @@ const safeDOM = {
 }
 
 // ------------------------------------------------------------------
-// Loading 动画实现（应用启动过渡）
+// Loading 动图实现（应用启动过渡）
 // ------------------------------------------------------------------
 function useLoading() {
+    const loadingImagePath = new URL('./loading.gif', window.location.href).toString()
 
-    // Loading 的 CSS 类名
-    const className = `loaders-css__square-spin`
-
-    // Loading 所需的 CSS 样式
     const styleContent = `
-@keyframes square-spin {
-  25% { transform: perspective(100px) rotateX(180deg) rotateY(0); }
-  50% { transform: perspective(100px) rotateX(180deg) rotateY(180deg); }
-  75% { transform: perspective(100px) rotateX(0) rotateY(180deg); }
-  100% { transform: perspective(100px) rotateX(0) rotateY(0); }
-}
-.${className} > div {
-  animation-fill-mode: both;
-  width: 50px;
-  height: 50px;
-  background: #fff;
-  animation: square-spin 3s 0s cubic-bezier(0.09, 0.57, 0.49, 0.9) infinite;
-}
 .app-loading-wrap {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100vw;
   height: 100vh;
   display: flex;
@@ -101,47 +84,48 @@ function useLoading() {
   background: #282c34;
   z-index: 9;
 }
-  `
+.app-loading-gif {
+  display: block;
+  max-width: min(46vw, 320px);
+  max-height: min(46vh, 320px);
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+`
 
-    // 创建 <style> 元素
     const oStyle = document.createElement('style')
-
-    // 创建 Loading 容器 div
     const oDiv = document.createElement('div')
+    const oImage = document.createElement('img')
 
-    // 设置 style 的 id
     oStyle.id = 'app-loading-style'
-
-    // 写入 CSS
-    oStyle.innerHTML = styleContent
-
-    // 设置 Loading 外层 class
+    oStyle.textContent = styleContent
     oDiv.className = 'app-loading-wrap'
+    oImage.className = 'app-loading-gif'
+    oImage.alt = 'Application loading'
+    oImage.src = loadingImagePath
+    oDiv.appendChild(oImage)
 
-    // 设置 Loading 内部 HTML
-    oDiv.innerHTML = `<div class="${className}"><div></div></div>`
+    const clearLoading = () => {
+        safeDOM.remove(document.head, oStyle)
+        safeDOM.remove(document.body, oDiv)
+    }
+
+    // GIF 资源异常时直接移除遮罩，避免显示损坏图片
+    oImage.addEventListener('error', clearLoading)
 
     // 返回控制 Loading 的方法
     return {
 
         // 显示 Loading
         appendLoading() {
-
-            // 把样式插入 head
             safeDOM.append(document.head, oStyle)
-
-            // 把 Loading 插入 body
             safeDOM.append(document.body, oDiv)
         },
 
         // 移除 Loading
         removeLoading() {
-
-            // 移除样式
-            safeDOM.remove(document.head, oStyle)
-
-            // 移除 Loading DOM
-            safeDOM.remove(document.body, oDiv)
+            clearLoading()
         },
     }
 }

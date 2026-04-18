@@ -185,7 +185,6 @@ async function createWindow() {
 app.whenReady()
     .then(async () => {
         log.info('Electron app is ready')
-        Menu.setApplicationMenu(null)
         await createWindow()
     })
     .catch(error => {

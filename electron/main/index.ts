@@ -110,7 +110,7 @@ async function createWindow() {
         // 隐藏原生菜单栏
         autoHideMenuBar: true,
         // 应用图标
-        icon: path.join(process.env.VITE_PUBLIC, 'icon/icon.ico'),
+        icon: path.join(process.env.VITE_PUBLIC, 'icons/win/icon.ico'),
         // Web 相关配置
         webPreferences: {
             // 预加载脚本（安全桥）

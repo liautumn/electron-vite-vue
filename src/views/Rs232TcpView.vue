@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
-import type {SelectProps} from 'ant-design-vue'
 import type { IpcRendererEvent } from 'electron'
+
+type SelectOption<T = string | number | boolean> = {
+  label: string
+  value: T
+  disabled?: boolean
+}
 
 type SessionEvent = {
   sessionId: number
@@ -34,7 +39,7 @@ const tcpConnected = ref(false)
 
 const portPath = ref('')
 const baudRate = ref(9600)
-const comList = ref<SelectProps['options']>([
+const comList = ref<SelectOption<string>[]>([
   {value: '', label: '请选择串口'}
 ])
 
@@ -234,77 +239,161 @@ onUnmounted(() => {
 
 <template>
   <div class="container">
-    <a-space direction="vertical" size="large" style="width: 100%">
-      <a-card title="连接方式">
-        <a-space wrap>
-          <a-segmented v-model:value="mode" :options="modeOptions"/>
-
-          <template v-if="mode === 'rs232'">
-            <a-select
-                v-model:value="portPath"
-                style="width: 220px"
-                :options="comList"
-                placeholder="选择串口"
-            />
-            <a-input-number
-                v-model:value="baudRate"
-                :min="300"
-                :step="300"
-                placeholder="波特率"
-            />
-            <a-button type="primary" @click="connect">连接</a-button>
-            <a-button danger @click="disconnect">断开</a-button>
-            <a-button @click="refreshPorts">刷新串口</a-button>
-          </template>
-
-          <template v-else>
-            <a-input
-                v-model:value="host"
-                style="width: 200px"
-                placeholder="TCP 地址"
-            />
-            <a-input-number
-                v-model:value="tcpPort"
-                :min="1"
-                :max="65535"
-                placeholder="端口"
-            />
-            <a-button type="primary" @click="connect">连接</a-button>
-            <a-button danger @click="disconnect">断开</a-button>
-          </template>
-
-          <a-tag :color="isConnected ? 'green' : 'red'">
+    <div class="page-stack">
+      <q-card flat bordered class="panel-card">
+        <q-card-section class="panel-title-row">
+          <div class="panel-title">连接方式</div>
+          <q-chip square dense :color="isConnected ? 'positive' : 'negative'" text-color="white">
             {{ isConnected ? '已连接' : '未连接' }}
-          </a-tag>
-        </a-space>
-      </a-card>
-
-      <a-card title="发送与接收">
-        <a-space direction="vertical" size="middle" style="width: 100%">
-          <a-form layout="vertical">
-            <a-form-item label="发送">
-              <a-input v-model:value="sendHex" placeholder="发送 HEX"/>
-            </a-form-item>
-          </a-form>
-
-          <a-space wrap>
-            <a-button type="primary" @click="sendData">发送</a-button>
-            <a-button danger @click="clearLog">清空日志</a-button>
-          </a-space>
-
-          <a-textarea
-              v-model:value="log"
-              auto-size
-              placeholder="收发日志"
+          </q-chip>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack">
+          <q-btn-toggle
+            v-model="mode"
+            no-caps
+            rounded
+            unelevated
+            toggle-color="primary"
+            :options="modeOptions"
           />
-        </a-space>
-      </a-card>
-    </a-space>
+
+          <div v-if="mode === 'rs232'" class="field-row">
+            <q-select
+              v-model="portPath"
+              outlined
+              emit-value
+              map-options
+              class="field-grow"
+              :options="comList"
+              label="串口"
+              placeholder="选择串口"
+            />
+            <q-input
+              v-model.number="baudRate"
+              outlined
+              type="number"
+              label="波特率"
+              min="300"
+              step="300"
+            />
+            <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
+            <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
+            <q-btn outline color="primary" no-caps @click="refreshPorts">刷新串口</q-btn>
+          </div>
+
+          <div v-else class="field-row">
+            <q-input
+              v-model="host"
+              outlined
+              class="field-grow"
+              label="TCP 地址"
+              placeholder="TCP 地址"
+            />
+            <q-input
+              v-model.number="tcpPort"
+              outlined
+              type="number"
+              label="端口"
+              min="1"
+              max="65535"
+            />
+            <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
+            <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
+          </div>
+        </q-card-section>
+      </q-card>
+
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">发送与接收</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack">
+          <q-input
+            v-model="sendHex"
+            outlined
+            label="发送"
+            placeholder="发送 HEX"
+          />
+
+          <div class="action-buttons">
+            <q-btn color="primary" no-caps unelevated @click="sendData">发送</q-btn>
+            <q-btn color="negative" no-caps unelevated @click="clearLog">清空日志</q-btn>
+          </div>
+
+          <q-input
+            v-model="log"
+            outlined
+            autogrow
+            readonly
+            type="textarea"
+            placeholder="收发日志"
+          />
+        </q-card-section>
+      </q-card>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .container {
   padding: 16px;
+}
+
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-card {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 16px;
+}
+
+.panel-title-row,
+.action-buttons {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-row {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.field-grow {
+  flex: 1;
+  min-width: 220px;
+}
+
+.container :deep(textarea) {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+@media (max-width: 900px) {
+  .field-row,
+  .panel-title-row,
+  .action-buttons {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

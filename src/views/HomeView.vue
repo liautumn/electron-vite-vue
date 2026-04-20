@@ -54,54 +54,114 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <h1>{{ t('home.title') }}</h1>
-    <p>{{ t('home.description') }}</p>
-
-    <div class="card">
-      <p>{{ t('home.apiTitle') }}</p>
-      <a-button type="primary" @click="goPiniaDemo">{{ t('home.apiButton') }}</a-button>
-    </div>
-
-    <div class="card">
-      <p>{{ t('home.linkTitle') }}</p>
-      <router-link class="link" :to="{name: 'pinia-demo'}">
-        {{ t('home.linkLabel') }}
-      </router-link>
-    </div>
-
-    <div class="card">
-      <p>{{ t('home.i18nTitle') }}</p>
-      <p class="muted">{{ t('home.i18nTip') }}</p>
-      <div class="language-row">
-        <span>{{ currentLanguageText }}</span>
-        <a-button @click="toggleLocale">{{ switchLabel }}</a-button>
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Quasar Renderer</p>
+        <h1>{{ t('home.title') }}</h1>
+        <p class="hero-text">{{ t('home.description') }}</p>
       </div>
+      <q-btn color="primary" no-caps unelevated @click="goPiniaDemo">
+        {{ t('home.apiButton') }}
+      </q-btn>
     </div>
 
-    <div class="card">
-      <p>{{ t('home.logTitle') }}</p>
-      <p class="muted">{{ t('home.logTip') }}</p>
-      <div class="log-actions">
-        <a-button type="primary" @click="emitInfoLog">{{ t('home.logInfoButton') }}</a-button>
-        <a-button danger @click="emitErrorLog">{{ t('home.logErrorButton') }}</a-button>
-      </div>
-    </div>
+    <q-card flat bordered class="card">
+      <q-card-section class="card-section">
+        <p class="card-title">{{ t('home.apiTitle') }}</p>
+        <q-btn color="primary" no-caps unelevated @click="goPiniaDemo">
+          {{ t('home.apiButton') }}
+        </q-btn>
+      </q-card-section>
+    </q-card>
+
+    <q-card flat bordered class="card">
+      <q-card-section class="card-section">
+        <p class="card-title">{{ t('home.linkTitle') }}</p>
+        <router-link class="link" :to="{name: 'pinia-demo'}">
+          {{ t('home.linkLabel') }}
+        </router-link>
+      </q-card-section>
+    </q-card>
+
+    <q-card flat bordered class="card">
+      <q-card-section class="card-section">
+        <p class="card-title">{{ t('home.i18nTitle') }}</p>
+        <p class="muted">{{ t('home.i18nTip') }}</p>
+        <div class="language-row">
+          <span>{{ currentLanguageText }}</span>
+          <q-btn outline color="primary" no-caps @click="toggleLocale">{{ switchLabel }}</q-btn>
+        </div>
+      </q-card-section>
+    </q-card>
+
+    <q-card flat bordered class="card">
+      <q-card-section class="card-section">
+        <p class="card-title">{{ t('home.logTitle') }}</p>
+        <p class="muted">{{ t('home.logTip') }}</p>
+        <div class="log-actions">
+          <q-btn color="primary" no-caps unelevated @click="emitInfoLog">{{ t('home.logInfoButton') }}</q-btn>
+          <q-btn color="negative" no-caps unelevated @click="emitErrorLog">{{ t('home.logErrorButton') }}</q-btn>
+        </div>
+      </q-card-section>
+    </q-card>
   </div>
 </template>
 
 <style scoped>
 .page {
-  max-width: 640px;
-  margin: 32px auto;
-  padding: 0 16px;
+  max-width: 760px;
+  margin: 28px auto;
+  padding: 0 12px;
   display: flex;
   flex-direction: column;
+  gap: 18px;
+}
+
+.hero {
+  align-items: end;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--app-surface) 92%, white), var(--app-surface));
+  border: 1px solid var(--app-border);
+  border-radius: 18px;
+  display: flex;
   gap: 16px;
+  justify-content: space-between;
+  padding: 24px;
+}
+
+.eyebrow {
+  color: var(--app-text-secondary);
+  letter-spacing: 0.12em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+}
+
+.hero-text {
+  margin: 0;
+  max-width: 560px;
 }
 
 .card {
-  padding: 16px;
-  border-radius: 8px;
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 16px;
+}
+
+.card-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
 }
 
 .language-row {
@@ -118,6 +178,19 @@ onMounted(() => {
 }
 
 .muted {
-  margin-bottom: 8px;
+  color: var(--app-text-secondary);
+  margin: 0;
+}
+
+.link {
+  color: var(--q-primary);
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

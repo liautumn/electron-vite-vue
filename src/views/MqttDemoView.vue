@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import {computed, onMounted, onUnmounted, ref} from 'vue'
-import type {SelectProps} from 'ant-design-vue'
 import type { IpcRendererEvent } from 'electron'
 import type {MqttMessageEvent, MqttQoS, MqttSubscriptionGrant} from '../types/mqtt'
+
+type SelectOption<T = string | number | boolean> = {
+    label: string
+    value: T
+    disabled?: boolean
+}
 
 defineOptions({name: 'mqtt-demo'})
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'offline'
 
-const qosOptions: SelectProps['options'] = [
+const qosOptions: SelectOption<MqttQoS>[] = [
     {label: 'QoS 0', value: 0},
     {label: 'QoS 1', value: 1},
     {label: 'QoS 2', value: 2},
@@ -62,11 +67,11 @@ const statusLabel = computed(() => {
 })
 
 const statusColor = computed(() => {
-    if (connectionState.value === 'connected') return 'green'
-    if (connectionState.value === 'connecting') return 'blue'
-    if (connectionState.value === 'reconnecting') return 'orange'
-    if (connectionState.value === 'offline') return 'gold'
-    return 'red'
+    if (connectionState.value === 'connected') return 'positive'
+    if (connectionState.value === 'connecting') return 'primary'
+    if (connectionState.value === 'reconnecting') return 'warning'
+    if (connectionState.value === 'offline') return 'amber'
+    return 'negative'
 })
 
 const tryParseJson = (value: string) => {
@@ -229,123 +234,119 @@ onUnmounted(() => {
 
 <template>
   <div class="container">
-    <a-row :gutter="[16, 16]" class="panel-grid">
-      <a-col :xs="24" :lg="12" class="panel-col">
-        <a-card title="Broker 配置" class="panel-card">
-          <div class="panel-stack">
-            <a-form layout="vertical">
-              <a-form-item label="Broker URL">
-                <a-input v-model:value="brokerUrl" placeholder="mqtt://127.0.0.1:1883"/>
-              </a-form-item>
-              <a-row :gutter="12">
-                <a-col :span="14">
-                  <a-form-item label="Client ID">
-                    <a-input v-model:value="clientId" placeholder="客户端 ID"/>
-                  </a-form-item>
-                </a-col>
-                <a-col :span="10">
-                  <a-form-item label="重连间隔(ms)">
-                    <a-input-number v-model:value="reconnectPeriod" :min="0" :step="500" style="width: 100%"/>
-                  </a-form-item>
-                </a-col>
-              </a-row>
-              <a-row :gutter="12">
-                <a-col :span="12">
-                  <a-form-item label="用户名" style="margin-bottom: 0">
-                    <a-input v-model:value="username" placeholder="可选"/>
-                  </a-form-item>
-                </a-col>
-                <a-col :span="12">
-                  <a-form-item label="密码" style="margin-bottom: 0">
-                    <a-input-password v-model:value="password" placeholder="可选"/>
-                  </a-form-item>
-                </a-col>
-              </a-row>
-            </a-form>
+    <div class="panel-grid">
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">Broker 配置</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack">
+          <q-input v-model="brokerUrl" outlined label="Broker URL" placeholder="mqtt://127.0.0.1:1883"/>
 
-            <div class="actions-row">
-              <a-space wrap>
-                <a-checkbox v-model:checked="cleanSession">Clean Session</a-checkbox>
-                <a-tag :color="statusColor">{{ statusLabel }}</a-tag>
-              </a-space>
-              <a-space wrap>
-                <a-button type="primary" @click="connect">连接</a-button>
-                <a-button danger @click="disconnect">断开</a-button>
-              </a-space>
+          <div class="field-grid field-grid--wide">
+            <q-input v-model="clientId" outlined label="Client ID" placeholder="客户端 ID"/>
+            <q-input v-model.number="reconnectPeriod" outlined type="number" label="重连间隔(ms)" min="0" step="500"/>
+          </div>
+
+          <div class="field-grid">
+            <q-input v-model="username" outlined label="用户名" placeholder="可选"/>
+            <q-input v-model="password" outlined type="password" label="密码" placeholder="可选"/>
+          </div>
+
+          <div class="actions-row">
+            <div class="status-row">
+              <q-checkbox v-model="cleanSession" label="Clean Session"/>
+              <q-chip square dense :color="statusColor" text-color="white">{{ statusLabel }}</q-chip>
+            </div>
+            <div class="action-buttons">
+              <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
+              <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
             </div>
           </div>
-        </a-card>
-      </a-col>
+        </q-card-section>
+      </q-card>
 
-      <a-col :xs="24" :lg="12" class="panel-col">
-        <a-card title="运行日志" class="panel-card">
-          <template #extra>
-            <a-button size="small" @click="clearLog">清空日志</a-button>
-          </template>
+      <q-card flat bordered class="panel-card">
+        <q-card-section class="panel-title-row">
+          <div class="panel-title">运行日志</div>
+          <q-btn flat color="primary" no-caps @click="clearLog">清空日志</q-btn>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-fill">
+          <div class="output-box output-box--fill">
+            <pre class="output-content">{{ log || '连接、订阅、发布、接收日志' }}</pre>
+          </div>
+        </q-card-section>
+      </q-card>
+
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">订阅</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack panel-stack--fill">
+          <q-input v-model="subscribeTopic" outlined label="Topic" placeholder="订阅 Topic"/>
+          <q-select
+            v-model="subscribeQos"
+            outlined
+            emit-value
+            map-options
+            :options="qosOptions"
+            label="QoS"
+          />
+
+          <div class="action-buttons">
+            <q-btn color="primary" no-caps unelevated :disable="!isConnected" @click="subscribe">订阅</q-btn>
+            <q-btn outline color="primary" no-caps :disable="!isConnected" @click="unsubscribe">取消订阅</q-btn>
+          </div>
+
           <div class="panel-fill">
-            <div class="output-box output-box--fill">
-              <pre class="output-content">{{ log || '连接、订阅、发布、接收日志' }}</pre>
-            </div>
-          </div>
-        </a-card>
-      </a-col>
-
-      <a-col :xs="24" :lg="12" class="panel-col">
-        <a-card title="订阅" class="panel-card">
-          <div class="panel-stack panel-stack--fill">
-            <a-form layout="vertical">
-              <a-form-item label="Topic">
-                <a-input v-model:value="subscribeTopic" placeholder="订阅 Topic"/>
-              </a-form-item>
-              <a-form-item label="QoS" style="margin-bottom: 0">
-                <a-select v-model:value="subscribeQos" :options="qosOptions" style="width: 100%"/>
-              </a-form-item>
-            </a-form>
-
-            <a-space wrap>
-              <a-button type="primary" :disabled="!isConnected" @click="subscribe">订阅</a-button>
-              <a-button :disabled="!isConnected" @click="unsubscribe">取消订阅</a-button>
-            </a-space>
-
-            <div class="panel-fill">
-              <div class="output-header">
-                <span class="output-title">订阅消息</span>
-                <a-space>
-                  <a-tag color="blue">JSON</a-tag>
-                  <a-button size="small" @click="clearMessages">清空消息</a-button>
-                </a-space>
-              </div>
-              <div class="output-box output-box--fill output-box--records">
-                <pre class="output-content">{{ messageRecordsText || '收到的 MQTT 消息会格式化为 JSON 输出到这里' }}</pre>
+            <div class="output-header">
+              <span class="output-title">订阅消息</span>
+              <div class="action-buttons">
+                <q-chip square dense color="primary" text-color="white">JSON</q-chip>
+                <q-btn flat color="primary" no-caps @click="clearMessages">清空消息</q-btn>
               </div>
             </div>
+            <div class="output-box output-box--fill output-box--records">
+              <pre class="output-content">{{ messageRecordsText || '收到的 MQTT 消息会格式化为 JSON 输出到这里' }}</pre>
+            </div>
           </div>
-        </a-card>
-      </a-col>
+        </q-card-section>
+      </q-card>
 
-      <a-col :xs="24" :lg="12" class="panel-col">
-        <a-card title="发布" class="panel-card">
-          <div class="panel-stack panel-stack--fill">
-            <a-form layout="vertical">
-              <a-form-item label="Topic">
-                <a-input v-model:value="publishTopic" placeholder="发布 Topic"/>
-              </a-form-item>
-              <a-form-item label="Payload">
-                <a-textarea v-model:value="publishPayload" class="payload-input" placeholder="消息内容"/>
-              </a-form-item>
-              <a-form-item label="QoS" style="margin-bottom: 0">
-                <a-select v-model:value="publishQos" :options="qosOptions" style="width: 100%"/>
-              </a-form-item>
-            </a-form>
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">发布</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack panel-stack--fill">
+          <q-input v-model="publishTopic" outlined label="Topic" placeholder="发布 Topic"/>
+          <q-input
+            v-model="publishPayload"
+            outlined
+            autogrow
+            type="textarea"
+            class="payload-input"
+            label="Payload"
+            placeholder="消息内容"
+          />
+          <q-select
+            v-model="publishQos"
+            outlined
+            emit-value
+            map-options
+            :options="qosOptions"
+            label="QoS"
+          />
 
-            <a-space wrap>
-              <a-checkbox v-model:checked="retain">Retain</a-checkbox>
-              <a-button type="primary" :disabled="!isConnected" @click="publish">发布</a-button>
-            </a-space>
+          <div class="action-buttons">
+            <q-checkbox v-model="retain" label="Retain"/>
+            <q-btn color="primary" no-caps unelevated :disable="!isConnected" @click="publish">发布</q-btn>
           </div>
-        </a-card>
-      </a-col>
-    </a-row>
+        </q-card-section>
+      </q-card>
+    </div>
   </div>
 </template>
 
@@ -355,24 +356,30 @@ onUnmounted(() => {
 }
 
 .panel-grid {
-  align-items: stretch;
-}
-
-.panel-col {
-  display: flex;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .panel-card {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  height: 100%;
+  min-height: 0;
 }
 
-.panel-card :deep(.ant-card-body) {
+.panel-title,
+.panel-title-row {
+  align-items: center;
   display: flex;
-  flex: 1;
-  flex-direction: column;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
   min-height: 0;
 }
 
@@ -381,6 +388,16 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 16px;
   width: 100%;
+}
+
+.field-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-grid--wide {
+  grid-template-columns: minmax(0, 1.5fr) minmax(180px, 0.8fr);
 }
 
 .panel-stack--fill {
@@ -397,8 +414,16 @@ onUnmounted(() => {
 
 .actions-row {
   display: flex;
-  align-items: center;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
+}
+
+.status-row,
+.action-buttons {
+  align-items: center;
+  display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -451,8 +476,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 991px) {
-  .panel-card {
-    height: auto;
+  .panel-grid,
+  .field-grid,
+  .field-grid--wide {
+    grid-template-columns: 1fr;
   }
 }
 </style>

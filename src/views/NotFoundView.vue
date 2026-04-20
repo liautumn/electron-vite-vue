@@ -15,7 +15,7 @@ const goHome = () => {
     <div class="code">404</div>
     <p class="message">页面不存在或者已被移动</p>
     <div class="actions">
-      <a-button type="primary" @click="goHome">返回首页</a-button>
+      <q-btn color="primary" no-caps unelevated @click="goHome">返回首页</q-btn>
       <router-link class="link" to="/">回到首页</router-link>
     </div>
   </div>
@@ -39,16 +39,17 @@ const goHome = () => {
 }
 
 .message {
-  color: #666;
+  color: var(--app-text-secondary);
 }
 
 .actions {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .link {
-  color: var(--app-primary, #1677ff);
+  color: var(--q-primary);
 }
 </style>

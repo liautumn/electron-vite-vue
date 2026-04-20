@@ -1,7 +1,7 @@
 import {createApp} from 'vue'
 import {createPinia} from 'pinia'
 import piniaPersist from 'pinia-plugin-persistedstate'
-import Antd from 'ant-design-vue'
+import {Notify, Quasar} from 'quasar'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
@@ -10,7 +10,8 @@ import {useThemeStore} from './stores/theme'
 import {useUserStore} from './stores/user'
 import permissionDirective from './directives/permission'
 import log from './utils/logger'
-import 'ant-design-vue/dist/reset.css'
+import '@quasar/extras/material-icons/material-icons.css'
+import 'quasar/src/css/index.sass'
 import './styles/theme.css'
 
 // import './demos/ipc'
@@ -38,8 +39,12 @@ useLocaleStore(pinia)
 // 启动时刷新一遍默认权限，避免旧的持久化权限把新菜单过滤掉
 useUserStore(pinia).refreshPermissions()
 
-// 挂载 ant-design UI
-app.use(Antd)
+// 挂载 Quasar UI
+app.use(Quasar, {
+    plugins: {
+        Notify,
+    },
+})
 
 // 指令：权限控制（v-permission）
 app.directive('permission', permissionDirective)

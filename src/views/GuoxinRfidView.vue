@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {storeToRefs} from 'pinia'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
-import {message} from 'ant-design-vue'
+import {Notify} from 'quasar'
 import {guoxinSingleDevice, type GuoxinConnectionMode} from '../components/rfid/guoxin/GuoXinSingleDevice'
 import type {IRFIDTagReadMessage} from '../components/rfid/guoxin/GuoXinCommon'
 import {normalizeHex} from '../components/rfid/guoxin/GuoXinCommon'
@@ -56,6 +56,15 @@ let stopContinuousRead: null | (() => void) = null
 let disposeStatusListener = () => {
 }
 let disposeRawListener = () => {
+}
+
+const notify = (type: 'positive' | 'negative', content: unknown) => {
+  Notify.create({
+    type,
+    message: String(content ?? ''),
+    position: 'top-right',
+    timeout: 2200
+  })
 }
 
 const isSerial = computed(() => rfidConfig.value.mode === 'serial')
@@ -187,7 +196,7 @@ async function refreshPorts() {
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`获取串口失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -220,7 +229,7 @@ async function connect() {
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`连接失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -234,7 +243,7 @@ async function disconnect() {
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`断开失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -250,7 +259,7 @@ async function startSingleRead() {
     const messageText = resolveError(error)
     inventoryStatus.value = '读取失败'
     appendLog(`单次读取失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -266,7 +275,7 @@ function startContinuousRead() {
     const messageText = resolveError(error)
     inventoryStatus.value = '读取失败'
     appendLog(`连续读取失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -280,7 +289,7 @@ async function stopInventory() {
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`停止读取失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -309,7 +318,7 @@ function buildWritePayload() {
 
 function useLatestTagForWrite() {
   if (!latestTag.value) {
-    message.error('还没有可用的标签数据')
+    notify('negative', '还没有可用的标签数据')
     return
   }
   const nextConfig: Partial<GuoxinRfidConfig> = {
@@ -352,11 +361,11 @@ async function firstWriteTag() {
     })
     rfidStore.setConfig({oldAccessPassword: payload.accessPassword})
     appendLog('首次写入完成')
-    message.success('首次写入完成')
+    notify('positive', '首次写入完成')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`首次写入失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -372,11 +381,11 @@ async function rewriteTag() {
         payload.accessPassword
     )
     appendLog('再次写入成功')
-    message.success('再次写入成功')
+    notify('positive', '再次写入成功')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`再次写入失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -389,11 +398,11 @@ async function applyPowerConfig() {
     await configPower(powerLevels)
     appendLog(`设置功率完成: ${formatPowerLevels(powerLevels)}`)
     powerModalVisible.value = false
-    message.success('功率配置成功')
+    notify('positive', '功率配置成功')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`设置功率失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   } finally {
     powerSubmitting.value = false
   }
@@ -412,7 +421,7 @@ async function loadAllPower() {
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`读取功率失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -425,11 +434,11 @@ async function applyBasebandConfig() {
         rfidConfig.value.inventoryFlag
     )
     appendLog('EPC 基带参数配置成功')
-    message.success('EPC 基带参数配置成功')
+    notify('positive', 'EPC 基带参数配置成功')
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`配置 EPC 基带参数失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -444,7 +453,7 @@ function sendRawHex() {
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`发送失败: ${messageText}`)
-    message.error(messageText)
+    notify('negative', messageText)
   }
 }
 
@@ -501,246 +510,300 @@ onUnmounted(() => {
 
 <template>
   <div class="container">
-    <a-space direction="vertical" size="large" style="width: 100%">
+    <div class="page-stack">
       <div class="layout-row layout-row-top">
-        <a-card title="连接与设备">
-          <a-space direction="vertical" style="width: 100%">
-            <a-segmented v-model:value="rfidConfig.mode" :options="modeOptions"/>
+        <q-card flat bordered class="panel-card">
+          <q-card-section>
+            <div class="panel-title">连接与设备</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="panel-stack">
+            <q-btn-toggle
+              v-model="rfidConfig.mode"
+              no-caps
+              rounded
+              unelevated
+              toggle-color="primary"
+              :options="modeOptions"
+            />
 
             <template v-if="isSerial">
               <div class="serial-port-row">
-                <a-select
-                    v-model:value="rfidConfig.portPath"
+                <q-select
+                    v-model="rfidConfig.portPath"
+                    outlined
+                    emit-value
+                    map-options
+                    class="field-grow"
                     :options="serialOptions"
+                    label="串口"
                     placeholder="选择串口"
-                    style="width: 100%"
                 />
-                <a-button @click="refreshPorts">刷新串口</a-button>
+                <q-btn outline color="primary" no-caps @click="refreshPorts">刷新串口</q-btn>
               </div>
-              <a-input-number
-                  v-model:value="rfidConfig.baudRate"
-                  :min="300"
-                  :step="300"
-                  addon-before="波特率"
-                  style="width: 100%"
+              <q-input
+                  v-model.number="rfidConfig.baudRate"
+                  outlined
+                  type="number"
+                  min="300"
+                  step="300"
+                  label="波特率"
               />
             </template>
 
             <template v-else>
-              <a-input v-model:value="rfidConfig.host" addon-before="TCP 地址" placeholder="TCP 地址"/>
-              <a-input-number
-                  v-model:value="rfidConfig.tcpPort"
-                  :min="1"
-                  :max="65535"
-                  addon-before="端口"
-                  style="width: 100%"
+              <q-input v-model="rfidConfig.host" outlined label="TCP 地址" placeholder="TCP 地址"/>
+              <q-input
+                  v-model.number="rfidConfig.tcpPort"
+                  outlined
+                  type="number"
+                  min="1"
+                  max="65535"
+                  label="端口"
               />
             </template>
 
-            <a-space wrap>
-              <a-button type="primary" @click="connect">连接</a-button>
-              <a-button danger @click="disconnect">断开</a-button>
-              <a-tag :color="connected ? 'green' : 'red'">
+            <div class="action-buttons">
+              <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
+              <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
+              <q-chip square dense :color="connected ? 'positive' : 'negative'" text-color="white">
                 {{ connected ? '已连接' : '未连接' }}
-              </a-tag>
-            </a-space>
+              </q-chip>
+            </div>
 
-            <a-alert
+            <q-banner
                 v-if="lastError"
-                :message="lastError"
-                type="error"
-                show-icon
+                rounded
+                dense
+                class="error-banner"
+            >
+              {{ lastError }}
+            </q-banner>
+          </q-card-section>
+        </q-card>
+
+        <q-card flat bordered class="panel-card">
+          <q-card-section>
+            <div class="panel-title">功率与参数</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="panel-stack">
+            <q-input
+                v-model.number="antennaCountModel"
+                outlined
+                type="number"
+                min="1"
+                max="32"
+                label="天线数"
             />
-          </a-space>
-        </a-card>
 
-        <a-card title="功率与参数">
-          <a-space direction="vertical" style="width: 100%">
-            <a-input-number
-                v-model:value="antennaCountModel"
-                :min="1"
-                :max="32"
-                addon-before="天线数"
-                style="width: 100%"
-            />
+            <q-separator />
 
-            <a-divider style="margin: 8px 0"/>
-
-            <a-typography-text type="secondary">
+            <div class="muted-text">
               {{ formatPowerLevels(rfidConfig.powerLevels) }}
-            </a-typography-text>
-            <a-space wrap>
-              <a-button @click="openPowerConfigModal">设置功率</a-button>
-              <a-button @click="loadAllPower">读取功率</a-button>
-            </a-space>
+            </div>
+            <div class="action-buttons">
+              <q-btn outline color="primary" no-caps @click="openPowerConfigModal">设置功率</q-btn>
+              <q-btn outline color="primary" no-caps @click="loadAllPower">读取功率</q-btn>
+            </div>
 
-            <a-divider style="margin: 8px 0"/>
+            <q-separator />
 
-            <a-input-number
-                v-model:value="rfidConfig.epcBasebandRate"
-                :min="0"
-                :max="255"
-                addon-before="基带速率"
-                style="width: 100%"
+            <q-input
+                v-model.number="rfidConfig.epcBasebandRate"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="基带速率"
             />
-            <a-input-number
-                v-model:value="rfidConfig.defaultQ"
-                :min="0"
-                :max="255"
-                addon-before="默认Q"
-                style="width: 100%"
+            <q-input
+                v-model.number="rfidConfig.defaultQ"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="默认Q"
             />
-            <a-input-number
-                v-model:value="rfidConfig.session"
-                :min="0"
-                :max="255"
-                addon-before="Session"
-                style="width: 100%"
+            <q-input
+                v-model.number="rfidConfig.session"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="Session"
             />
-            <a-input-number
-                v-model:value="rfidConfig.inventoryFlag"
-                :min="0"
-                :max="255"
-                addon-before="盘存标志"
-                style="width: 100%"
+            <q-input
+                v-model.number="rfidConfig.inventoryFlag"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="盘存标志"
             />
-            <a-button @click="applyBasebandConfig">配置 EPC 基带参数</a-button>
-          </a-space>
-        </a-card>
+            <q-btn outline color="primary" no-caps @click="applyBasebandConfig">配置 EPC 基带参数</q-btn>
+          </q-card-section>
+        </q-card>
       </div>
 
       <div class="layout-row layout-row-bottom">
-        <a-card title="盘存测试">
-          <template #extra>
-            <a-tag color="blue">{{ inventoryStatus }}</a-tag>
-          </template>
-          <a-space direction="vertical" style="width: 100%">
-            <a-select
-                v-model:value="inventoryAntennasModel"
+        <q-card flat bordered class="panel-card">
+          <q-card-section class="panel-title-row">
+            <div class="panel-title">盘存测试</div>
+            <q-chip square dense color="primary" text-color="white">{{ inventoryStatus }}</q-chip>
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="panel-stack">
+            <q-select
+                v-model="inventoryAntennasModel"
+                outlined
+                emit-value
+                map-options
+                multiple
+                use-chips
                 :options="inventoryAntennaOptions"
-                mode="multiple"
+                label="盘存天线"
                 placeholder="选择盘存天线"
-                style="width: 100%"
             />
-            <a-space wrap>
-              <a-button type="primary" @click="startSingleRead">单次读取</a-button>
-              <a-button @click="startContinuousRead">连续读取</a-button>
-              <a-button danger @click="stopInventory">停止读取</a-button>
-            </a-space>
-            <a-descriptions
-                v-if="latestTag"
-                bordered
-                :column="1"
-                size="small"
-                title="最近标签"
-            >
-              <a-descriptions-item label="EPC">{{ latestTag.epc }}</a-descriptions-item>
-              <a-descriptions-item label="PC">{{ latestTag.pcValue }}</a-descriptions-item>
-              <a-descriptions-item label="天线">{{ latestTag.antennaId }}</a-descriptions-item>
-              <a-descriptions-item label="RSSI">
-                {{ latestTag.rssi?.value ?? '-' }}
-              </a-descriptions-item>
-              <a-descriptions-item label="TID">
-                {{ latestTag.tidData?.data ?? '-' }}
-              </a-descriptions-item>
-            </a-descriptions>
-          </a-space>
-        </a-card>
+            <div class="action-buttons">
+              <q-btn color="primary" no-caps unelevated @click="startSingleRead">单次读取</q-btn>
+              <q-btn outline color="primary" no-caps @click="startContinuousRead">连续读取</q-btn>
+              <q-btn color="negative" no-caps unelevated @click="stopInventory">停止读取</q-btn>
+            </div>
+            <div v-if="latestTag" class="info-panel">
+              <div class="info-panel__title">最近标签</div>
+              <div class="info-list">
+                <div class="info-row"><span>EPC</span><code>{{ latestTag.epc }}</code></div>
+                <div class="info-row"><span>PC</span><code>{{ latestTag.pcValue }}</code></div>
+                <div class="info-row"><span>天线</span><strong>{{ latestTag.antennaId }}</strong></div>
+                <div class="info-row"><span>RSSI</span><strong>{{ latestTag.rssi?.value ?? '-' }}</strong></div>
+                <div class="info-row"><span>TID</span><code>{{ latestTag.tidData?.data ?? '-' }}</code></div>
+              </div>
+            </div>
+          </q-card-section>
+        </q-card>
 
-        <a-card title="写标签测试">
-          <a-space direction="vertical" style="width: 100%">
-            <a-alert
-                message="首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。"
-                type="info"
-                show-icon
-            />
-            <a-select
-                v-model:value="writeAntennaModel"
+        <q-card flat bordered class="panel-card">
+          <q-card-section>
+            <div class="panel-title">写标签测试</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="panel-stack">
+            <q-banner rounded dense class="info-banner">
+              首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。
+            </q-banner>
+            <q-select
+                v-model="writeAntennaModel"
+                outlined
+                emit-value
+                map-options
                 :options="inventoryAntennaOptions"
+                label="写入天线"
                 placeholder="选择写入天线"
-                style="width: 100%"
             />
-            <a-input
-                v-model:value="rfidConfig.writeTid"
-                addon-before="标签 TID"
+            <q-input
+                v-model="rfidConfig.writeTid"
+                outlined
+                label="标签 TID"
                 placeholder="标签 TID，HEX"
             />
             <div class="write-epc-row">
-              <a-input
-                  v-model:value="rfidConfig.writeEpc"
-                  addon-before="待写 EPC"
+              <q-input
+                  v-model="rfidConfig.writeEpc"
+                  outlined
+                  class="field-grow"
+                  label="待写 EPC"
                   placeholder="待写 EPC，HEX，例如 192012345678901234567895"
               />
-              <a-button @click="randomizeWriteEpc">随机生成</a-button>
+              <q-btn outline color="primary" no-caps @click="randomizeWriteEpc">随机生成</q-btn>
             </div>
-            <a-input
-                v-model:value="rfidConfig.accessPassword"
-                addon-before="访问密码"
+            <q-input
+                v-model="rfidConfig.accessPassword"
+                outlined
+                label="访问密码"
                 placeholder="访问密码，8位HEX"
             />
-            <a-input
-                v-model:value="rfidConfig.oldAccessPassword"
-                addon-before="旧访问密码"
+            <q-input
+                v-model="rfidConfig.oldAccessPassword"
+                outlined
+                label="旧访问密码"
                 placeholder="旧访问密码，8位HEX，仅首次写入使用"
             />
-            <a-input
-                v-model:value="rfidConfig.killPassword"
-                addon-before="灭活密码"
+            <q-input
+                v-model="rfidConfig.killPassword"
+                outlined
+                label="灭活密码"
                 placeholder="灭活密码，8位HEX"
             />
-            <a-space wrap>
-              <a-button @click="useLatestTagForWrite">带入最近标签</a-button>
-              <a-button type="primary" @click="firstWriteTag">首次写入</a-button>
-              <a-button @click="rewriteTag">再次写入</a-button>
-            </a-space>
-          </a-space>
-        </a-card>
+            <div class="action-buttons">
+              <q-btn outline color="primary" no-caps @click="useLatestTagForWrite">带入最近标签</q-btn>
+              <q-btn color="primary" no-caps unelevated @click="firstWriteTag">首次写入</q-btn>
+              <q-btn outline color="primary" no-caps @click="rewriteTag">再次写入</q-btn>
+            </div>
+          </q-card-section>
+        </q-card>
 
-        <a-card title="原始 HEX 调试">
-          <a-space direction="vertical" style="width: 100%">
-            <a-input
-                v-model:value="rfidConfig.rawHex"
-                addon-before="原始 HEX"
+        <q-card flat bordered class="panel-card">
+          <q-card-section>
+            <div class="panel-title">原始 HEX 调试</div>
+          </q-card-section>
+          <q-separator />
+          <q-card-section class="panel-stack">
+            <q-input
+                v-model="rfidConfig.rawHex"
+                outlined
+                label="原始 HEX"
                 placeholder="输入原始 HEX 帧"
             />
-            <a-space wrap>
-              <a-button @click="sendRawHex">发送 HEX</a-button>
-              <a-button danger @click="clearLog">清空日志</a-button>
-            </a-space>
-            <a-textarea
-                v-model:value="log"
-                :rows="12"
+            <div class="action-buttons">
+              <q-btn outline color="primary" no-caps @click="sendRawHex">发送 HEX</q-btn>
+              <q-btn color="negative" no-caps unelevated @click="clearLog">清空日志</q-btn>
+            </div>
+            <q-input
+                v-model="log"
+                outlined
+                autogrow
+                readonly
+                type="textarea"
+                rows="12"
                 class="log-textarea"
                 placeholder="收发日志"
             />
-          </a-space>
-        </a-card>
+          </q-card-section>
+        </q-card>
       </div>
-    </a-space>
+    </div>
 
-    <a-modal
-        v-model:open="powerModalVisible"
-        title="设置天线功率"
-        :confirm-loading="powerSubmitting"
-        @ok="applyPowerConfig"
-    >
-      <a-space direction="vertical" style="width: 100%">
-        <a-typography-text type="secondary">
+    <q-dialog v-model="powerModalVisible">
+      <q-card flat bordered class="dialog-card">
+        <q-card-section>
+          <div class="panel-title">设置天线功率</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack">
+          <div class="muted-text">
           当前设备天线数：{{ rfidConfig.antennaCount }}
-        </a-typography-text>
+          </div>
         <div class="power-grid">
-          <a-input-number
+          <q-input
               v-for="(_, index) in powerEditor"
               :key="`power-editor-${index}`"
-              v-model:value="powerEditor[index]"
-              :min="0"
-              :max="33"
-              :addon-before="`天线${index + 1}`"
-              style="width: 100%"
+              v-model.number="powerEditor[index]"
+              outlined
+              type="number"
+              min="0"
+              max="33"
+              :label="`天线${index + 1}`"
           />
         </div>
-      </a-space>
-    </a-modal>
+        </q-card-section>
+        <q-separator />
+        <q-card-actions align="right">
+          <q-btn flat no-caps @click="powerModalVisible = false">取消</q-btn>
+          <q-btn color="primary" no-caps unelevated :loading="powerSubmitting" @click="applyPowerConfig">确定</q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -749,13 +812,19 @@ onUnmounted(() => {
   padding: 16px;
 }
 
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .layout-row {
   display: grid;
   gap: 16px;
   align-items: stretch;
 }
 
-.layout-row > .ant-card {
+.layout-row > .panel-card {
   height: 100%;
 }
 
@@ -767,30 +836,121 @@ onUnmounted(() => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.serial-port-row {
-  display: flex;
-  gap: 8px;
+.panel-card {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 16px;
 }
 
-.serial-port-row :deep(.ant-select) {
+.panel-title,
+.panel-title-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.serial-port-row {
+  align-items: end;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.field-grow {
   flex: 1;
   min-width: 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.muted-text {
+  color: var(--app-text-secondary);
+}
+
+.error-banner {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.14);
+  color: rgb(185, 28, 28);
+}
+
+.info-banner {
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+}
+
+.info-panel {
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.info-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-row {
+  align-items: start;
+  border-top: 1px solid var(--app-border);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 88px minmax(0, 1fr);
+  padding: 10px 0;
+}
+
+.info-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.info-row:last-child {
+  padding-bottom: 0;
+}
+
+.info-row span {
+  color: var(--app-text-secondary);
+  font-size: 13px;
 }
 
 .write-epc-row {
+  align-items: end;
   display: flex;
   gap: 8px;
-}
-
-.write-epc-row :deep(.ant-input-group-wrapper) {
-  flex: 1;
-  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .power-grid {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dialog-card {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 16px;
+  min-width: min(640px, 92vw);
 }
 
 @media (max-width: 1200px) {
@@ -803,6 +963,13 @@ onUnmounted(() => {
   .layout-row-top,
   .layout-row-bottom {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .serial-port-row,
+  .write-epc-row,
+  .panel-title-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .power-grid {

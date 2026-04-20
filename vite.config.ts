@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import {defineConfig, loadEnv} from 'vite'
 import vue from '@vitejs/plugin-vue'
+import {quasar, transformAssetUrls} from '@quasar/vite-plugin'
 import electron from 'vite-plugin-electron/simple'
 import pkg from './package.json'
 
@@ -18,7 +19,10 @@ export default defineConfig(({command, mode}) => {
 
     return {
         plugins: [
-            vue(),
+            vue({
+                template: {transformAssetUrls},
+            }),
+            quasar(),
             electron({
                 main: {
                     entry: 'electron/main/index.ts',

@@ -1,9 +1,16 @@
-import {computed, h} from 'vue' // 计算属性与 VNode 工具
+import {computed} from 'vue' // 计算属性
 import {useRoute, useRouter} from 'vue-router' // 路由实例与当前路由
-import {MenuProps} from 'ant-design-vue' // AntD 菜单类型
-import {AppstoreOutlined} from '@ant-design/icons-vue' // 菜单默认图标
 import {useUserStore} from '../stores/user' // 权限数据
 import routesConfig from './routes.json' // JSON 路由表
+
+type UiMenuItem = {
+    key: string
+    label: string
+    title?: string
+    disabled?: boolean
+    navTarget?: string
+    children?: UiMenuItem[]
+}
 
 // JSON 路由类型（仅保留菜单/权限相关字段）
 type NavRoute = {
@@ -41,9 +48,8 @@ const hasAccess = (meta: NavRoute['meta'], userStore: ReturnType<typeof useUserS
 const toMenuItems = (
     routes: NavRoute[], // 当前层路由
     parentPath: string, // 父路径
-    userStore: ReturnType<typeof useUserStore>, // 权限来源
-    router: ReturnType<typeof useRouter> // 路由实例
-): MenuProps['items'] =>
+    userStore: ReturnType<typeof useUserStore> // 权限来源
+): UiMenuItem[] =>
     routes
         .map(route => {
             const type = route.meta?.type ?? 'menu' // 默认菜单
@@ -57,16 +63,16 @@ const toMenuItems = (
                 route.meta?.visible !== false && // 未隐藏
                 hasAccess(route.meta, userStore) // 权限通过
 
-            let children = route.children?.length ? toMenuItems(route.children, fullPath, userStore, router) : undefined // 子菜单
+            let children = route.children?.length ? toMenuItems(route.children, fullPath, userStore) : undefined // 子菜单
             if (children && children.length === 0) children = undefined // 空子菜单不展示
 
             if (type === 'directory') {
                 if (!visible || !children) return null // 目录需可见且有子菜单
                 return {
                     key: fullPath, // 目录 key
-                    icon: () => h(AppstoreOutlined), // 目录图标
                     label: route.meta?.title ?? route.name, // 展示名
                     title: route.meta?.title ?? route.name, // 提示
+                    disabled: route.meta?.enabled === false,
                     children, // 子节点
                 }
             }
@@ -81,27 +87,29 @@ const toMenuItems = (
             if (!show) return null
             return {
                 key: fullPath, // 菜单 key
-                icon: () => h(AppstoreOutlined), // 菜单图标
                 label: route.meta?.title ?? route.name, // 展示名
                 title: route.meta?.title ?? route.name, // 提示
                 disabled: route.meta?.enabled === false || !hasAccess(route.meta, userStore), // 禁用判定
-                onClick: () => router.push(navTarget), // 点击跳转
+                navTarget, // 点击跳转
                 children, // 子菜单
             }
         })
-        .filter(Boolean) as NonNullable<MenuProps['items']> // 剔除 null
+        .filter(Boolean) as UiMenuItem[] // 剔除 null
 
 export const useMenu = () => {
     const router = useRouter() // 路由实例
     const route = useRoute() // 当前路由
     const userStore = useUserStore() // 权限 store
 
-    const items = computed<MenuProps['items']>(() => toMenuItems(routesConfig as NavRoute[], '', userStore, router)) // 动态菜单
+    const items = computed<UiMenuItem[]>(() => toMenuItems(routesConfig as NavRoute[], '', userStore)) // 动态菜单
 
-    const selectedKeys = computed<string[]>({
-        get: () => [route.matched.at(-1)?.path ?? route.path], // 当前激活路径
-        set: () => {}, // 占位以兼容 v-model
-    })
+    const selectedKey = computed(() => route.matched.at(-1)?.path ?? route.path)
+    const activeRootKey = computed(() => route.matched.find(record => record.path !== '')?.path ?? route.path)
 
-    return {items, selectedKeys} // 暴露菜单数据
+    const navigate = (item: UiMenuItem) => {
+        if (item.disabled || !item.navTarget) return
+        void router.push(item.navTarget)
+    }
+
+    return {items, selectedKey, activeRootKey, navigate} // 暴露菜单数据
 }

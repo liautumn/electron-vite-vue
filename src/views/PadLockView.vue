@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import { message } from 'ant-design-vue'
+import {Notify} from 'quasar'
 import { padSingleDevice } from '../components/pad/PadSingleDevice'
 import {
   formatPadHex,
@@ -70,6 +70,15 @@ const latestMagneticRawResponse = ref('')
 // 页面卸载时需要取消订阅的回调。
 let disposeStatusListener = () => {}
 let disposeFrameListener = () => {}
+
+const notify = (type: 'positive' | 'negative', content: unknown) => {
+  Notify.create({
+    type,
+    message: String(content ?? ''),
+    position: 'top-right',
+    timeout: 2200
+  })
+}
 
 // 普通锁反馈表：开锁、查询状态、手动关锁都复用这一块。
 const normalLockPanel = computed<FeedbackPanelData>(() => {
@@ -235,7 +244,7 @@ async function refreshPorts() {
       })
     })
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -251,7 +260,7 @@ async function connect() {
       baudRate: speed
     })
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -260,7 +269,7 @@ async function disconnect() {
   try {
     await padSingleDevice.disconnect()
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -271,9 +280,9 @@ async function handleOpenNormalLock() {
     const { commandHex, frame } = await openPadLock(board, lock)
     latestNormalLockFrame.value = frame
     appendLog(`TX ${formatPadHex(commandHex)}`)
-    message.success(resolvePadFrameStatusText(frame))
+    notify('positive', resolvePadFrameStatusText(frame))
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -284,9 +293,9 @@ async function handleQueryNormalLockStatus() {
     const { commandHex, frame } = await queryPadLockStatus(board, lock)
     latestNormalLockFrame.value = frame
     appendLog(`TX ${formatPadHex(commandHex)}`)
-    message.success(resolvePadFrameStatusText(frame))
+    notify('positive', resolvePadFrameStatusText(frame))
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -306,19 +315,19 @@ async function handleEnableMagneticHoldOpen() {
       if (rawResponseHex) {
         appendLog(`RX ${formatPadHex(rawResponseHex)}`)
       }
-      message.success(resolvePadFrameStatusText(latestFrame))
+      notify('positive', resolvePadFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
       appendLog(`RX ${formatPadHex(rawResponseHex)}`)
-      message.success('开启长通电指令已发送，收到原始反馈')
+      notify('positive', '开启长通电指令已发送，收到原始反馈')
       return
     }
 
-    message.success('开启长通电指令已发送')
+    notify('positive', '开启长通电指令已发送')
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -338,19 +347,19 @@ async function handleDisableMagneticHoldOpen() {
       if (rawResponseHex) {
         appendLog(`RX ${formatPadHex(rawResponseHex)}`)
       }
-      message.success(resolvePadFrameStatusText(latestFrame))
+      notify('positive', resolvePadFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
       appendLog(`RX ${formatPadHex(rawResponseHex)}`)
-      message.success('关闭长通电指令已发送，收到原始反馈')
+      notify('positive', '关闭长通电指令已发送，收到原始反馈')
       return
     }
 
-    message.success('关闭长通电指令已发送')
+    notify('positive', '关闭长通电指令已发送')
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -359,9 +368,9 @@ async function handleSendRawHex() {
   try {
     const commandHex = await sendPadRawHex(rawHex.value)
     appendLog(`TX ${formatPadHex(commandHex)}`)
-    message.success('自定义 HEX 已发送')
+    notify('positive', '自定义 HEX 已发送')
   } catch (error) {
-    message.error(resolveError(error))
+    notify('negative', resolveError(error))
   }
 }
 
@@ -413,219 +422,242 @@ onUnmounted(() => {
 
 <template>
   <div class="container">
-    <a-space direction="vertical" size="large" style="width: 100%">
-      <a-card title="串口连接">
-        <a-space direction="vertical" style="width: 100%">
+    <div class="page-stack">
+      <q-card flat bordered class="panel-card">
+        <q-card-section class="panel-title-row">
+          <div class="panel-title">串口连接</div>
+          <q-chip square dense :color="connected ? 'positive' : 'negative'" text-color="white">
+            {{ connected ? '已连接' : '未连接' }}
+          </q-chip>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack">
           <div class="serial-port-row">
-            <a-select
-              v-model:value="portPath"
+            <q-select
+              v-model="portPath"
+              outlined
+              emit-value
+              map-options
+              class="field-grow"
               :options="serialOptions"
+              label="串口"
               placeholder="选择串口"
-              style="width: 100%"
             />
-            <a-button @click="refreshPorts">刷新串口</a-button>
+            <q-btn outline color="primary" no-caps @click="refreshPorts">刷新串口</q-btn>
           </div>
 
-          <a-input-number
-            v-model:value="baudRate"
-            :min="300"
-            :step="300"
-            placeholder="波特率"
-            style="width: 100%"
+          <q-input
+            v-model.number="baudRate"
+            outlined
+            type="number"
+            min="300"
+            step="300"
+            label="波特率"
           />
 
-          <a-space wrap>
-            <a-button type="primary" @click="connect">连接</a-button>
-            <a-button danger @click="disconnect">断开</a-button>
-            <a-tag :color="connected ? 'green' : 'red'">
-              {{ connected ? '已连接' : '未连接' }}
-            </a-tag>
-          </a-space>
+          <div class="action-buttons">
+            <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
+            <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
+          </div>
 
-          <a-typography-text type="secondary">
+          <div class="muted-text">
             建议参数：RS-485 / 9600 / 8N1
-          </a-typography-text>
-          <a-typography-text v-if="lastError" type="danger">
+          </div>
+          <div v-if="lastError" class="error-text">
             最近错误：{{ lastError }}
-          </a-typography-text>
-        </a-space>
-      </a-card>
+          </div>
+        </q-card-section>
+      </q-card>
 
-      <a-card title="普通锁模块">
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">普通锁模块</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
         <div class="module-grid">
           <div class="module-column">
             <div class="address-grid">
-              <a-input-number
-                v-model:value="normalLockTarget.boardAddress"
-                :min="0"
-                :max="255"
-                placeholder="普通锁板地址"
-                style="width: 100%"
+              <q-input
+                v-model.number="normalLockTarget.boardAddress"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="普通锁板地址"
               />
-              <a-input-number
-                v-model:value="normalLockTarget.lockAddress"
-                :min="0"
-                :max="255"
-                placeholder="普通锁锁地址"
-                style="width: 100%"
+              <q-input
+                v-model.number="normalLockTarget.lockAddress"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="普通锁锁地址"
               />
             </div>
 
-            <a-typography-text type="secondary">
+            <div class="muted-text">
               {{ formatTargetPreview(normalLockTarget) }}
-            </a-typography-text>
+            </div>
 
-            <a-space wrap>
-              <a-button type="primary" @click="handleOpenNormalLock">开锁</a-button>
-              <a-button @click="handleQueryNormalLockStatus">查询状态</a-button>
-            </a-space>
+            <div class="action-buttons">
+              <q-btn color="primary" no-caps unelevated @click="handleOpenNormalLock">开锁</q-btn>
+              <q-btn outline color="primary" no-caps @click="handleQueryNormalLockStatus">查询状态</q-btn>
+            </div>
           </div>
 
           <div class="module-column">
-            <a-descriptions :column="1" size="small" bordered class="feedback-descriptions">
-              <a-descriptions-item label="反馈类型">
-                {{ normalLockPanel.typeLabel }}
-              </a-descriptions-item>
-              <a-descriptions-item label="原始 HEX">
-                <code>{{ normalLockPanel.rawHex }}</code>
-              </a-descriptions-item>
-              <a-descriptions-item label="状态位">
-                {{ normalLockPanel.statusText }}
-              </a-descriptions-item>
-              <a-descriptions-item label="BCC">
-                {{ normalLockPanel.bccText }}
-              </a-descriptions-item>
-            </a-descriptions>
+            <q-markup-table flat bordered dense class="feedback-table">
+              <tbody>
+                <tr><th>反馈类型</th><td>{{ normalLockPanel.typeLabel }}</td></tr>
+                <tr><th>原始 HEX</th><td><code>{{ normalLockPanel.rawHex }}</code></td></tr>
+                <tr><th>状态位</th><td>{{ normalLockPanel.statusText }}</td></tr>
+                <tr><th>BCC</th><td>{{ normalLockPanel.bccText }}</td></tr>
+              </tbody>
+            </q-markup-table>
           </div>
         </div>
-      </a-card>
+        </q-card-section>
+      </q-card>
 
-      <a-card title="电磁锁模块">
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">电磁锁模块</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
         <div class="module-grid">
           <div class="module-column">
             <div class="address-grid">
-              <a-input-number
-                v-model:value="magneticLockTarget.boardAddress"
-                :min="0"
-                :max="255"
-                placeholder="电磁锁板地址"
-                style="width: 100%"
+              <q-input
+                v-model.number="magneticLockTarget.boardAddress"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="电磁锁板地址"
               />
-              <a-input-number
-                v-model:value="magneticLockTarget.lockAddress"
-                :min="0"
-                :max="255"
-                placeholder="电磁锁锁地址"
-                style="width: 100%"
+              <q-input
+                v-model.number="magneticLockTarget.lockAddress"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="电磁锁锁地址"
               />
             </div>
 
-            <a-typography-text type="secondary">
+            <div class="muted-text">
               {{ formatTargetPreview(magneticLockTarget) }}
-            </a-typography-text>
+            </div>
 
-            <a-space wrap>
-              <a-button type="primary" @click="handleEnableMagneticHoldOpen">开启长通电</a-button>
-              <a-button @click="handleDisableMagneticHoldOpen">关闭长通电</a-button>
-            </a-space>
+            <div class="action-buttons">
+              <q-btn color="primary" no-caps unelevated @click="handleEnableMagneticHoldOpen">开启长通电</q-btn>
+              <q-btn outline color="primary" no-caps @click="handleDisableMagneticHoldOpen">关闭长通电</q-btn>
+            </div>
           </div>
 
           <div class="module-column">
-            <a-descriptions :column="1" size="small" bordered class="feedback-descriptions">
-              <a-descriptions-item label="反馈类型">
-                {{ magneticLockPanel.typeLabel }}
-              </a-descriptions-item>
-              <a-descriptions-item label="原始 HEX">
-                <code>{{ magneticLockPanel.rawHex }}</code>
-              </a-descriptions-item>
-              <a-descriptions-item label="状态位">
-                {{ magneticLockPanel.statusText }}
-              </a-descriptions-item>
-              <a-descriptions-item label="BCC">
-                {{ magneticLockPanel.bccText }}
-              </a-descriptions-item>
-            </a-descriptions>
-            <a-typography-text type="secondary">
+            <q-markup-table flat bordered dense class="feedback-table">
+              <tbody>
+                <tr><th>反馈类型</th><td>{{ magneticLockPanel.typeLabel }}</td></tr>
+                <tr><th>原始 HEX</th><td><code>{{ magneticLockPanel.rawHex }}</code></td></tr>
+                <tr><th>状态位</th><td>{{ magneticLockPanel.statusText }}</td></tr>
+                <tr><th>BCC</th><td>{{ magneticLockPanel.bccText }}</td></tr>
+              </tbody>
+            </q-markup-table>
+            <div class="muted-text">
               `9A/9B` 不强行按统一长度拆包。
-            </a-typography-text>
+            </div>
           </div>
         </div>
-      </a-card>
+        </q-card-section>
+      </q-card>
 
-      <a-card title="微动开关模块">
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">微动开关模块</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
         <div class="module-grid">
           <div class="module-column">
             <div class="address-grid">
-              <a-input-number
-                v-model:value="microswitchTarget.boardAddress"
-                :min="0"
-                :max="255"
-                placeholder="微动板地址"
-                style="width: 100%"
+              <q-input
+                v-model.number="microswitchTarget.boardAddress"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="微动板地址"
               />
-              <a-input-number
-                v-model:value="microswitchTarget.lockAddress"
-                :min="0"
-                :max="255"
-                placeholder="微动锁地址"
-                style="width: 100%"
+              <q-input
+                v-model.number="microswitchTarget.lockAddress"
+                outlined
+                type="number"
+                min="0"
+                max="255"
+                label="微动锁地址"
               />
             </div>
 
-            <a-typography-text type="secondary">
+            <div class="muted-text">
               {{ formatTargetPreview(microswitchTarget) }}
-            </a-typography-text>
+            </div>
           </div>
 
           <div class="module-column">
-            <a-descriptions :column="1" size="small" bordered class="feedback-descriptions">
-              <a-descriptions-item label="反馈类型">
-                {{ microswitchPanel.typeLabel }}
-              </a-descriptions-item>
-              <a-descriptions-item label="原始 HEX">
-                <code>{{ microswitchPanel.rawHex }}</code>
-              </a-descriptions-item>
-              <a-descriptions-item label="状态位">
-                {{ microswitchPanel.statusText }}
-              </a-descriptions-item>
-              <a-descriptions-item label="BCC">
-                {{ microswitchPanel.bccText }}
-              </a-descriptions-item>
-            </a-descriptions>
-            <a-typography-text type="secondary">
+            <q-markup-table flat bordered dense class="feedback-table">
+              <tbody>
+                <tr><th>反馈类型</th><td>{{ microswitchPanel.typeLabel }}</td></tr>
+                <tr><th>原始 HEX</th><td><code>{{ microswitchPanel.rawHex }}</code></td></tr>
+                <tr><th>状态位</th><td>{{ microswitchPanel.statusText }}</td></tr>
+                <tr><th>BCC</th><td>{{ microswitchPanel.bccText }}</td></tr>
+              </tbody>
+            </q-markup-table>
+            <div class="muted-text">
               这里固定按微动事件展示：`11=微动按下`，`00=微动松开`。
-            </a-typography-text>
+            </div>
           </div>
         </div>
-      </a-card>
+        </q-card-section>
+      </q-card>
 
-      <a-card title="自定义 HEX">
-        <a-space direction="vertical" style="width: 100%">
-          <a-typography-text type="secondary">
+      <q-card flat bordered class="panel-card">
+        <q-card-section>
+          <div class="panel-title">自定义 HEX</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section class="panel-stack">
+          <div class="muted-text">
             自定义 HEX 会直接走当前串口发送，便于补测文档之外的命令。
-          </a-typography-text>
-          <div class="serial-port-row">
-            <a-input v-model:value="rawHex" placeholder="例如：8A 01 01 11 9B" />
-            <a-button @click="handleSendRawHex">发送自定义 HEX</a-button>
           </div>
-        </a-space>
-      </a-card>
+          <div class="serial-port-row">
+            <q-input v-model="rawHex" outlined class="field-grow" label="命令 HEX" placeholder="例如：8A 01 01 11 9B" />
+            <q-btn color="primary" no-caps unelevated @click="handleSendRawHex">发送自定义 HEX</q-btn>
+          </div>
+        </q-card-section>
+      </q-card>
 
-      <a-card title="通讯日志">
-        <a-space direction="vertical" style="width: 100%">
-          <a-space wrap>
-            <a-button danger @click="clearLog">清空日志</a-button>
-          </a-space>
-          <a-textarea
-            :value="log"
-            :rows="16"
+      <q-card flat bordered class="panel-card">
+        <q-card-section class="panel-title-row">
+          <div class="panel-title">通讯日志</div>
+          <q-btn color="negative" no-caps unelevated @click="clearLog">清空日志</q-btn>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <q-input
+            :model-value="log"
+            outlined
             readonly
+            type="textarea"
+            rows="16"
             class="log-textarea"
             placeholder="串口日志会显示在这里"
           />
-        </a-space>
-      </a-card>
-    </a-space>
+        </q-card-section>
+      </q-card>
+    </div>
   </div>
 </template>
 
@@ -634,15 +666,48 @@ onUnmounted(() => {
   padding: 16px;
 }
 
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel-card {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 16px;
+}
+
+.panel-title-row,
+.action-buttons {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .serial-port-row {
   display: flex;
   gap: 12px;
   width: 100%;
+  align-items: end;
+  flex-wrap: wrap;
 }
 
-.serial-port-row :deep(.ant-select),
-.serial-port-row :deep(.ant-input) {
+.field-grow {
   flex: 1;
+  min-width: 240px;
 }
 
 .module-grid {
@@ -663,14 +728,23 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.feedback-descriptions :deep(table) {
-  table-layout: fixed;
+.muted-text {
+  color: var(--app-text-secondary);
 }
 
-.feedback-descriptions :deep(.ant-descriptions-row > th) {
+.error-text {
+  color: rgb(220, 38, 38);
+}
+
+.feedback-table {
+  background: transparent;
+  border-color: var(--app-border);
+  border-radius: 12px;
+}
+
+.feedback-table :deep(th) {
+  color: var(--app-text-secondary);
   width: 140px;
-  min-width: 140px;
-  max-width: 140px;
 }
 
 .log-textarea :deep(textarea) {
@@ -683,8 +757,11 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .serial-port-row {
+  .serial-port-row,
+  .panel-title-row,
+  .action-buttons {
     flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>

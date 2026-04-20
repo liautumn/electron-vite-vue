@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import {computed} from 'vue'
+import {watch} from 'vue'
 import {storeToRefs} from 'pinia'
-import {theme as antdTheme} from 'ant-design-vue'
+import {Dark} from 'quasar'
 import {useThemeStore, type ThemePreference} from './stores/theme'
 import {useMenu} from './router/useMenu'
 
@@ -15,87 +15,170 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
   {label: '暗黑', value: 'dark'}
 ]
 
-/** Ant Design Vue 主题 */
-const antdThemeConfig = computed(() => ({
-  algorithm:
-      resolvedTheme.value === 'dark'
-          ? antdTheme.darkAlgorithm
-          : antdTheme.defaultAlgorithm
-}))
+watch(resolvedTheme, (theme) => {
+  Dark.set(theme === 'dark')
+}, {immediate: true})
 
-const {items, selectedKeys} = useMenu()
+const {items, selectedKey, activeRootKey, navigate} = useMenu()
+const isRootActive = (key: string) => activeRootKey.value === key
+const isSelected = (key: string) => selectedKey.value === key
 
 </script>
 <template>
-  <a-config-provider :theme="antdThemeConfig">
-    <a-layout class="app-layout">
-
-      <!-- Header -->
-      <a-layout-header class="app-header">
-        <a-row>
-          <a-col :span="20">
-            <a-menu
-                v-model:selectedKeys="selectedKeys"
-                mode="horizontal"
-                :items="items"
+  <q-layout view="hHh lpR fFf" class="app-layout">
+    <q-header class="app-header">
+      <q-toolbar class="app-toolbar">
+        <div class="nav-group">
+          <template v-for="item in items" :key="item.key">
+            <q-btn
+              v-if="!item.children?.length"
+              flat
+              no-caps
+              class="nav-btn"
+              :class="{'nav-btn--active': isRootActive(item.key)}"
+              :color="isRootActive(item.key) ? 'primary' : 'grey-7'"
+              :disable="item.disabled"
+              :label="item.label"
+              @click="navigate(item)"
             />
-          </a-col>
-          <a-col :span="4" class="header-right">
-            <a-segmented
-                v-model:value="preference"
-                :options="themeOptions"
-                size="small"
-            />
-          </a-col>
 
-        </a-row>
-      </a-layout-header>
+            <q-btn-dropdown
+              v-else
+              flat
+              auto-close
+              no-caps
+              class="nav-btn"
+              :class="{'nav-btn--active': isRootActive(item.key)}"
+              :color="isRootActive(item.key) ? 'primary' : 'grey-7'"
+              :disable="item.disabled"
+              :label="item.label"
+            >
+              <q-list dense class="nav-menu">
+                <q-item
+                  v-for="child in item.children"
+                  :key="child.key"
+                  clickable
+                  :active="isSelected(child.key)"
+                  :disable="child.disabled"
+                  active-class="nav-item--active"
+                  @click="navigate(child)"
+                >
+                  <q-item-section>{{ child.label }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+          </template>
+        </div>
 
-      <!-- Content -->
-      <a-layout-content class="app-content">
+        <q-space />
+
+        <q-btn-toggle
+          v-model="preference"
+          class="theme-toggle"
+          no-caps
+          rounded
+          unelevated
+          toggle-color="primary"
+          :options="themeOptions"
+        />
+      </q-toolbar>
+    </q-header>
+
+    <q-page-container class="app-page-container">
+      <div class="app-content">
         <router-view/>
-      </a-layout-content>
+      </div>
+    </q-page-container>
 
-      <!-- Footer -->
-      <a-layout-footer class="app-footer">
+    <q-footer class="app-footer">
+      <div class="app-footer__inner">
         electron-vite-vue demo ©2026 Created by autumn
-      </a-layout-footer>
-
-    </a-layout>
-  </a-config-provider>
+      </div>
+    </q-footer>
+  </q-layout>
 </template>
 <style scoped>
 .app-layout {
-  min-height: 100vh; /* 占满视口 */
-  display: flex;
-  flex-direction: column;
+  min-height: 100vh;
 }
 
 .app-header {
-  padding: 0;
-  background: transparent;
+  background: color-mix(in srgb, var(--app-header) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--text-color);
 }
 
-/* Menu 占满 Header */
-.app-header :deep(.ant-menu) {
-  border-bottom: none;
+.app-toolbar {
+  gap: 16px;
+  min-height: 68px;
+  padding: 0 20px;
 }
 
-/* 右侧 segmented 背景 */
-.header-right {
-  background: var(--app-header); /* 纯白 */
+.nav-group {
   display: flex;
   align-items: center;
-  justify-content: flex-end; /* 靠右 */
-  padding-right: 16px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav-btn {
+  border-radius: 999px;
+  font-weight: 500;
+  min-height: 38px;
+  padding: 0 8px;
+}
+
+.nav-btn--active {
+  background: color-mix(in srgb, var(--app-surface) 70%, var(--bg-color));
+}
+
+.nav-menu {
+  min-width: 180px;
+}
+
+.theme-toggle {
+  background: color-mix(in srgb, var(--app-surface) 82%, transparent);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.app-page-container {
+  background: var(--bg-color);
 }
 
 .app-content {
-  padding: 15px;
-  flex: 1; /* 把 footer 顶到最底 */
+  margin: 0 auto;
+  max-width: 1440px;
+  padding: 18px;
+  width: 100%;
 }
 
 .app-footer {
+  background: var(--app-header);
+  border-top: 1px solid var(--app-border);
+  color: var(--app-text-secondary);
+}
+
+.app-footer__inner {
+  padding: 14px 18px;
   text-align: center;
+}
+
+@media (max-width: 900px) {
+  .app-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 14px 16px;
+  }
+
+  .nav-group {
+    width: 100%;
+  }
+
+  .theme-toggle {
+    width: 100%;
+  }
 }
 </style>

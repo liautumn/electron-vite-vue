@@ -20,26 +20,47 @@ function setData() {
 
 <template>
   <div class="page">
-    <div class="container">
-      <a-space class="container" size="large">
-        <a-button @click="goHome">返回首页</a-button>
-        <h2>Pinio Demo</h2>
-        <a-button @click="setData" type="primary">一键赋值</a-button>
-        <p>姓名：{{ userStore.getName }}</p>
-        <p>Token：{{ userStore.getToken }}</p>
-      </a-space>
-    </div>
+    <q-card flat bordered class="panel">
+      <q-card-section class="panel-section">
+        <div class="panel-actions">
+          <q-btn outline color="primary" no-caps @click="goHome">返回首页</q-btn>
+          <q-btn color="primary" no-caps unelevated @click="setData">一键赋值</q-btn>
+        </div>
+
+        <div>
+          <h2>Pinio Demo</h2>
+          <p>姓名：{{ userStore.getName }}</p>
+          <p>Token：{{ userStore.getToken }}</p>
+        </div>
+      </q-card-section>
+    </q-card>
   </div>
 </template>
 
 <style scoped>
-
-.container {
+.page {
   display: flex;
   justify-content: center;
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: center;
+  padding: 24px 12px;
 }
 
+.panel {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  border-radius: 18px;
+  max-width: 520px;
+  width: 100%;
+}
+
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 </style>

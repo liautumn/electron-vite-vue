@@ -22,13 +22,14 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@quasar/vite-plugin": "^1.11.0",
     "@vitejs/plugin-vue": "^6.0.6",
-    "ant-design-vue": "^4.2.6",
     "axios": "^1.15.0",
     "electron": "^41.2.1",
     "electron-builder": "^26.8.1",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
+    "sass-embedded": "^1.93.2",
     "typescript": "^6.0.3",
     "vite": "^8.0.8",
     "vite-plugin-electron": "^0.29.1",
@@ -40,6 +41,8 @@
   "dependencies": {
     "electron-log": "^5.4.3",
     "mqtt": "^5.15.1",
+    "quasar": "^2.18.6",
+    "@quasar/extras": "^1.17.0",
     "serialport": "^13.0.0"
   }
 }

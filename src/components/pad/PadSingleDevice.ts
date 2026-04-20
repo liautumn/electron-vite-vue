@@ -5,6 +5,19 @@ import {
   parsePadFrame,
   type PadParsedFrame
 } from './PadProtocol'
+import type { IpcRendererEvent } from 'electron'
+
+type SerialSessionEvent = {
+  sessionId: number
+}
+
+type SerialDataEvent = SerialSessionEvent & {
+  data: string
+}
+
+type SerialErrorEvent = SerialSessionEvent & {
+  message: string
+}
 
 // 设备状态、原始数据、结构化帧三类订阅回调。
 type PadStatusListener = (snapshot: PadDeviceSnapshot) => void
@@ -25,6 +38,8 @@ export interface PadRawResponseOptions {
   idleMs?: number
   optional?: boolean
 }
+
+const PAD_SESSION_ID = 0
 
 class PadSingleDevice {
   // 避免重复绑定 Electron 事件。
@@ -104,13 +119,16 @@ class PadSingleDevice {
     this.lastError = null
     this.resetRxBuffer()
     this.emitStatus()
-    await window.serial.open(options)
+    await window.serial.open({
+      sessionId: PAD_SESSION_ID,
+      ...options
+    })
   }
 
   // 主动断开串口连接。
   async disconnect() {
     this.ensureInitialized()
-    await window.serial.close()
+    await window.serial.close(PAD_SESSION_ID)
     this.connected = false
     this.resetRxBuffer()
     this.emitStatus()
@@ -123,7 +141,7 @@ class PadSingleDevice {
       throw new Error('PAD 锁控板未连接')
     }
     const payload = requirePadHexPayload(hex)
-    await window.serial.write(payload)
+    await window.serial.write(payload, PAD_SESSION_ID)
   }
 
   // 等待一条固定长度且满足条件的响应帧。
@@ -252,21 +270,35 @@ class PadSingleDevice {
     this.initialized = true
 
     // 串口连接成功。
-    window.ipcRenderer.on('serial:open', () => {
+    window.serial.onOpen((_event: IpcRendererEvent, payload: SerialSessionEvent) => {
+      if (payload.sessionId !== PAD_SESSION_ID) {
+        return
+      }
+
       this.connected = true
       this.lastError = null
       this.emitStatus()
     })
 
     // 串口关闭。
-    window.ipcRenderer.on('serial:close', () => {
+    window.serial.onClose((_event: IpcRendererEvent, payload: SerialSessionEvent) => {
+      if (payload.sessionId !== PAD_SESSION_ID) {
+        return
+      }
+
       this.connected = false
       this.resetRxBuffer()
       this.emitStatus()
     })
 
     // 串口错误。
-    window.ipcRenderer.on('serial:error', (_, message: string) => {
+    window.serial.onError((_event: IpcRendererEvent, payload: SerialErrorEvent) => {
+      if (payload.sessionId !== PAD_SESSION_ID) {
+        return
+      }
+
+      const { message } = payload
+
       this.connected = false
       this.lastError = message
       this.resetRxBuffer()
@@ -274,8 +306,12 @@ class PadSingleDevice {
     })
 
     // 串口收到数据后统一交给接收入口处理。
-    window.ipcRenderer.on('serial:data', (_, data: string) => {
-      this.handleIncomingData(data)
+    window.serial.onData((_event: IpcRendererEvent, payload: SerialDataEvent) => {
+      if (payload.sessionId !== PAD_SESSION_ID) {
+        return
+      }
+
+      this.handleIncomingData(payload.data)
     })
   }
 

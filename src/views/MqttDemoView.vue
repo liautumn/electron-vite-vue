@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import {computed, onMounted, onUnmounted, ref} from 'vue'
 import type {SelectProps} from 'ant-design-vue'
-import type {MqttMessageEvent, MqttQoS} from '../types/mqtt'
+import type { IpcRendererEvent } from 'electron'
+import type {MqttMessageEvent, MqttQoS, MqttSubscriptionGrant} from '../types/mqtt'
 
 defineOptions({name: 'mqtt-demo'})
 
@@ -135,9 +136,9 @@ const subscribe = async () => {
         const granted = await window.mqtt.subscribe({
             topic,
             qos: subscribeQos.value,
-        })
+        }) as MqttSubscriptionGrant[]
         const summary = granted.length
-            ? granted.map(item => `${item.topic} (QoS ${item.qos})`).join(', ')
+            ? granted.map((item) => `${item.topic} (QoS ${item.qos})`).join(', ')
             : `${topic} (QoS ${subscribeQos.value})`
         appendLog(`订阅成功: ${summary}`)
     } catch (error) {
@@ -210,10 +211,10 @@ onMounted(() => {
             connectionState.value = 'disconnected'
             appendLog('MQTT 连接已关闭')
         }),
-        window.mqtt.onError((_, message) => {
+        window.mqtt.onError((_event: IpcRendererEvent, message: string) => {
             appendLog(`MQTT 错误: ${message}`)
         }),
-        window.mqtt.onMessage((_, message) => {
+        window.mqtt.onMessage((_event: IpcRendererEvent, message: MqttMessageEvent) => {
             messages.value = [message, ...messages.value].slice(0, 20)
             appendLog(`收到消息: ${message.topic} -> ${message.payloadText || '(empty)'}`)
         })

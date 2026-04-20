@@ -1,4 +1,17 @@
 import { normalizeHex } from './GuoXinCommon'
+import type { IpcRendererEvent } from 'electron'
+
+type ConnectionSessionEvent = {
+  sessionId: number
+}
+
+type ConnectionDataEvent = ConnectionSessionEvent & {
+  data: string
+}
+
+type ConnectionErrorEvent = ConnectionSessionEvent & {
+  message: string
+}
 
 // 国芯设备当前支持的两种连接方式。
 export type GuoxinConnectionMode = 'serial' | 'tcp'
@@ -25,6 +38,8 @@ export interface GuoxinDeviceSnapshot {
   // 最近一次连接或通信错误。
   lastError: string | null
 }
+
+const GUOXIN_SESSION_ID = 0
 
 class GuoXinSingleDevice {
   // 避免重复注册 IPC 监听器。
@@ -201,7 +216,10 @@ class GuoXinSingleDevice {
     this.emitStatus()
 
     // 调用 preload 暴露的串口打开能力。
-    await window.serial.open(options)
+    await window.serial.open({
+      sessionId: GUOXIN_SESSION_ID,
+      ...options
+    })
   }
 
   /**
@@ -224,7 +242,10 @@ class GuoXinSingleDevice {
     this.emitStatus()
 
     // 调用 preload 暴露的 TCP 连接能力。
-    await window.tcp.connect(options)
+    await window.tcp.connect({
+      sessionId: GUOXIN_SESSION_ID,
+      ...options
+    })
   }
 
   /**
@@ -237,10 +258,10 @@ class GuoXinSingleDevice {
     // 按指定模式断开对应通道。
     if (mode === 'serial') {
       // 断开串口。
-      await window.serial.close()
+      await window.serial.close(GUOXIN_SESSION_ID)
     } else {
       // 断开 TCP。
-      await window.tcp.disconnect()
+      await window.tcp.disconnect(GUOXIN_SESSION_ID)
     }
 
     // 断开后清空对应通道的接收缓冲。
@@ -274,12 +295,12 @@ class GuoXinSingleDevice {
     // 串口模式走串口写入。
     if (this.mode === 'serial') {
       // 使用 void 忽略 Promise 返回值，与现有调用风格保持一致。
-      void window.serial.write(payload)
+      void window.serial.write(payload, GUOXIN_SESSION_ID)
       return
     }
 
     // TCP 模式走 TCP 写入。
-    void window.tcp.write(payload)
+    void window.tcp.write(payload, GUOXIN_SESSION_ID)
   }
 
   /**
@@ -325,7 +346,9 @@ class GuoXinSingleDevice {
     this.initialized = true
 
     // 串口打开成功事件。
-    window.ipcRenderer.on('serial:open', () => {
+    window.serial.onOpen((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
       // 只有当前模式确实是串口时才处理。
       if (this.mode !== 'serial') return
 
@@ -340,7 +363,9 @@ class GuoXinSingleDevice {
     })
 
     // 串口关闭事件。
-    window.ipcRenderer.on('serial:close', () => {
+    window.serial.onClose((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
       // 只有当前模式确实是串口时才处理。
       if (this.mode !== 'serial') return
 
@@ -355,7 +380,11 @@ class GuoXinSingleDevice {
     })
 
     // 串口错误事件。
-    window.ipcRenderer.on('serial:error', (_, message: string) => {
+    window.serial.onError((_event: IpcRendererEvent, payload: ConnectionErrorEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
+      const { message } = payload
+
       // 只有当前模式确实是串口时才处理。
       if (this.mode !== 'serial') return
 
@@ -373,13 +402,17 @@ class GuoXinSingleDevice {
     })
 
     // 串口收到数据事件。
-    window.ipcRenderer.on('serial:data', (_, data: string) => {
+    window.serial.onData((_event: IpcRendererEvent, payload: ConnectionDataEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
       // 把串口数据交给统一接收入口处理。
-      this.emitData('serial', data)
+      this.emitData('serial', payload.data)
     })
 
     // TCP 连接成功事件。
-    window.ipcRenderer.on('tcp:connect', () => {
+    window.tcp.onConnect((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
       // 只有当前模式确实是 TCP 时才处理。
       if (this.mode !== 'tcp') return
 
@@ -394,7 +427,9 @@ class GuoXinSingleDevice {
     })
 
     // TCP 关闭事件。
-    window.ipcRenderer.on('tcp:close', () => {
+    window.tcp.onClose((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
       // 只有当前模式确实是 TCP 时才处理。
       if (this.mode !== 'tcp') return
 
@@ -409,7 +444,11 @@ class GuoXinSingleDevice {
     })
 
     // TCP 错误事件。
-    window.ipcRenderer.on('tcp:error', (_, message: string) => {
+    window.tcp.onError((_event: IpcRendererEvent, payload: ConnectionErrorEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
+      const { message } = payload
+
       // 只有当前模式确实是 TCP 时才处理。
       if (this.mode !== 'tcp') return
 
@@ -427,9 +466,11 @@ class GuoXinSingleDevice {
     })
 
     // TCP 收到数据事件。
-    window.ipcRenderer.on('tcp:data', (_, data: string) => {
+    window.tcp.onData((_event: IpcRendererEvent, payload: ConnectionDataEvent) => {
+      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+
       // 把 TCP 数据交给统一接收入口处理。
-      this.emitData('tcp', data)
+      this.emitData('tcp', payload.data)
     })
   }
 

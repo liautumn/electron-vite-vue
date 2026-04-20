@@ -1,25 +1,45 @@
+export type SerialSessionId = number
+
+export interface SerialOpenOptions {
+    sessionId?: SerialSessionId
+    path: string
+    baudRate: number
+}
+
+export interface SerialSessionEvent {
+    sessionId: SerialSessionId
+}
+
+export interface SerialDataEvent extends SerialSessionEvent {
+    data: string
+}
+
+export interface SerialErrorEvent extends SerialSessionEvent {
+    message: string
+}
+
 export interface SerialMethods {
     /** 获取串口列表 */
     list(): Promise<any[]>
 
     /** 打开串口 */
-    open(options: { path: string; baudRate: number }): Promise<void>
+    open(options: SerialOpenOptions): Promise<boolean>
 
     /** 关闭串口 */
-    close(): Promise<void>
+    close(sessionId?: SerialSessionId): Promise<boolean>
 
     /** 发送十六进制数据 */
-    write(hex: string): Promise<void>
+    write(hex: string, sessionId?: SerialSessionId): Promise<boolean>
 
     /** 串口打开事件 */
-    onOpen(cb: () => void): void
+    onOpen(cb: (event: Electron.IpcRendererEvent, payload: SerialSessionEvent) => void): () => void
 
     /** 串口关闭事件 */
-    onClose(cb: () => void): void
+    onClose(cb: (event: Electron.IpcRendererEvent, payload: SerialSessionEvent) => void): () => void
 
     /** 串口数据事件 */
-    onData(cb: (event: Electron.IpcRendererEvent, data: string) => void): void
+    onData(cb: (event: Electron.IpcRendererEvent, payload: SerialDataEvent) => void): () => void
 
     /** 串口错误事件 */
-    onError(cb: (event: Electron.IpcRendererEvent, msg: string) => void): void
+    onError(cb: (event: Electron.IpcRendererEvent, payload: SerialErrorEvent) => void): () => void
 }

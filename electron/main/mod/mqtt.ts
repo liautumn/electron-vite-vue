@@ -1,30 +1,7 @@
 import {BrowserWindow, ipcMain} from 'electron'
 import {connect, type IClientOptions, type MqttClient} from 'mqtt'
 import {createLogger} from '../utils/logger'
-
-type MqttQoS = 0 | 1 | 2
-
-type MqttConnectOptions = {
-    url: string
-    clientId?: string
-    username?: string
-    password?: string
-    clean?: boolean
-    reconnectPeriod?: number
-    connectTimeout?: number
-}
-
-type MqttSubscribeOptions = {
-    topic: string
-    qos?: MqttQoS
-}
-
-type MqttPublishOptions = {
-    topic: string
-    payload: string
-    qos?: MqttQoS
-    retain?: boolean
-}
+import {MqttConnectOptions, MqttPublishOptions, MqttSubscribeOptions} from "../../../shared/types/mqtt";
 
 let client: MqttClient | null = null
 let win: BrowserWindow | null = null

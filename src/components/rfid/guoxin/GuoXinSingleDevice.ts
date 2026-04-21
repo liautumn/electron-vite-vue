@@ -22,8 +22,12 @@ type GuoXinEventName = 'GuoXin_Data'
 // 完整协议帧监听器，供上层业务解析使用。
 type GuoXinDataListener = (data: string) => void
 
-// 原始完整帧监听器，保留数据来源，供日志或调试使用。
-type GuoXinRawDataListener = (source: GuoxinConnectionMode, data: string) => void
+// 原始完整帧监听器，保留会话和数据来源，供日志或调试使用。
+type GuoXinRawDataListener = (
+  sessionId: number,
+  source: GuoxinConnectionMode,
+  data: string
+) => void
 
 // 设备状态监听器。
 type GuoXinStatusListener = (state: GuoxinDeviceSnapshot) => void
@@ -31,6 +35,8 @@ type GuoXinStatusListener = (state: GuoxinDeviceSnapshot) => void
 export interface GuoxinDeviceSnapshot {
   // 当前实际使用的连接模式。
   mode: GuoxinConnectionMode
+  // 当前连接会话 ID。
+  sessionId: number
   // 当前通道是否已经连通。
   connected: boolean
   // 当前缓存的天线数量配置。
@@ -39,119 +45,157 @@ export interface GuoxinDeviceSnapshot {
   lastError: string | null
 }
 
-const GUOXIN_SESSION_ID = 0
+type GuoxinSessionState = {
+  mode: GuoxinConnectionMode
+  connected: boolean
+  antNum: number
+  lastError: string | null
+  rxBuffers: Record<GuoxinConnectionMode, string>
+}
+
+const DEFAULT_GUOXIN_SESSION_ID = 0
+const DEFAULT_GUOXIN_ANT_NUM = 4
+
+const normalizeSessionId = (sessionId?: number) => {
+  const parsed = Number(sessionId)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return DEFAULT_GUOXIN_SESSION_ID
+  }
+  return parsed
+}
+
+const createSessionState = (): GuoxinSessionState => ({
+  mode: 'tcp',
+  connected: false,
+  antNum: DEFAULT_GUOXIN_ANT_NUM,
+  lastError: null,
+  rxBuffers: {
+    serial: '',
+    tcp: ''
+  }
+})
 
 class GuoXinSingleDevice {
   // 避免重复注册 IPC 监听器。
   private initialized = false
 
-  // 默认先按 TCP 模式初始化。
-  private mode: GuoxinConnectionMode = 'tcp'
+  // 当前激活会话 ID，供未显式传参的方法兜底使用。
+  private activeSessionId = DEFAULT_GUOXIN_SESSION_ID
 
-  // 当前连接状态。
-  private connected = false
+  // 会话状态池，每个 session 独立维护连接状态和接收缓冲。
+  private sessionStates = new Map<number, GuoxinSessionState>()
 
-  // 缓存当前配置的天线数量，供 helper 在组装按天线下发的指令时使用。
-  private antNumValue = 4
+  // 业务层完整帧监听器按会话隔离。
+  private commandDataListeners = new Map<number, Set<GuoXinDataListener>>()
 
-  // 缓存最近一次错误信息。
-  private lastError: string | null = null
-
-  // 串口和 TCP 都可能出现半包，因此每种传输方式各自维护接收缓冲区。
-  private rxBuffers: Record<GuoxinConnectionMode, string> = {
-    // 串口接收缓冲区。
-    serial: '',
-    // TCP 接收缓冲区。
-    tcp: ''
-  }
-
-  // 业务层完整帧监听器集合。
-  private commandDataListeners = new Set<GuoXinDataListener>()
-
-  // 原始完整帧监听器集合。
+  // 原始完整帧监听器集合（全会话广播）。
   private rawDataListeners = new Set<GuoXinRawDataListener>()
 
-  // 状态监听器集合。
+  // 状态监听器集合（按会话状态变更广播）。
   private statusListeners = new Set<GuoXinStatusListener>()
 
   /**
    * 获取当前缓存的天线数量。
    */
   get antNum() {
-    // 暴露当前缓存的天线数量。
-    return this.antNumValue
+    return this.getSessionState(this.activeSessionId).antNum
   }
 
   /**
    * 获取当前连接模式。
    */
   get currentMode() {
-    // 暴露当前连接模式。
-    return this.mode
+    return this.getSessionState(this.activeSessionId).mode
   }
 
   /**
-   * 获取当前是否已连接。
+   * 获取当前激活会话 ID。
+   */
+  get currentSessionId() {
+    return this.activeSessionId
+  }
+
+  /**
+   * 获取当前激活会话是否已连接。
    */
   get isConnected() {
-    // 暴露当前连接状态。
-    return this.connected
+    return this.getSessionState(this.activeSessionId).connected
+  }
+
+  /**
+   * 切换当前激活会话。
+   */
+  setActiveSession(sessionId: number) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    this.activeSessionId = targetSessionId
+    this.getSessionState(targetSessionId)
+    this.emitStatus(targetSessionId)
+  }
+
+  /**
+   * 获取指定会话天线数量。
+   */
+  getAntNum(sessionId = this.activeSessionId) {
+    return this.getSessionState(sessionId).antNum
   }
 
   /**
    * 更新设备侧缓存的天线数量。
    */
-  setAntNum(antNum: number) {
-    // 天线数量必须是正整数，否则后续组帧会出错。
+  setAntNum(antNum: number, sessionId = this.activeSessionId) {
     if (!Number.isInteger(antNum) || antNum <= 0) {
       throw new Error('天线数量必须是大于 0 的整数')
     }
 
-    // 相同值不重复更新，也不重复广播状态。
-    if (this.antNumValue === antNum) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    const state = this.getSessionState(targetSessionId)
+
+    if (state.antNum === antNum) {
       return
     }
 
-    // 写入新的天线数量缓存。
-    this.antNumValue = antNum
-
-    // 通知订阅方设备状态已变化。
-    this.emitStatus()
+    state.antNum = antNum
+    this.emitStatus(targetSessionId)
   }
 
   /**
-   * 生成一份当前设备状态快照。
+   * 生成指定会话的设备状态快照。
    */
-  getSnapshot(): GuoxinDeviceSnapshot {
-    // 返回当前设备状态快照，避免外部直接碰内部字段。
+  getSnapshot(sessionId = this.activeSessionId): GuoxinDeviceSnapshot {
+    const targetSessionId = normalizeSessionId(sessionId)
+    const state = this.getSessionState(targetSessionId)
+
     return {
-      // 当前模式。
-      mode: this.mode,
-      // 当前连接状态。
-      connected: this.connected,
-      // 当前天线数量配置。
-      antNum: this.antNumValue,
-      // 最近一次错误。
-      lastError: this.lastError
+      mode: state.mode,
+      sessionId: targetSessionId,
+      connected: state.connected,
+      antNum: state.antNum,
+      lastError: state.lastError
     }
+  }
+
+  /**
+   * 返回当前所有已初始化会话快照。
+   */
+  getSnapshots() {
+    if (!this.sessionStates.size) {
+      return [this.getSnapshot(this.activeSessionId)]
+    }
+
+    return Array.from(this.sessionStates.keys())
+      .sort((a, b) => a - b)
+      .map((sessionId) => this.getSnapshot(sessionId))
   }
 
   /**
    * 订阅设备状态变化。
    */
   subscribeStatus(listener: GuoXinStatusListener) {
-    // 确保底层 IPC 事件只注册一次。
     this.ensureInitialized()
-
-    // 加入状态监听集合。
     this.statusListeners.add(listener)
+    listener(this.getSnapshot(this.activeSessionId))
 
-    // 订阅后立刻推送一次当前状态，避免外部再主动取一次。
-    listener(this.getSnapshot())
-
-    // 返回取消订阅函数。
     return () => {
-      // 从状态监听集合移除当前监听器。
       this.statusListeners.delete(listener)
     }
   }
@@ -160,356 +204,293 @@ class GuoXinSingleDevice {
    * 订阅完整原始帧数据，通常用于日志和调试。
    */
   subscribeRawData(listener: GuoXinRawDataListener) {
-    // 确保底层 IPC 事件已完成注册。
     this.ensureInitialized()
-
-    // 记录原始帧监听器。
     this.rawDataListeners.add(listener)
 
-    // 返回取消订阅函数。
     return () => {
-      // 从原始帧监听集合移除当前监听器。
       this.rawDataListeners.delete(listener)
     }
   }
 
   /**
-   * 切换当前设备连接模式。
+   * 切换指定会话的连接模式。
    */
-  setMode(mode: GuoxinConnectionMode) {
-    // 确保底层 IPC 事件已完成注册。
+  setMode(mode: GuoxinConnectionMode, sessionId = this.activeSessionId) {
     this.ensureInitialized()
 
-    // 切换当前模式。
-    this.mode = mode
+    const targetSessionId = normalizeSessionId(sessionId)
+    this.activeSessionId = targetSessionId
 
-    // 模式切换后连接状态先回到未连接。
-    this.connected = false
+    const state = this.getSessionState(targetSessionId)
+    state.mode = mode
+    state.connected = false
+    state.lastError = null
+    this.resetRxBuffers(targetSessionId)
 
-    // 清空旧模式残留错误。
-    this.lastError = null
-
-    // 模式切换时清空全部接收缓冲，避免串包。
-    this.resetRxBuffers()
-
-    // 广播最新状态。
-    this.emitStatus()
+    this.emitStatus(targetSessionId)
   }
 
   /**
    * 连接串口设备。
    */
-  async connectSerial(options: { path: string; baudRate: number }) {
-    // 确保底层 IPC 事件已完成注册。
+  async connectSerial(options: { sessionId?: number; path: string; baudRate: number }) {
     this.ensureInitialized()
 
-    // 进入串口模式。
-    this.mode = 'serial'
+    const targetSessionId = normalizeSessionId(options.sessionId)
+    this.activeSessionId = targetSessionId
 
-    // 开始连接前清空旧错误。
-    this.lastError = null
+    const state = this.getSessionState(targetSessionId)
 
-    // 开始连接前清空串口缓冲。
-    this.resetRxBuffer('serial')
+    if (state.connected && state.mode !== 'serial') {
+      await this.disconnect(state.mode, targetSessionId)
+    }
 
-    // 先广播一次“串口连接中”前的状态。
-    this.emitStatus()
+    state.mode = 'serial'
+    state.lastError = null
+    this.resetRxBuffer(targetSessionId, 'serial')
+    this.emitStatus(targetSessionId)
 
-    // 调用 preload 暴露的串口打开能力。
     await window.serial.open({
-      sessionId: GUOXIN_SESSION_ID,
-      ...options
+      sessionId: targetSessionId,
+      path: options.path,
+      baudRate: options.baudRate
     })
   }
 
   /**
    * 连接 TCP 设备。
    */
-  async connectTcp(options: { host: string; port: number }) {
-    // 确保底层 IPC 事件已完成注册。
+  async connectTcp(options: { sessionId?: number; host: string; port: number }) {
     this.ensureInitialized()
 
-    // 进入 TCP 模式。
-    this.mode = 'tcp'
+    const targetSessionId = normalizeSessionId(options.sessionId)
+    this.activeSessionId = targetSessionId
 
-    // 开始连接前清空旧错误。
-    this.lastError = null
+    const state = this.getSessionState(targetSessionId)
 
-    // 开始连接前清空 TCP 缓冲。
-    this.resetRxBuffer('tcp')
+    if (state.connected && state.mode !== 'tcp') {
+      await this.disconnect(state.mode, targetSessionId)
+    }
 
-    // 先广播一次“TCP 连接中”前的状态。
-    this.emitStatus()
+    state.mode = 'tcp'
+    state.lastError = null
+    this.resetRxBuffer(targetSessionId, 'tcp')
+    this.emitStatus(targetSessionId)
 
-    // 调用 preload 暴露的 TCP 连接能力。
     await window.tcp.connect({
-      sessionId: GUOXIN_SESSION_ID,
-      ...options
+      sessionId: targetSessionId,
+      host: options.host,
+      port: options.port
     })
   }
 
   /**
-   * 断开指定模式的连接，默认断开当前模式。
+   * 断开指定会话连接，默认断开该会话当前模式。
    */
-  async disconnect(mode: GuoxinConnectionMode = this.mode) {
-    // 确保底层 IPC 事件已完成注册。
+  async disconnect(mode?: GuoxinConnectionMode, sessionId = this.activeSessionId) {
     this.ensureInitialized()
 
-    // 按指定模式断开对应通道。
-    if (mode === 'serial') {
-      // 断开串口。
-      await window.serial.close(GUOXIN_SESSION_ID)
+    const targetSessionId = normalizeSessionId(sessionId)
+    this.activeSessionId = targetSessionId
+
+    const state = this.getSessionState(targetSessionId)
+    const targetMode = mode ?? state.mode
+
+    if (targetMode === 'serial') {
+      await window.serial.close(targetSessionId)
     } else {
-      // 断开 TCP。
-      await window.tcp.disconnect(GUOXIN_SESSION_ID)
+      await window.tcp.disconnect(targetSessionId)
     }
 
-    // 断开后清空对应通道的接收缓冲。
-    this.resetRxBuffer(mode)
+    this.resetRxBuffer(targetSessionId, targetMode)
 
-    // 只有断开的正好是当前模式时，才需要更新当前连接状态。
-    if (this.mode === mode) {
-      // 标记为未连接。
-      this.connected = false
-
-      // 广播最新状态。
-      this.emitStatus()
+    if (state.mode === targetMode) {
+      state.connected = false
+      this.emitStatus(targetSessionId)
     }
   }
 
   /**
-   * 按当前模式发送 HEX 指令。
+   * 按指定会话当前模式发送 HEX 指令。
    */
-  sendMessageNew(hex: string) {
-    // 确保底层 IPC 事件已完成注册。
+  sendMessageNew(hex: string, sessionId = this.activeSessionId) {
     this.ensureInitialized()
 
-    // 未连接时不允许下发指令。
-    if (!this.connected) {
-      throw new Error('国芯 RFID 设备未连接')
+    const targetSessionId = normalizeSessionId(sessionId)
+    this.activeSessionId = targetSessionId
+
+    const state = this.getSessionState(targetSessionId)
+
+    if (!state.connected) {
+      throw new Error(`国芯 RFID 会话[${targetSessionId}]未连接`)
     }
 
-    // 发送前统一把 HEX 规范化。
     const payload = normalizeHex(hex)
 
-    // 串口模式走串口写入。
-    if (this.mode === 'serial') {
-      // 使用 void 忽略 Promise 返回值，与现有调用风格保持一致。
-      void window.serial.write(payload, GUOXIN_SESSION_ID)
+    if (state.mode === 'serial') {
+      void window.serial.write(payload, targetSessionId)
       return
     }
 
-    // TCP 模式走 TCP 写入。
-    void window.tcp.write(payload, GUOXIN_SESSION_ID)
+    void window.tcp.write(payload, targetSessionId)
   }
 
   /**
-   * 注册业务层完整帧监听器。
+   * 注册业务层完整帧监听器（按会话隔离）。
    */
-  on(eventName: GuoXinEventName, listener: GuoXinDataListener) {
-    // 确保底层 IPC 事件已完成注册。
+  on(eventName: GuoXinEventName, listener: GuoXinDataListener, sessionId = this.activeSessionId) {
     this.ensureInitialized()
-
-    // 当前仅支持这一类业务事件，其它值直接忽略。
     if (eventName !== 'GuoXin_Data') return
 
-    // 注册业务完整帧监听器。
-    this.commandDataListeners.add(listener)
+    const targetSessionId = normalizeSessionId(sessionId)
+    const listeners = this.getCommandListeners(targetSessionId)
+    listeners.add(listener)
   }
 
   /**
-   * 取消注册业务层完整帧监听器。
+   * 取消注册业务层完整帧监听器（按会话隔离）。
    */
-  off(eventName: GuoXinEventName, listener?: GuoXinDataListener) {
-    // 当前仅支持这一类业务事件，其它值直接忽略。
+  off(
+    eventName: GuoXinEventName,
+    listener?: GuoXinDataListener,
+    sessionId = this.activeSessionId
+  ) {
     if (eventName !== 'GuoXin_Data') return
 
-    // 传了具体监听器时，只移除这一项。
+    const targetSessionId = normalizeSessionId(sessionId)
+    const listeners = this.commandDataListeners.get(targetSessionId)
+    if (!listeners) return
+
     if (listener) {
-      // 删除指定业务监听器。
-      this.commandDataListeners.delete(listener)
+      listeners.delete(listener)
+      if (!listeners.size) {
+        this.commandDataListeners.delete(targetSessionId)
+      }
       return
     }
 
-    // 未传监听器时，清空全部业务监听器。
-    this.commandDataListeners.clear()
+    listeners.clear()
+    this.commandDataListeners.delete(targetSessionId)
   }
 
   /**
    * 延迟注册底层 IPC 事件，确保只初始化一次。
    */
   private ensureInitialized() {
-    // 已初始化过就不重复注册 IPC 事件。
     if (this.initialized) return
 
-    // 标记初始化完成。
     this.initialized = true
 
-    // 串口打开成功事件。
     window.serial.onOpen((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state || state.mode !== 'serial') return
 
-      // 只有当前模式确实是串口时才处理。
-      if (this.mode !== 'serial') return
-
-      // 更新连接状态为已连接。
-      this.connected = true
-
-      // 清空旧错误。
-      this.lastError = null
-
-      // 广播最新状态。
-      this.emitStatus()
+      state.connected = true
+      state.lastError = null
+      this.emitStatus(sessionId)
     })
 
-    // 串口关闭事件。
     window.serial.onClose((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state || state.mode !== 'serial') return
 
-      // 只有当前模式确实是串口时才处理。
-      if (this.mode !== 'serial') return
-
-      // 更新连接状态为未连接。
-      this.connected = false
-
-      // 清空串口接收缓冲，避免残包影响下次连接。
-      this.resetRxBuffer('serial')
-
-      // 广播最新状态。
-      this.emitStatus()
+      state.connected = false
+      this.resetRxBuffer(sessionId, 'serial')
+      this.emitStatus(sessionId)
     })
 
-    // 串口错误事件。
     window.serial.onError((_event: IpcRendererEvent, payload: ConnectionErrorEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state || state.mode !== 'serial') return
 
-      const { message } = payload
-
-      // 只有当前模式确实是串口时才处理。
-      if (this.mode !== 'serial') return
-
-      // 发生错误后视为未连接。
-      this.connected = false
-
-      // 记录错误消息。
-      this.lastError = message
-
-      // 清空串口接收缓冲，避免残包污染后续通信。
-      this.resetRxBuffer('serial')
-
-      // 广播最新状态。
-      this.emitStatus()
+      state.connected = false
+      state.lastError = payload.message
+      this.resetRxBuffer(sessionId, 'serial')
+      this.emitStatus(sessionId)
     })
 
-    // 串口收到数据事件。
     window.serial.onData((_event: IpcRendererEvent, payload: ConnectionDataEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state) return
 
-      // 把串口数据交给统一接收入口处理。
-      this.emitData('serial', payload.data)
+      this.emitData('serial', sessionId, payload.data)
     })
 
-    // TCP 连接成功事件。
     window.tcp.onConnect((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state || state.mode !== 'tcp') return
 
-      // 只有当前模式确实是 TCP 时才处理。
-      if (this.mode !== 'tcp') return
-
-      // 更新连接状态为已连接。
-      this.connected = true
-
-      // 清空旧错误。
-      this.lastError = null
-
-      // 广播最新状态。
-      this.emitStatus()
+      state.connected = true
+      state.lastError = null
+      this.emitStatus(sessionId)
     })
 
-    // TCP 关闭事件。
     window.tcp.onClose((_event: IpcRendererEvent, payload: ConnectionSessionEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state || state.mode !== 'tcp') return
 
-      // 只有当前模式确实是 TCP 时才处理。
-      if (this.mode !== 'tcp') return
-
-      // 更新连接状态为未连接。
-      this.connected = false
-
-      // 清空 TCP 接收缓冲，避免残包影响下次连接。
-      this.resetRxBuffer('tcp')
-
-      // 广播最新状态。
-      this.emitStatus()
+      state.connected = false
+      this.resetRxBuffer(sessionId, 'tcp')
+      this.emitStatus(sessionId)
     })
 
-    // TCP 错误事件。
     window.tcp.onError((_event: IpcRendererEvent, payload: ConnectionErrorEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state || state.mode !== 'tcp') return
 
-      const { message } = payload
-
-      // 只有当前模式确实是 TCP 时才处理。
-      if (this.mode !== 'tcp') return
-
-      // 发生错误后视为未连接。
-      this.connected = false
-
-      // 记录错误消息。
-      this.lastError = message
-
-      // 清空 TCP 接收缓冲，避免残包污染后续通信。
-      this.resetRxBuffer('tcp')
-
-      // 广播最新状态。
-      this.emitStatus()
+      state.connected = false
+      state.lastError = payload.message
+      this.resetRxBuffer(sessionId, 'tcp')
+      this.emitStatus(sessionId)
     })
 
-    // TCP 收到数据事件。
     window.tcp.onData((_event: IpcRendererEvent, payload: ConnectionDataEvent) => {
-      if (payload.sessionId !== GUOXIN_SESSION_ID) return
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state) return
 
-      // 把 TCP 数据交给统一接收入口处理。
-      this.emitData('tcp', payload.data)
+      this.emitData('tcp', sessionId, payload.data)
     })
   }
 
   /**
    * 接收一段原始数据，拆成完整帧后再分发。
    */
-  private emitData(source: GuoxinConnectionMode, data: string) {
-    // 先把原始数据拼进缓冲，并提取出所有完整帧。
-    const frames = this.handleNewRx(source, data)
+  private emitData(source: GuoxinConnectionMode, sessionId: number, data: string) {
+    const state = this.getSessionStateIfExists(sessionId)
+    if (!state) return
 
-    // 当前 chunk 里还拼不出完整帧时直接返回，继续等下一段数据。
+    const frames = this.handleNewRx(sessionId, source, data)
     if (!frames.length) return
 
-    // 逐帧往下分发，保证上层只看到完整协议帧。
     frames.forEach((frame) => {
-      // 原始帧监听器不区分当前模式，主要用于日志和调试。
       this.rawDataListeners.forEach((listener) => {
-        // 把来源和完整帧一起交给订阅方。
-        listener(source, frame)
+        listener(sessionId, source, frame)
       })
 
-      // 只有来源与当前模式一致时，才分发给业务层监听器。
-      if (source !== this.mode) return
+      if (source !== state.mode) return
 
-      // 把完整帧交给业务解析监听器。
-      this.commandDataListeners.forEach((listener) => {
+      const sessionListeners = this.commandDataListeners.get(sessionId)
+      if (!sessionListeners?.size) return
+
+      sessionListeners.forEach((listener) => {
         listener(frame)
       })
     })
   }
 
   /**
-   * 向所有状态订阅方广播当前状态。
+   * 向所有状态订阅方广播指定会话当前状态。
    */
-  private emitStatus() {
-    // 先生成一次最新状态快照。
-    const snapshot = this.getSnapshot()
-
-    // 把同一份快照广播给所有状态监听器。
+  private emitStatus(sessionId: number) {
+    const snapshot = this.getSnapshot(sessionId)
     this.statusListeners.forEach((listener) => {
       listener(snapshot)
     })
@@ -518,94 +499,102 @@ class GuoXinSingleDevice {
   /**
    * 处理新收到的原始 HEX 数据，完成半包拼接和粘包拆分。
    */
-  private handleNewRx(source: GuoxinConnectionMode, data: string): string[] {
-    // 先把输入转成连续的大写 HEX，方便统一处理。
+  private handleNewRx(sessionId: number, source: GuoxinConnectionMode, data: string): string[] {
     const normalized = normalizeHex(String(data ?? ''))
-
-    // 空数据直接返回空结果。
     if (!normalized) {
       return []
     }
 
-    // 先在接收层完成组帧，再把完整帧交给上层业务解析。
-    let buffer = (this.rxBuffers[source] || '') + normalized
+    const state = this.getSessionState(sessionId)
+    let buffer = (state.rxBuffers[source] || '') + normalized
 
-    // 收集这次输入里能够拼出来的所有完整帧。
     const frames: string[] = []
 
     while (true) {
-      // 从当前缓冲区里寻找帧头 5A。
       const startIndex = buffer.indexOf('5A')
 
-      // 连帧头都找不到时，说明当前缓冲没有可用数据，直接丢弃。
       if (startIndex === -1) {
         buffer = ''
         break
       }
 
-      // 帧头前如果有脏数据，直接裁掉，只保留从帧头开始的内容。
       if (startIndex > 0) {
         buffer = buffer.slice(startIndex)
       }
 
-      // 协议最短长度为帧头 1 字节 + 控制字 4 字节 + 长度 2 字节。
       if (buffer.length < 14) {
         break
       }
 
-      // 长度字段位于控制字后面，占 2 字节。
       const lengthHex = buffer.slice(10, 14)
-
-      // 解析 payload 长度，单位是字节。
       const payloadLength = parseInt(lengthHex, 16)
 
-      // 长度字段异常时，向后跳过 1 个字节继续重新找帧头。
       if (Number.isNaN(payloadLength)) {
         buffer = buffer.slice(2)
         continue
       }
 
-      // 整帧长度 = 帧头 1 字节 + 控制字 4 字节 + 长度 2 字节 + payload + CRC 2 字节。
       const frameLength = 18 + payloadLength * 2
-
-      // 当前数据还不够一整帧时，保留缓冲，等待后续数据补齐。
       if (buffer.length < frameLength) {
         break
       }
 
-      // 切出一帧完整数据加入结果。
       frames.push(buffer.slice(0, frameLength))
-
-      // 把已经消费掉的完整帧从缓冲中移除，继续尝试拆下一帧。
       buffer = buffer.slice(frameLength)
     }
 
-    // 回写剩余半包，供下一次数据到达时继续拼接。
-    this.rxBuffers[source] = buffer
-
-    // 返回本次成功提取出的完整帧列表。
+    state.rxBuffers[source] = buffer
     return frames
   }
 
   /**
-   * 清空指定通道的接收缓冲。
+   * 清空指定会话和指定通道的接收缓冲。
    */
-  private resetRxBuffer(mode: GuoxinConnectionMode) {
-    // 清空指定通道的接收缓冲。
-    this.rxBuffers[mode] = ''
+  private resetRxBuffer(sessionId: number, mode: GuoxinConnectionMode) {
+    const state = this.getSessionState(sessionId)
+    state.rxBuffers[mode] = ''
   }
 
   /**
-   * 清空全部通道的接收缓冲。
+   * 清空指定会话全部通道接收缓冲。
    */
-  private resetRxBuffers() {
-    // 清空串口接收缓冲。
-    this.resetRxBuffer('serial')
+  private resetRxBuffers(sessionId: number) {
+    this.resetRxBuffer(sessionId, 'serial')
+    this.resetRxBuffer(sessionId, 'tcp')
+  }
 
-    // 清空 TCP 接收缓冲。
-    this.resetRxBuffer('tcp')
+  /**
+   * 获取会话对应的业务监听集合。
+   */
+  private getCommandListeners(sessionId: number) {
+    let listeners = this.commandDataListeners.get(sessionId)
+    if (!listeners) {
+      listeners = new Set<GuoXinDataListener>()
+      this.commandDataListeners.set(sessionId, listeners)
+    }
+    return listeners
+  }
+
+  /**
+   * 获取会话状态；不存在时自动初始化。
+   */
+  private getSessionState(sessionId: number) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    let state = this.sessionStates.get(targetSessionId)
+    if (!state) {
+      state = createSessionState()
+      this.sessionStates.set(targetSessionId, state)
+    }
+    return state
+  }
+
+  /**
+   * 仅获取已初始化会话状态；不存在时返回 null。
+   */
+  private getSessionStateIfExists(sessionId: number) {
+    return this.sessionStates.get(normalizeSessionId(sessionId)) ?? null
   }
 }
 
-// 导出单例，整个页面共用同一份设备状态和事件通道。
+// 导出单例，整个项目共用同一份设备会话池和事件通道。
 export const guoxinSingleDevice = new GuoXinSingleDevice()

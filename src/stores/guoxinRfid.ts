@@ -6,9 +6,12 @@ const MIN_ANTENNA_COUNT = 1
 const MAX_ANTENNA_COUNT = 32
 const MIN_POWER = 0
 const MAX_POWER = 33
+const MIN_SESSION_ID = 0
+const MAX_SESSION_ID = Number.MAX_SAFE_INTEGER
 
 export type GuoxinRfidConfig = {
   mode: GuoxinConnectionMode
+  connectionSessionId: number
   portPath: string
   baudRate: number
   host: string
@@ -78,6 +81,7 @@ function normalizePowerLevels(
 function createDefaultConfig(): GuoxinRfidConfig {
   return {
     mode: 'tcp',
+    connectionSessionId: 0,
     portPath: '',
     baudRate: 9600,
     host: '192.168.1.168',
@@ -125,6 +129,12 @@ function normalizeConfig(input: LegacyGuoxinRfidConfig = {}): GuoxinRfidConfig {
   return {
     ...defaults,
     ...rest,
+    connectionSessionId: clampInteger(
+      rest.connectionSessionId,
+      defaults.connectionSessionId,
+      MIN_SESSION_ID,
+      MAX_SESSION_ID
+    ),
     antennaCount,
     powerLevels,
     writeAntenna: clampInteger(

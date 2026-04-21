@@ -21,11 +21,12 @@ type SerialErrorEvent = SerialSessionEvent & {
 
 // 设备状态、原始数据、结构化帧三类订阅回调。
 type PadStatusListener = (snapshot: PadDeviceSnapshot) => void
-type PadRawDataListener = (data: string) => void
-type PadFrameListener = (frame: PadParsedFrame) => void
+type PadRawDataListener = (sessionId: number, data: string) => void
+type PadFrameListener = (sessionId: number, frame: PadParsedFrame) => void
 
 // 页面感知到的 PAD 设备快照。
 export interface PadDeviceSnapshot {
+  sessionId: number
   connected: boolean
   portPath: string
   baudRate: number
@@ -39,42 +40,79 @@ export interface PadRawResponseOptions {
   optional?: boolean
 }
 
-const PAD_SESSION_ID = 0
+type PadSessionState = {
+  connected: boolean
+  portPath: string
+  baudRate: number
+  lastError: string | null
+  fixedFrameBuffer: string
+}
+
+const DEFAULT_PAD_SESSION_ID = 0
+const DEFAULT_PAD_BAUD_RATE = 9600
+
+const normalizeSessionId = (sessionId?: number) => {
+  const parsed = Number(sessionId)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return DEFAULT_PAD_SESSION_ID
+  }
+  return parsed
+}
+
+const createSessionState = (): PadSessionState => ({
+  connected: false,
+  portPath: '',
+  baudRate: DEFAULT_PAD_BAUD_RATE,
+  lastError: null,
+  fixedFrameBuffer: ''
+})
 
 class PadSingleDevice {
   // 避免重复绑定 Electron 事件。
   private initialized = false
 
-  // 当前是否处于串口已连接状态。
-  private connected = false
+  // 当前激活会话 ID，供未显式传参的方法兜底使用。
+  private activeSessionId = DEFAULT_PAD_SESSION_ID
 
-  // 当前连接使用的串口路径。
-  private portPath = ''
-
-  // 当前连接使用的波特率。
-  private baudRate = 9600
-
-  // 最近一次串口错误。
-  private lastError: string | null = null
-
-  // 固定长度响应的半包缓冲。
-  private fixedFrameBuffer = ''
+  // 会话状态池。
+  private sessionStates = new Map<number, PadSessionState>()
 
   // 各类订阅器集合。
   private statusListeners = new Set<PadStatusListener>()
-
   private rawDataListeners = new Set<PadRawDataListener>()
-
   private frameListeners = new Set<PadFrameListener>()
 
-  // 对外返回当前设备状态快照。
-  getSnapshot(): PadDeviceSnapshot {
+  // 切换当前激活会话。
+  setActiveSession(sessionId: number) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    this.activeSessionId = targetSessionId
+    this.getSessionState(targetSessionId)
+    this.emitStatus(targetSessionId)
+  }
+
+  // 对外返回指定会话状态快照。
+  getSnapshot(sessionId = this.activeSessionId): PadDeviceSnapshot {
+    const targetSessionId = normalizeSessionId(sessionId)
+    const state = this.getSessionState(targetSessionId)
+
     return {
-      connected: this.connected,
-      portPath: this.portPath,
-      baudRate: this.baudRate,
-      lastError: this.lastError
+      sessionId: targetSessionId,
+      connected: state.connected,
+      portPath: state.portPath,
+      baudRate: state.baudRate,
+      lastError: state.lastError
     }
+  }
+
+  // 返回当前所有已初始化会话快照。
+  getSnapshots() {
+    if (!this.sessionStates.size) {
+      return [this.getSnapshot(this.activeSessionId)]
+    }
+
+    return Array.from(this.sessionStates.keys())
+      .sort((a, b) => a - b)
+      .map((sessionId) => this.getSnapshot(sessionId))
   }
 
   // 透传串口列表查询，页面用于选择连接目标。
@@ -82,11 +120,11 @@ class PadSingleDevice {
     return window.serial.list()
   }
 
-  // 订阅设备状态，订阅后立即回推一次当前状态。
+  // 订阅设备状态，订阅后立即回推一次当前激活会话状态。
   subscribeStatus(listener: PadStatusListener) {
     this.ensureInitialized()
     this.statusListeners.add(listener)
-    listener(this.getSnapshot())
+    listener(this.getSnapshot(this.activeSessionId))
     return () => {
       this.statusListeners.delete(listener)
     }
@@ -110,47 +148,74 @@ class PadSingleDevice {
     }
   }
 
-  // 连接串口并刷新当前设备上下文。
-  async connectSerial(options: { path: string; baudRate: number }) {
+  // 连接串口并刷新指定会话上下文。
+  async connectSerial(options: { sessionId?: number; path: string; baudRate: number }) {
     this.ensureInitialized()
-    this.portPath = options.path
-    this.baudRate = options.baudRate
-    this.connected = false
-    this.lastError = null
-    this.resetRxBuffer()
-    this.emitStatus()
+
+    const targetSessionId = normalizeSessionId(options.sessionId)
+    this.activeSessionId = targetSessionId
+
+    const state = this.getSessionState(targetSessionId)
+
+    if (state.connected) {
+      await this.disconnect(targetSessionId)
+    }
+
+    state.portPath = options.path
+    state.baudRate = options.baudRate
+    state.connected = false
+    state.lastError = null
+    this.resetRxBuffer(targetSessionId)
+    this.emitStatus(targetSessionId)
+
     await window.serial.open({
-      sessionId: PAD_SESSION_ID,
-      ...options
+      sessionId: targetSessionId,
+      path: options.path,
+      baudRate: options.baudRate
     })
   }
 
-  // 主动断开串口连接。
-  async disconnect() {
+  // 主动断开指定会话串口连接。
+  async disconnect(sessionId = this.activeSessionId) {
     this.ensureInitialized()
-    await window.serial.close(PAD_SESSION_ID)
-    this.connected = false
-    this.resetRxBuffer()
-    this.emitStatus()
+
+    const targetSessionId = normalizeSessionId(sessionId)
+    this.activeSessionId = targetSessionId
+
+    await window.serial.close(targetSessionId)
+
+    const state = this.getSessionState(targetSessionId)
+    state.connected = false
+    this.resetRxBuffer(targetSessionId)
+    this.emitStatus(targetSessionId)
   }
 
-  // 发送一条完整 HEX 指令。
-  async sendHex(hex: string) {
+  // 按指定会话发送一条完整 HEX 指令。
+  async sendHex(hex: string, sessionId = this.activeSessionId) {
     this.ensureInitialized()
-    if (!this.connected) {
-      throw new Error('PAD 锁控板未连接')
+
+    const targetSessionId = normalizeSessionId(sessionId)
+    this.activeSessionId = targetSessionId
+
+    const state = this.getSessionState(targetSessionId)
+    if (!state.connected) {
+      throw new Error(`PAD 会话[${targetSessionId}]未连接`)
     }
+
     const payload = requirePadHexPayload(hex)
-    await window.serial.write(payload, PAD_SESSION_ID)
+    await window.serial.write(payload, targetSessionId)
   }
 
   // 等待一条固定长度且满足条件的响应帧。
   async requestFrame(
     send: () => Promise<void> | void,
     matcher: (frame: PadParsedFrame) => boolean,
-    timeout = 2000
+    timeout = 2000,
+    sessionId = this.activeSessionId
   ) {
     this.ensureInitialized()
+
+    const targetSessionId = normalizeSessionId(sessionId)
 
     return await new Promise<PadParsedFrame>(async (resolve, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -163,7 +228,10 @@ class PadSingleDevice {
         dispose()
       }
 
-      const dispose = this.subscribeFrame((frame) => {
+      const dispose = this.subscribeFrame((incomingSessionId, frame) => {
+        if (incomingSessionId !== targetSessionId) {
+          return
+        }
         if (!matcher(frame)) {
           return
         }
@@ -188,10 +256,12 @@ class PadSingleDevice {
   // 等待一段原始响应数据，适合 9A/9B 这种长度不稳定的命令。
   async requestRawResponse(
     send: () => Promise<void> | void,
-    options: PadRawResponseOptions = {}
+    options: PadRawResponseOptions = {},
+    sessionId = this.activeSessionId
   ) {
     this.ensureInitialized()
 
+    const targetSessionId = normalizeSessionId(sessionId)
     const { timeout = 2000, idleMs = 120, optional = false } = options
 
     return await new Promise<string>(async (resolve, reject) => {
@@ -199,7 +269,6 @@ class PadSingleDevice {
       let idleTimer: ReturnType<typeof setTimeout> | undefined
       let responseHex = ''
 
-      // 清理所有等待计时器和订阅器。
       const cleanup = () => {
         if (timeoutTimer) {
           clearTimeout(timeoutTimer)
@@ -212,7 +281,6 @@ class PadSingleDevice {
         dispose()
       }
 
-      // 根据结束原因统一完成这次等待。
       const finish = (result: 'success' | 'timeout' | 'error', error?: Error) => {
         cleanup()
 
@@ -229,7 +297,6 @@ class PadSingleDevice {
         reject(error ?? new Error(`等待 PAD 原始响应超时(${timeout}ms)`))
       }
 
-      // 只要仍有新数据进来，就继续向后延迟完成时机。
       const scheduleIdleFinish = () => {
         if (idleTimer) {
           clearTimeout(idleTimer)
@@ -239,8 +306,11 @@ class PadSingleDevice {
         }, idleMs)
       }
 
-      // 收到的原始 chunk 会直接累加起来返回给上层。
-      const dispose = this.subscribeRawData((chunk) => {
+      const dispose = this.subscribeRawData((incomingSessionId, chunk) => {
+        if (incomingSessionId !== targetSessionId) {
+          return
+        }
+
         responseHex += chunk
         scheduleIdleFinish()
       })
@@ -269,94 +339,112 @@ class PadSingleDevice {
 
     this.initialized = true
 
-    // 串口连接成功。
     window.serial.onOpen((_event: IpcRendererEvent, payload: SerialSessionEvent) => {
-      if (payload.sessionId !== PAD_SESSION_ID) {
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state) {
         return
       }
 
-      this.connected = true
-      this.lastError = null
-      this.emitStatus()
+      state.connected = true
+      state.lastError = null
+      this.emitStatus(sessionId)
     })
 
-    // 串口关闭。
     window.serial.onClose((_event: IpcRendererEvent, payload: SerialSessionEvent) => {
-      if (payload.sessionId !== PAD_SESSION_ID) {
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state) {
         return
       }
 
-      this.connected = false
-      this.resetRxBuffer()
-      this.emitStatus()
+      state.connected = false
+      this.resetRxBuffer(sessionId)
+      this.emitStatus(sessionId)
     })
 
-    // 串口错误。
     window.serial.onError((_event: IpcRendererEvent, payload: SerialErrorEvent) => {
-      if (payload.sessionId !== PAD_SESSION_ID) {
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state) {
         return
       }
 
-      const { message } = payload
-
-      this.connected = false
-      this.lastError = message
-      this.resetRxBuffer()
-      this.emitStatus()
+      state.connected = false
+      state.lastError = payload.message
+      this.resetRxBuffer(sessionId)
+      this.emitStatus(sessionId)
     })
 
-    // 串口收到数据后统一交给接收入口处理。
     window.serial.onData((_event: IpcRendererEvent, payload: SerialDataEvent) => {
-      if (payload.sessionId !== PAD_SESSION_ID) {
+      const sessionId = normalizeSessionId(payload.sessionId)
+      const state = this.getSessionStateIfExists(sessionId)
+      if (!state) {
         return
       }
 
-      this.handleIncomingData(payload.data)
+      this.handleIncomingData(sessionId, payload.data)
     })
   }
 
-  // 向所有状态订阅者广播当前快照。
-  private emitStatus() {
-    const snapshot = this.getSnapshot()
+  // 向所有状态订阅者广播指定会话快照。
+  private emitStatus(sessionId: number) {
+    const snapshot = this.getSnapshot(sessionId)
     this.statusListeners.forEach((listener) => {
       listener(snapshot)
     })
   }
 
-  // 处理新收到的原始串口数据：先转 HEX，再拆固定长度响应。
-  private handleIncomingData(data: string) {
+  // 处理指定会话新收到的原始串口数据：先转 HEX，再拆固定长度响应。
+  private handleIncomingData(sessionId: number, data: string) {
     const normalized = normalizePadHex(data)
     if (!normalized) {
       return
     }
 
     this.rawDataListeners.forEach((listener) => {
-      listener(normalized)
+      listener(sessionId, normalized)
     })
 
-    // 固定长度帧按缓冲区方式处理，解决半包和粘包问题。
-    this.fixedFrameBuffer += normalized
+    const state = this.getSessionState(sessionId)
+    state.fixedFrameBuffer += normalized
 
-    const extracted = extractPadFixedLengthFrames(this.fixedFrameBuffer)
-    this.fixedFrameBuffer = extracted.rest
+    const extracted = extractPadFixedLengthFrames(state.fixedFrameBuffer)
+    state.fixedFrameBuffer = extracted.rest
 
-    // 逐帧解析成功后再分发给业务订阅者。
     extracted.frames.forEach((frameHex) => {
       const frame = parsePadFrame(frameHex)
       if (!frame) {
         return
       }
       this.frameListeners.forEach((listener) => {
-        listener(frame)
+        listener(sessionId, frame)
       })
     })
   }
 
-  // 清空固定长度响应的半包缓冲。
-  private resetRxBuffer() {
-    this.fixedFrameBuffer = ''
+  // 清空指定会话固定长度响应半包缓冲。
+  private resetRxBuffer(sessionId: number) {
+    const state = this.getSessionState(sessionId)
+    state.fixedFrameBuffer = ''
+  }
+
+  // 获取会话状态；不存在时自动初始化。
+  private getSessionState(sessionId: number) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    let state = this.sessionStates.get(targetSessionId)
+    if (!state) {
+      state = createSessionState()
+      this.sessionStates.set(targetSessionId, state)
+    }
+    return state
+  }
+
+  // 仅获取已初始化会话状态；不存在时返回 null。
+  private getSessionStateIfExists(sessionId: number) {
+    return this.sessionStates.get(normalizeSessionId(sessionId)) ?? null
   }
 }
 
-// PAD 设备在页面层只维护一个单例即可。
+// PAD 设备在项目层维护一个会话池单例。
 export const padSingleDevice = new PadSingleDevice()

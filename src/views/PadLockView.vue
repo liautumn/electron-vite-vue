@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import {Notify} from 'quasar'
 import { padSingleDevice } from '../components/pad/PadSingleDevice'
 import {
@@ -16,6 +17,7 @@ import {
   queryPadLockStatus,
   sendPadRawHex
 } from '../components/pad/PadHelper'
+import { useDeviceConnectionsStore } from '../stores/deviceConnections'
 
 defineOptions({ name: 'pad-lock-demo' })
 
@@ -35,13 +37,13 @@ type FeedbackPanelData = {
 
 // 页面初次加载时先从单例设备中恢复一份快照。
 const snapshot = padSingleDevice.getSnapshot()
+const deviceConnectionsStore = useDeviceConnectionsStore()
+const { activePadSessionId } = storeToRefs(deviceConnectionsStore)
 
-// 串口连接区状态。
+// 会话连接状态。
 const connected = ref(snapshot.connected)
 const lastError = ref(snapshot.lastError ?? '')
-const portPath = ref(snapshot.portPath || '')
-const baudRate = ref<number | null>(snapshot.baudRate || 9600)
-const serialOptions = ref<{ label: string; value: string }[]>([{ label: '请选择串口', value: '' }])
+const sessionId = ref<number | null>(snapshot.sessionId)
 const rawHex = ref('')
 const log = ref('')
 
@@ -157,13 +159,13 @@ function requireAddressValue(value: number | null, label: string) {
   return value
 }
 
-// 校验波特率输入。
-function requireBaudRate(value: number | null) {
+// 校验连接会话 ID。
+function requireSessionId(value: number | null) {
   if (value === null || value === undefined) {
-    throw new Error('波特率不能为空')
+    throw new Error('会话 ID 不能为空')
   }
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error('波特率必须是大于 0 的整数')
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error('会话 ID 必须是大于等于 0 的整数')
   }
   return value
 }
@@ -232,54 +234,14 @@ function clearLog() {
   log.value = ''
 }
 
-// 刷新串口列表，供用户选择连接目标。
-async function refreshPorts() {
-  serialOptions.value = [{ label: '请选择串口', value: '' }]
-  try {
-    const ports = await padSingleDevice.listPorts()
-    ports.forEach((item: any) => {
-      serialOptions.value.push({
-        label: item.friendlyName || item.path,
-        value: item.path
-      })
-    })
-  } catch (error) {
-    notify('negative', resolveError(error))
-  }
-}
-
-// 建立 PAD 串口连接。
-async function connect() {
-  try {
-    const speed = requireBaudRate(baudRate.value)
-    if (!portPath.value) {
-      throw new Error('请选择串口')
-    }
-    await padSingleDevice.connectSerial({
-      path: portPath.value,
-      baudRate: speed
-    })
-  } catch (error) {
-    notify('negative', resolveError(error))
-  }
-}
-
-// 断开 PAD 串口连接。
-async function disconnect() {
-  try {
-    await padSingleDevice.disconnect()
-  } catch (error) {
-    notify('negative', resolveError(error))
-  }
-}
-
 // 普通锁开锁。
 async function handleOpenNormalLock() {
   try {
+    const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(normalLockTarget, '普通锁')
-    const { commandHex, frame } = await openPadLock(board, lock)
+    const { commandHex, frame } = await openPadLock(board, lock, 2000, targetSessionId)
     latestNormalLockFrame.value = frame
-    appendLog(`TX ${formatPadHex(commandHex)}`)
+    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
     notify('positive', resolvePadFrameStatusText(frame))
   } catch (error) {
     notify('negative', resolveError(error))
@@ -289,10 +251,11 @@ async function handleOpenNormalLock() {
 // 普通锁状态查询。
 async function handleQueryNormalLockStatus() {
   try {
+    const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(normalLockTarget, '普通锁')
-    const { commandHex, frame } = await queryPadLockStatus(board, lock)
+    const { commandHex, frame } = await queryPadLockStatus(board, lock, 2000, targetSessionId)
     latestNormalLockFrame.value = frame
-    appendLog(`TX ${formatPadHex(commandHex)}`)
+    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
     notify('positive', resolvePadFrameStatusText(frame))
   } catch (error) {
     notify('negative', resolveError(error))
@@ -302,25 +265,26 @@ async function handleQueryNormalLockStatus() {
 // 电磁锁开启长通电。
 async function handleEnableMagneticHoldOpen() {
   try {
+    const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(magneticLockTarget, '电磁锁')
-    const { commandHex, rawResponseHex, parsedResponse } = await enablePadLockKeepOpen(board, lock)
+    const { commandHex, rawResponseHex, parsedResponse } = await enablePadLockKeepOpen(board, lock, 2000, targetSessionId)
     const commandFrames = parsedResponse.parsedFrames.filter((frame) => frame.header === '9A')
 
     latestMagneticRawResponse.value = rawResponseHex
-    appendLog(`TX ${formatPadHex(commandHex)}`)
+    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
 
     if (commandFrames.length) {
       const latestFrame = commandFrames[commandFrames.length - 1]
       latestMagneticLockFrame.value = latestFrame
       if (rawResponseHex) {
-        appendLog(`RX ${formatPadHex(rawResponseHex)}`)
+        appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
       }
       notify('positive', resolvePadFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
-      appendLog(`RX ${formatPadHex(rawResponseHex)}`)
+      appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
       notify('positive', '开启长通电指令已发送，收到原始反馈')
       return
     }
@@ -334,25 +298,26 @@ async function handleEnableMagneticHoldOpen() {
 // 电磁锁关闭长通电。
 async function handleDisableMagneticHoldOpen() {
   try {
+    const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(magneticLockTarget, '电磁锁')
-    const { commandHex, rawResponseHex, parsedResponse } = await disablePadLockKeepOpen(board, lock)
+    const { commandHex, rawResponseHex, parsedResponse } = await disablePadLockKeepOpen(board, lock, 2000, targetSessionId)
     const commandFrames = parsedResponse.parsedFrames.filter((frame) => frame.header === '9B')
 
     latestMagneticRawResponse.value = rawResponseHex
-    appendLog(`TX ${formatPadHex(commandHex)}`)
+    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
 
     if (commandFrames.length) {
       const latestFrame = commandFrames[commandFrames.length - 1]
       latestMagneticLockFrame.value = latestFrame
       if (rawResponseHex) {
-        appendLog(`RX ${formatPadHex(rawResponseHex)}`)
+        appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
       }
       notify('positive', resolvePadFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
-      appendLog(`RX ${formatPadHex(rawResponseHex)}`)
+      appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
       notify('positive', '关闭长通电指令已发送，收到原始反馈')
       return
     }
@@ -366,8 +331,9 @@ async function handleDisableMagneticHoldOpen() {
 // 发送自定义 HEX，方便联调补测。
 async function handleSendRawHex() {
   try {
-    const commandHex = await sendPadRawHex(rawHex.value)
-    appendLog(`TX ${formatPadHex(commandHex)}`)
+    const targetSessionId = requireSessionId(sessionId.value)
+    const commandHex = await sendPadRawHex(rawHex.value, targetSessionId)
+    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
     notify('positive', '自定义 HEX 已发送')
   } catch (error) {
     notify('negative', resolveError(error))
@@ -375,8 +341,17 @@ async function handleSendRawHex() {
 }
 
 // 把收到的结构化帧按地址归档到对应模块。
-function routeIncomingFrame(frame: PadParsedFrame) {
-  appendLog(`RX ${formatPadHex(frame.rawHex)}`)
+function routeIncomingFrame(incomingSessionId: number, frame: PadParsedFrame) {
+  appendLog(`会话[${incomingSessionId}] RX ${formatPadHex(frame.rawHex)}`)
+
+  const activeSession = Number(sessionId.value)
+  if (!Number.isInteger(activeSession) || activeSession < 0) {
+    return
+  }
+
+  if (incomingSessionId !== activeSession) {
+    return
+  }
 
   if (frame.header === '81' && matchesTarget(frame, normalLockTarget)) {
     latestNormalLockFrame.value = frame
@@ -395,23 +370,43 @@ function routeIncomingFrame(frame: PadParsedFrame) {
   }
 }
 
-// 页面挂载时刷新串口并订阅设备状态/响应帧。
+// 页面挂载时订阅设备状态/响应帧。
 onMounted(() => {
-  void refreshPorts()
+  const targetSessionId = requireSessionId(sessionId.value)
+  padSingleDevice.setActiveSession(targetSessionId)
+  const currentSnapshot = padSingleDevice.getSnapshot(targetSessionId)
+  connected.value = currentSnapshot.connected
+  lastError.value = currentSnapshot.lastError ?? ''
 
   disposeStatusListener = padSingleDevice.subscribeStatus((state) => {
+    if (state.sessionId !== requireSessionId(sessionId.value)) {
+      return
+    }
     connected.value = state.connected
     lastError.value = state.lastError ?? ''
-    if (state.portPath) {
-      portPath.value = state.portPath
-    }
-    baudRate.value = state.baudRate
   })
 
-  disposeFrameListener = padSingleDevice.subscribeFrame((frame) => {
-    routeIncomingFrame(frame)
+  disposeFrameListener = padSingleDevice.subscribeFrame((incomingSessionId, frame) => {
+    routeIncomingFrame(incomingSessionId, frame)
   })
 })
+
+watch(sessionId, (nextSessionId) => {
+  const targetSessionId = requireSessionId(nextSessionId)
+  if (activePadSessionId.value !== targetSessionId) {
+    deviceConnectionsStore.setActivePadSession(targetSessionId)
+  }
+  padSingleDevice.setActiveSession(targetSessionId)
+  const currentSnapshot = padSingleDevice.getSnapshot(targetSessionId)
+  connected.value = currentSnapshot.connected
+  lastError.value = currentSnapshot.lastError ?? ''
+})
+
+watch(activePadSessionId, (nextSessionId) => {
+  if (sessionId.value !== nextSessionId) {
+    sessionId.value = nextSessionId
+  }
+}, {immediate: true})
 
 // 页面卸载时释放订阅，避免重复监听。
 onUnmounted(() => {
@@ -425,43 +420,25 @@ onUnmounted(() => {
     <div class="page-stack">
       <q-card flat bordered class="panel-card">
         <q-card-section class="panel-title-row">
-          <div class="panel-title">串口连接</div>
+          <div class="panel-title">会话与状态</div>
           <q-chip square dense :color="connected ? 'positive' : 'negative'" text-color="white">
             {{ connected ? '已连接' : '未连接' }}
           </q-chip>
         </q-card-section>
         <q-separator />
         <q-card-section class="panel-stack">
-          <div class="serial-port-row">
-            <q-select
-              v-model="portPath"
-              outlined
-              emit-value
-              map-options
-              class="field-grow"
-              :options="serialOptions"
-              label="串口"
-              placeholder="选择串口"
-            />
-            <q-btn outline color="primary" no-caps @click="refreshPorts">刷新串口</q-btn>
-          </div>
-
           <q-input
-            v-model.number="baudRate"
+            v-model.number="sessionId"
             outlined
             type="number"
-            min="300"
-            step="300"
-            label="波特率"
+            min="0"
+            step="1"
+            label="连接会话 ID"
+            placeholder="直接输入 sessionId"
           />
 
-          <div class="action-buttons">
-            <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
-            <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
-          </div>
-
           <div class="muted-text">
-            建议参数：RS-485 / 9600 / 8N1
+            连接参数请在项目设置维护，当前页面仅按 sessionId 调用。
           </div>
           <div v-if="lastError" class="error-text">
             最近错误：{{ lastError }}

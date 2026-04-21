@@ -2,7 +2,7 @@
 import {storeToRefs} from 'pinia'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {Notify} from 'quasar'
-import {guoxinSingleDevice, type GuoxinConnectionMode} from '../components/rfid/guoxin/GuoXinSingleDevice'
+import {guoxinSingleDevice} from '../components/rfid/guoxin/GuoXinSingleDevice'
 import type {IRFIDTagReadMessage} from '../components/rfid/guoxin/GuoXinCommon'
 import {normalizeHex} from '../components/rfid/guoxin/GuoXinCommon'
 import {
@@ -16,34 +16,28 @@ import {
   writeEPCFirstTime
 } from '../components/rfid/guoxin/GuoXinRfidHelper'
 import {useGuoxinRfidStore, type GuoxinRfidConfig} from '../stores/guoxinRfid'
+import {useDeviceConnectionsStore} from '../stores/deviceConnections'
 
 defineOptions({name: 'guoxin-rfid-demo'})
 
-type ModeOption = {
-  label: string
-  value: GuoxinConnectionMode
-}
-
 const snapshot = guoxinSingleDevice.getSnapshot()
-
-const modeOptions: ModeOption[] = [
-  {label: 'RS232', value: 'serial'},
-  {label: 'TCP', value: 'tcp'}
-]
 
 const rfidStore = useGuoxinRfidStore()
 const {config: rfidConfig} = storeToRefs(rfidStore)
+const deviceConnectionsStore = useDeviceConnectionsStore()
+const {activeRfidSessionId} = storeToRefs(deviceConnectionsStore)
 
 if (snapshot.connected) {
   rfidStore.setConfig({
     mode: snapshot.mode,
+    connectionSessionId: snapshot.sessionId,
     antennaCount: snapshot.antNum
   })
 }
 
 const connected = ref(snapshot.connected)
 const lastError = ref(snapshot.lastError ?? '')
-const serialOptions = ref<{ label: string; value: string }[]>([{label: '请选择串口', value: ''}])
+const currentMode = ref(snapshot.mode)
 const inventoryStatus = ref('空闲')
 const latestTag = ref<IRFIDTagReadMessage | null>(null)
 const log = ref('')
@@ -67,7 +61,6 @@ const notify = (type: 'positive' | 'negative', content: unknown) => {
   })
 }
 
-const isSerial = computed(() => rfidConfig.value.mode === 'serial')
 const antennaCountModel = computed({
   get: () => rfidConfig.value.antennaCount,
   set: (value) => {
@@ -101,6 +94,13 @@ const writeAntennaModel = computed<number>({
       return
     }
     rfidStore.setConfig({writeAntenna: value})
+  }
+})
+const connectionSessionModel = computed<number>({
+  get: () => rfidConfig.value.connectionSessionId,
+  set: (value) => {
+    if (typeof value !== 'number') return
+    rfidStore.setConfig({connectionSessionId: value})
   }
 })
 
@@ -153,6 +153,14 @@ function requireHexValue(input: string, label: string, exactLength?: number) {
   return value
 }
 
+function requireSessionId(value: unknown, label = '连接会话 ID') {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`${label}必须是大于等于 0 的整数`)
+  }
+  return parsed
+}
+
 function normalizeAntennaSelection(input: string | number[], antennaCount = Number.POSITIVE_INFINITY) {
   const rawValues = Array.isArray(input) ? input : input.split(/[,\s，]+/)
 
@@ -173,7 +181,8 @@ function parseAntennas(input: string, antennaCount = Number.POSITIVE_INFINITY) {
 }
 
 function syncDeviceAntNum() {
-  guoxinSingleDevice.setAntNum(rfidConfig.value.antennaCount)
+  const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
+  guoxinSingleDevice.setAntNum(rfidConfig.value.antennaCount, connectionSessionId)
 }
 
 function handleTagData(data: IRFIDTagReadMessage | null) {
@@ -182,79 +191,15 @@ function handleTagData(data: IRFIDTagReadMessage | null) {
   appendLog(`标签 EPC=${data.epc} 天线=${data.antennaId} RSSI=${data.rssi?.value ?? '-'}`)
 }
 
-async function refreshPorts() {
-  serialOptions.value = [{label: '请选择串口', value: ''}]
-  try {
-    const ports = await window.serial.list()
-    ports.forEach((item: any) => {
-      serialOptions.value.push({
-        label: item.friendlyName || item.path,
-        value: item.path
-      })
-    })
-    appendLog('串口列表刷新成功')
-  } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`获取串口失败: ${messageText}`)
-    notify('negative', messageText)
-  }
-}
-
-async function connect() {
-  try {
-    syncDeviceAntNum()
-    guoxinSingleDevice.setMode(rfidConfig.value.mode)
-
-    if (isSerial.value) {
-      if (!rfidConfig.value.portPath) {
-        throw new Error('请选择串口')
-      }
-      await guoxinSingleDevice.connectSerial({
-        path: rfidConfig.value.portPath,
-        baudRate: rfidConfig.value.baudRate
-      })
-      appendLog(`RS232 连接中: ${rfidConfig.value.portPath}@${rfidConfig.value.baudRate}`)
-      return
-    }
-
-    if (!rfidConfig.value.host || !rfidConfig.value.tcpPort) {
-      throw new Error('请填写 TCP 地址与端口')
-    }
-
-    await guoxinSingleDevice.connectTcp({
-      host: rfidConfig.value.host,
-      port: rfidConfig.value.tcpPort
-    })
-    appendLog(`TCP 连接中: ${rfidConfig.value.host}:${rfidConfig.value.tcpPort}`)
-  } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`连接失败: ${messageText}`)
-    notify('negative', messageText)
-  }
-}
-
-async function disconnect() {
-  try {
-    stopContinuousRead?.()
-    stopContinuousRead = null
-    await guoxinSingleDevice.disconnect(rfidConfig.value.mode)
-    inventoryStatus.value = '空闲'
-    appendLog('连接已断开')
-  } catch (error) {
-    const messageText = resolveError(error)
-    appendLog(`断开失败: ${messageText}`)
-    notify('negative', messageText)
-  }
-}
-
 async function startSingleRead() {
   try {
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
     syncDeviceAntNum()
     inventoryStatus.value = '单次读取中'
     const antennas = parseAntennas(rfidConfig.value.antsInput, rfidConfig.value.antennaCount)
-    const reason = await readEPC(antennas, handleTagData)
+    const reason = await readEPC(antennas, handleTagData, connectionSessionId)
     inventoryStatus.value = reason ?? '单次读取完成'
-    appendLog(`单次读取结束: ${inventoryStatus.value}`)
+    appendLog(`会话[${connectionSessionId}]单次读取结束: ${inventoryStatus.value}`)
   } catch (error) {
     const messageText = resolveError(error)
     inventoryStatus.value = '读取失败'
@@ -265,12 +210,13 @@ async function startSingleRead() {
 
 function startContinuousRead() {
   try {
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
     syncDeviceAntNum()
     stopContinuousRead?.()
     const antennas = parseAntennas(rfidConfig.value.antsInput, rfidConfig.value.antennaCount)
-    stopContinuousRead = readEPCContinuous(antennas, handleTagData) ?? null
+    stopContinuousRead = readEPCContinuous(antennas, handleTagData, connectionSessionId) ?? null
     inventoryStatus.value = '连续读取中'
-    appendLog(`开始连续读取: 天线 ${antennas.join(',')}`)
+    appendLog(`会话[${connectionSessionId}]开始连续读取: 天线 ${antennas.join(',')}`)
   } catch (error) {
     const messageText = resolveError(error)
     inventoryStatus.value = '读取失败'
@@ -281,11 +227,12 @@ function startContinuousRead() {
 
 async function stopInventory() {
   try {
-    await stopReadEPC()
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
+    await stopReadEPC(connectionSessionId)
     stopContinuousRead?.()
     stopContinuousRead = null
     inventoryStatus.value = '已停止'
-    appendLog('停止盘存成功')
+    appendLog(`会话[${connectionSessionId}]停止盘存成功`)
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`停止读取失败: ${messageText}`)
@@ -294,10 +241,11 @@ async function stopInventory() {
 }
 
 async function prepareWriteMode() {
+  const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
   if (inventoryStatus.value !== '空闲' || stopContinuousRead) {
     try {
-      await stopReadEPC()
-      appendLog('写标签前已停止盘存')
+      await stopReadEPC(connectionSessionId)
+      appendLog(`会话[${connectionSessionId}]写标签前已停止盘存`)
     } catch {
       // 设备未处于盘存态时忽略停止失败，继续写入。
     }
@@ -347,6 +295,7 @@ function randomizeWriteEpc() {
 
 async function firstWriteTag() {
   try {
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
     syncDeviceAntNum()
     await prepareWriteMode()
     const payload = buildWritePayload()
@@ -357,10 +306,11 @@ async function firstWriteTag() {
       accessPassword: payload.accessPassword,
       oldAccessPassword: requireHexValue(rfidConfig.value.oldAccessPassword, '旧访问密码', 8),
       killPassword: requireHexValue(rfidConfig.value.killPassword, '灭活密码', 8),
+      sessionId: connectionSessionId,
       onProgress: appendLog
     })
     rfidStore.setConfig({oldAccessPassword: payload.accessPassword})
-    appendLog('首次写入完成')
+    appendLog(`会话[${connectionSessionId}]首次写入完成`)
     notify('positive', '首次写入完成')
   } catch (error) {
     const messageText = resolveError(error)
@@ -371,6 +321,7 @@ async function firstWriteTag() {
 
 async function rewriteTag() {
   try {
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
     syncDeviceAntNum()
     await prepareWriteMode()
     const payload = buildWritePayload()
@@ -378,9 +329,10 @@ async function rewriteTag() {
         [payload.antenna],
         payload.epc,
         payload.tid,
-        payload.accessPassword
+        payload.accessPassword,
+        connectionSessionId
     )
-    appendLog('再次写入成功')
+    appendLog(`会话[${connectionSessionId}]再次写入成功`)
     notify('positive', '再次写入成功')
   } catch (error) {
     const messageText = resolveError(error)
@@ -391,12 +343,13 @@ async function rewriteTag() {
 
 async function applyPowerConfig() {
   try {
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
     powerSubmitting.value = true
     syncDeviceAntNum()
     const powerLevels = [...powerEditor.value]
     rfidStore.setConfig({powerLevels})
-    await configPower(powerLevels)
-    appendLog(`设置功率完成: ${formatPowerLevels(powerLevels)}`)
+    await configPower(powerLevels, connectionSessionId)
+    appendLog(`会话[${connectionSessionId}]设置功率完成: ${formatPowerLevels(powerLevels)}`)
     powerModalVisible.value = false
     notify('positive', '功率配置成功')
   } catch (error) {
@@ -410,14 +363,15 @@ async function applyPowerConfig() {
 
 async function loadAllPower() {
   try {
-    const powerLevels = await readAllAntOutputPower()
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
+    const powerLevels = await readAllAntOutputPower(connectionSessionId)
     if (powerLevels.length) {
       rfidStore.setConfig({
         antennaCount: powerLevels.length,
         powerLevels
       })
     }
-    appendLog(`读取功率成功: ${powerLevels.length ? formatPowerLevels(powerLevels) : '无数据'}`)
+    appendLog(`会话[${connectionSessionId}]读取功率成功: ${powerLevels.length ? formatPowerLevels(powerLevels) : '无数据'}`)
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`读取功率失败: ${messageText}`)
@@ -427,13 +381,15 @@ async function loadAllPower() {
 
 async function applyBasebandConfig() {
   try {
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
     await configEPCBasebandParam(
         rfidConfig.value.epcBasebandRate,
         rfidConfig.value.defaultQ,
         rfidConfig.value.session,
-        rfidConfig.value.inventoryFlag
+        rfidConfig.value.inventoryFlag,
+        connectionSessionId
     )
-    appendLog('EPC 基带参数配置成功')
+    appendLog(`会话[${connectionSessionId}]EPC 基带参数配置成功`)
     notify('positive', 'EPC 基带参数配置成功')
   } catch (error) {
     const messageText = resolveError(error)
@@ -444,12 +400,13 @@ async function applyBasebandConfig() {
 
 function sendRawHex() {
   try {
+    const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
     const payload = normalizeHex(rfidConfig.value.rawHex)
     if (!payload) {
       throw new Error('请输入待发送的 HEX')
     }
-    guoxinSingleDevice.sendMessageNew(payload)
-    appendLog(`TX: ${payload}`)
+    guoxinSingleDevice.sendMessageNew(payload, connectionSessionId)
+    appendLog(`会话[${connectionSessionId}]TX: ${payload}`)
   } catch (error) {
     const messageText = resolveError(error)
     appendLog(`发送失败: ${messageText}`)
@@ -461,20 +418,23 @@ function clearLog() {
   log.value = ''
 }
 
-watch(() => rfidConfig.value.mode, async (nextMode, prevMode) => {
-  if (nextMode === prevMode) return
-  stopContinuousRead?.()
-  stopContinuousRead = null
-  try {
-    await guoxinSingleDevice.disconnect(prevMode)
-  } catch {
-    // 旧通道可能本来就未连接，直接切模式即可。
+watch(() => rfidConfig.value.connectionSessionId, (nextSessionId) => {
+  const sessionId = requireSessionId(nextSessionId)
+  if (activeRfidSessionId.value !== sessionId) {
+    deviceConnectionsStore.setActiveRfidSession(sessionId)
   }
-  guoxinSingleDevice.setMode(nextMode)
-  if (nextMode === 'serial') {
-    void refreshPorts()
-  }
+  guoxinSingleDevice.setActiveSession(sessionId)
+  const snapshot = guoxinSingleDevice.getSnapshot(sessionId)
+  connected.value = snapshot.connected
+  currentMode.value = snapshot.mode
+  lastError.value = snapshot.lastError ?? ''
 })
+
+watch(activeRfidSessionId, (nextSessionId) => {
+  if (rfidConfig.value.connectionSessionId !== nextSessionId) {
+    rfidStore.setConfig({connectionSessionId: nextSessionId})
+  }
+}, {immediate: true})
 
 watch(() => rfidConfig.value.antennaCount, (nextCount) => {
   syncDeviceAntNum()
@@ -486,18 +446,25 @@ watch(() => rfidConfig.value.antennaCount, (nextCount) => {
 })
 
 onMounted(() => {
-  if (rfidConfig.value.mode === 'serial') {
-    void refreshPorts()
-  }
+  const sessionId = requireSessionId(rfidConfig.value.connectionSessionId)
+  guoxinSingleDevice.setActiveSession(sessionId)
+  const snapshot = guoxinSingleDevice.getSnapshot(sessionId)
+  connected.value = snapshot.connected
+  currentMode.value = snapshot.mode
+  lastError.value = snapshot.lastError ?? ''
 
   disposeStatusListener = guoxinSingleDevice.subscribeStatus((state) => {
+    if (state.sessionId !== rfidConfig.value.connectionSessionId) {
+      return
+    }
     connected.value = state.connected
+    currentMode.value = state.mode
     lastError.value = state.lastError ?? ''
   })
 
-  disposeRawListener = guoxinSingleDevice.subscribeRawData((source, data) => {
-    if (source !== rfidConfig.value.mode) return
-    appendLog(`${source.toUpperCase()} RX: ${data}`)
+  disposeRawListener = guoxinSingleDevice.subscribeRawData((sessionId, source, data) => {
+    if (sessionId !== rfidConfig.value.connectionSessionId) return
+    appendLog(`会话[${sessionId}] ${source.toUpperCase()} RX: ${data}`)
   })
 })
 
@@ -514,62 +481,29 @@ onUnmounted(() => {
       <div class="layout-row layout-row-top">
         <q-card flat bordered class="panel-card">
           <q-card-section>
-            <div class="panel-title">连接与设备</div>
+            <div class="panel-title">会话与状态</div>
           </q-card-section>
           <q-separator />
           <q-card-section class="panel-stack">
-            <q-btn-toggle
-              v-model="rfidConfig.mode"
-              no-caps
-              rounded
-              unelevated
-              toggle-color="primary"
-              :options="modeOptions"
+            <q-input
+                v-model.number="connectionSessionModel"
+                outlined
+                type="number"
+                min="0"
+                step="1"
+                label="连接会话 ID"
+                placeholder="直接输入 sessionId"
             />
 
-            <template v-if="isSerial">
-              <div class="serial-port-row">
-                <q-select
-                    v-model="rfidConfig.portPath"
-                    outlined
-                    emit-value
-                    map-options
-                    class="field-grow"
-                    :options="serialOptions"
-                    label="串口"
-                    placeholder="选择串口"
-                />
-                <q-btn outline color="primary" no-caps @click="refreshPorts">刷新串口</q-btn>
-              </div>
-              <q-input
-                  v-model.number="rfidConfig.baudRate"
-                  outlined
-                  type="number"
-                  min="300"
-                  step="300"
-                  label="波特率"
-              />
-            </template>
-
-            <template v-else>
-              <q-input v-model="rfidConfig.host" outlined label="TCP 地址" placeholder="TCP 地址"/>
-              <q-input
-                  v-model.number="rfidConfig.tcpPort"
-                  outlined
-                  type="number"
-                  min="1"
-                  max="65535"
-                  label="端口"
-              />
-            </template>
-
             <div class="action-buttons">
-              <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
-              <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
               <q-chip square dense :color="connected ? 'positive' : 'negative'" text-color="white">
                 {{ connected ? '已连接' : '未连接' }}
               </q-chip>
+              <q-chip square dense color="primary" text-color="white">
+                {{ currentMode.toUpperCase() }}
+              </q-chip>
             </div>
+            <div class="muted-text">连接参数请在项目设置维护，当前页面仅按 sessionId 调用。</div>
 
             <q-banner
                 v-if="lastError"
@@ -631,7 +565,7 @@ onUnmounted(() => {
                 type="number"
                 min="0"
                 max="255"
-                label="Session"
+                label="EPC Session"
             />
             <q-input
                 v-model.number="rfidConfig.inventoryFlag"
@@ -860,13 +794,6 @@ onUnmounted(() => {
   gap: 16px;
 }
 
-.serial-port-row {
-  align-items: end;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .field-grow {
   flex: 1;
   min-width: 0;
@@ -965,9 +892,9 @@ onUnmounted(() => {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .serial-port-row,
   .write-epc-row,
-  .panel-title-row {
+  .panel-title-row,
+  .action-buttons {
     align-items: stretch;
     flex-direction: column;
   }

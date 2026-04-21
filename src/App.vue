@@ -11,6 +11,7 @@ import {
 } from './stores/deviceConnections'
 import { guoxinSingleDevice } from './components/rfid/guoxin/GuoXinSingleDevice'
 import { padSingleDevice } from './components/pad/PadSingleDevice'
+import DeviceSettingsButton from './components/DeviceSettingsButton.vue'
 
 const themeStore = useThemeStore()
 const { preference, resolvedTheme } = storeToRefs(themeStore)
@@ -307,12 +308,9 @@ onUnmounted(() => {
 
         <q-space />
 
-        <q-btn
-          outline
-          no-caps
-          color="primary"
-          icon="settings"
-          :label="`设备设置 RFID:${connectedRfidCount} PAD:${connectedPadCount}`"
+        <DeviceSettingsButton
+          :connected-rfid-count="connectedRfidCount"
+          :connected-pad-count="connectedPadCount"
           @click="deviceSettingsVisible = true"
         />
 

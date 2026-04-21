@@ -11,6 +11,7 @@ const DEFAULT_PERMISSIONS = [
     'app:demos:command-example',
     'app:demos:rs232-tcp',
     'app:demos:mqtt',
+    'app:demos:sqlite',
     'app:demos:guoxin-rfid',
     'app:demos:pad-lock',
 ] as const

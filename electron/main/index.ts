@@ -17,6 +17,7 @@ import os from 'node:os'
 import {registerSerial} from './mod/serial'
 import {registerTcp} from './mod/tcp'
 import {registerMqtt} from './mod/mqtt'
+import {registerSqlite} from './mod/sqlite'
 import log, {getLogDirectory, getLogFilePath} from './utils/logger'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
@@ -135,6 +136,7 @@ async function createWindow() {
     registerSerial(window)
     registerTcp(window)
     registerMqtt(window)
+    registerSqlite()
 
     // =======================
     // 加载页面（开发 / 生产）

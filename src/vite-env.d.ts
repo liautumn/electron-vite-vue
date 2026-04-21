@@ -2,6 +2,7 @@
 import {SerialMethods} from "../shared/types/serial";
 import {TcpMethods} from "../shared/types/tcp";
 import {MqttMethods} from "../shared/types/mqtt";
+import {SqliteMethods} from "../shared/types/sqlite";
 
 declare module '*.vue' {
     import type {DefineComponent} from 'vue'
@@ -17,5 +18,6 @@ declare global {
         serial: SerialMethods
         tcp: TcpMethods
         mqtt: MqttMethods
+        sqlite: SqliteMethods
     }
 }

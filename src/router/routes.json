@@ -74,6 +74,19 @@
         }
       },
       {
+        "path": "sqlite-demo",
+        "name": "sqlite-demo",
+        "component": "SqliteDemoView",
+        "alias": "/sqlite-demo",
+        "meta": {
+          "title": "SQLite CRUD Demo",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:sqlite",
+          "type": "menu"
+        }
+      },
+      {
         "path": "guoxin-rfid-demo",
         "name": "guoxin-rfid-demo",
         "component": "GuoxinRfidView",

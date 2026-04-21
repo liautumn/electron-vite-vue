@@ -2,12 +2,14 @@ import {registerIpcRenderer} from "./mod/ipcRenderer";
 import {registerTcpRenderer} from './mod/tcp'
 import {registerSerialRenderer} from './mod/serial'
 import {registerMqttRenderer} from './mod/mqtt'
+import {registerSqliteRenderer} from './mod/sqlite'
 
 // 注册 mod
 registerIpcRenderer()
 registerTcpRenderer()
 registerSerialRenderer()
 registerMqttRenderer()
+registerSqliteRenderer()
 
 // ------------------------------------------------------------------
 // DOM Ready 工具函数

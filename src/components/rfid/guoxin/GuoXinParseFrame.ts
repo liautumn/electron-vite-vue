@@ -24,22 +24,49 @@ interface SingleResponseOptions<T> {
   sessionId?: number
 }
 
+const SUCCESS_PAYLOAD = '00'
+
+function resolveSessionId(sessionId?: number) {
+  return sessionId ?? guoxinSingleDevice.currentSessionId
+}
+
+function toError(error: unknown) {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function ensureSuccessPayload(payload: string, getDesc: (payload: string) => string) {
+  if (payload === SUCCESS_PAYLOAD) {
+    return
+  }
+
+  throw new Error(getDesc(payload))
+}
+
+function getMid(frame: Record<string, unknown>) {
+  return String(frame.mid ?? '')
+}
+
+function getPayload(frame: Record<string, unknown>) {
+  return String(frame.payload ?? '')
+}
+
 function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T> {
   const { mid, timeoutMs, timeoutMessage, parsePayload, send, sessionId } = options
-  const targetSessionId = sessionId ?? guoxinSingleDevice.currentSessionId
+  const targetSessionId = resolveSessionId(sessionId)
 
   return new Promise<T>((resolve, reject) => {
     const handler = (data: string) => {
       try {
-        const res = parseFrame(data)
-        if (res.mid !== mid) {
+        const frame = parseFrame(data)
+        if (getMid(frame) !== mid) {
           return
         }
+
         cleanup()
-        resolve(parsePayload((res.payload ?? '') as string, data))
+        resolve(parsePayload(getPayload(frame), data))
       } catch (error) {
         cleanup()
-        reject(error instanceof Error ? error : new Error(String(error)))
+        reject(toError(error))
       }
     }
 
@@ -49,20 +76,22 @@ function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T>
       reject(new Error(timeoutMessage))
     }, timeoutMs)
 
-    function cleanup() {
+    const cleanup = () => {
       clearTimeout(timer)
       guoxinSingleDevice.off('GuoXin_Data', handler, targetSessionId)
     }
 
     guoxinSingleDevice.on('GuoXin_Data', handler, targetSessionId)
 
-    if (send) {
-      try {
-        send()
-      } catch (error) {
-        cleanup()
-        reject(error instanceof Error ? error : new Error(String(error)))
-      }
+    if (!send) {
+      return
+    }
+
+    try {
+      send()
+    } catch (error) {
+      cleanup()
+      reject(toError(error))
     }
   })
 }
@@ -74,11 +103,7 @@ export function configPowerParseFrame(send?: SendAction, sessionId?: number): Pr
     timeoutMessage: 'Timeout waiting for configPowerParseFrame',
     send,
     sessionId,
-    parsePayload: (payload) => {
-      if (payload !== '00') {
-        throw new Error(getPowerConfigDesc(payload))
-      }
-    }
+    parsePayload: (payload) => ensureSuccessPayload(payload, getPowerConfigDesc)
   })
 }
 
@@ -89,11 +114,7 @@ export function stopReadEPCParseFrame(send?: SendAction, sessionId?: number): Pr
     timeoutMessage: 'Timeout waiting for stopReadEPCParseFrame',
     send,
     sessionId,
-    parsePayload: (payload) => {
-      if (payload !== '00') {
-        throw new Error(getStopReadDesc(payload))
-      }
-    }
+    parsePayload: (payload) => ensureSuccessPayload(payload, getStopReadDesc)
   })
 }
 
@@ -114,45 +135,61 @@ export function readEPCParseFrame(
   send?: SendAction,
   sessionId?: number
 ) {
-  const targetSessionId = sessionId ?? guoxinSingleDevice.currentSessionId
+  const targetSessionId = resolveSessionId(sessionId)
 
-  const handler = (data: string) => {
-    const res = parseFrame(data)
+  const handler = (rawData: string) => {
+    let frame: Record<string, unknown>
 
-    if (res.mid === '0x00') {
-      const resp = parseEPCMessage(res.payload as string)
-      if (resp) {
-        onData(resp)
-      }
-    }
-
-    if (res.mid === '0x01') {
-      const desc = getReadDesc(res.payload as string)
+    try {
+      frame = parseFrame(rawData)
+    } catch (error) {
       cleanup()
-      onDone(desc ?? '读卡结束')
+      onDone(toError(error).message)
+      return
     }
+
+    const mid = getMid(frame)
+    const payload = getPayload(frame)
+
+    if (mid === '0x00') {
+      const tagData = parseEPCMessage(payload)
+      if (tagData) {
+        onData(tagData)
+      }
+      return
+    }
+
+    if (mid !== '0x01') {
+      return
+    }
+
+    cleanup()
+    onDone(getReadDesc(payload) || '读卡结束')
   }
 
   const timer = setTimeout(() => {
     cleanup()
-    console.warn('Timeout waiting for readEPCParseFrame')
-    onDone('Timeout waiting for readEPCParseFrame')
+    const timeoutMessage = 'Timeout waiting for readEPCParseFrame'
+    console.warn(timeoutMessage)
+    onDone(timeoutMessage)
   }, 5000)
 
-  function cleanup() {
+  const cleanup = () => {
     clearTimeout(timer)
     guoxinSingleDevice.off('GuoXin_Data', handler, targetSessionId)
   }
 
   guoxinSingleDevice.on('GuoXin_Data', handler, targetSessionId)
 
-  if (send) {
-    try {
-      send()
-    } catch (error) {
-      cleanup()
-      throw error
-    }
+  if (!send) {
+    return
+  }
+
+  try {
+    send()
+  } catch (error) {
+    cleanup()
+    throw toError(error)
   }
 }
 
@@ -161,14 +198,18 @@ export function readEPCContinuousParseFrame(
   send?: SendAction,
   sessionId?: number
 ) {
-  const targetSessionId = sessionId ?? guoxinSingleDevice.currentSessionId
+  const targetSessionId = resolveSessionId(sessionId)
 
-  const handler = (res: string) => {
-    const parsed = parseFrame(res)
-    if (parsed.mid === '0x00') {
-      const payload = parsed.payload ?? ''
-      const resp = parseEPCMessage(payload as string)
-      callback(resp)
+  const handler = (rawData: string) => {
+    try {
+      const frame = parseFrame(rawData)
+      if (getMid(frame) !== '0x00') {
+        return
+      }
+
+      callback(parseEPCMessage(getPayload(frame)))
+    } catch (error) {
+      console.warn('readEPCContinuousParseFrame parse error:', toError(error).message)
     }
   }
 
@@ -179,7 +220,7 @@ export function readEPCContinuousParseFrame(
       send()
     } catch (error) {
       guoxinSingleDevice.off('GuoXin_Data', handler, targetSessionId)
-      throw error
+      throw toError(error)
     }
   }
 
@@ -196,10 +237,8 @@ export function lockRfidParseFrame(send?: SendAction, sessionId?: number): Promi
     send,
     sessionId,
     parsePayload: (payload, rawData) => {
-      console.log('lockRfidParseFrame: ', rawData)
-      if (payload !== '00') {
-        throw new Error(getLockResultDesc(payload))
-      }
+      console.log('lockRfidParseFrame:', rawData)
+      ensureSuccessPayload(payload, getLockResultDesc)
     }
   })
 }
@@ -212,10 +251,8 @@ export function writeEPCParseFrame(send?: SendAction, sessionId?: number): Promi
     send,
     sessionId,
     parsePayload: (payload, rawData) => {
-      console.log('writeEPCParseFrame: ', rawData)
-      if (payload !== '00') {
-        throw new Error(getWriteResultDesc(payload))
-      }
+      console.log('writeEPCParseFrame:', rawData)
+      ensureSuccessPayload(payload, getWriteResultDesc)
     }
   })
 }
@@ -228,10 +265,8 @@ export function updateEPCPasswordParseFrame(send?: SendAction, sessionId?: numbe
     send,
     sessionId,
     parsePayload: (payload, rawData) => {
-      console.log('updateEPCPasswordParseFrame: ', rawData)
-      if (payload !== '00') {
-        throw new Error(getWriteResultDesc(payload))
-      }
+      console.log('updateEPCPasswordParseFrame:', rawData)
+      ensureSuccessPayload(payload, getWriteResultDesc)
     }
   })
 }
@@ -244,10 +279,8 @@ export function configEPCBasebandParamParseFrame(send?: SendAction, sessionId?: 
     send,
     sessionId,
     parsePayload: (payload, rawData) => {
-      console.log('configEPCBasebandParamParseFrame: ', rawData)
-      if (payload !== '00') {
-        throw new Error(getEPCBasebandParamConfigDesc(payload))
-      }
+      console.log('configEPCBasebandParamParseFrame:', rawData)
+      ensureSuccessPayload(payload, getEPCBasebandParamConfigDesc)
     }
   })
 }

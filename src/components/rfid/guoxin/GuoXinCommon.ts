@@ -4,50 +4,11 @@ export enum ReadCode {
   HardwareError = 0x02
 }
 
-export function getReadDesc(payload: string): string {
-  const code = parseInt(payload, 16) as unknown as ReadCode
-  switch (code) {
-    case ReadCode.SingleComplete:
-      console.log('单次操作完成')
-      return '单次操作完成'
-
-    case ReadCode.StopCommand:
-      console.log('收到停止指令')
-      return '收到停止指令'
-
-    case ReadCode.HardwareError:
-      console.log('硬件故障导致读卡中断')
-      return '硬件故障导致读卡中断'
-
-    default:
-      console.warn('未知读卡结束原因:', payload)
-      return '未知读卡结束原因: ' + payload
-  }
-}
-
 export enum PowerConfigCode {
   Success = 0x00,
   PortParamUnsupported = 0x01,
   PowerParamUnsupported = 0x02,
   SaveFailed = 0x03
-}
-
-export function getPowerConfigDesc(payload: string): string {
-  const cleanPayload = normalizeHex(payload)
-  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as PowerConfigCode
-  switch (code) {
-    case PowerConfigCode.Success:
-      return '配置成功'
-    case PowerConfigCode.PortParamUnsupported:
-      return '端口参数读写器硬件不支持'
-    case PowerConfigCode.PowerParamUnsupported:
-      return '功率参数读写器硬件不支持'
-    case PowerConfigCode.SaveFailed:
-      return '保存失败'
-    default:
-      console.warn('未知功率配置结果:', payload)
-      return '未知功率配置结果: ' + payload
-  }
 }
 
 export enum WriteResultCode {
@@ -65,40 +26,6 @@ export enum WriteResultCode {
   ReaderSendCommandError = 0x0b
 }
 
-export function getWriteResultDesc(payload: string): string {
-  const cleanPayload = normalizeHex(payload)
-  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as WriteResultCode
-  switch (code) {
-    case WriteResultCode.Success:
-      return '写入成功'
-    case WriteResultCode.AntennaPortError:
-      return '天线端口参数错误'
-    case WriteResultCode.SelectParamError:
-      return '选择参数错误'
-    case WriteResultCode.WriteParamError:
-      return '写入参数错误'
-    case WriteResultCode.CrcError:
-      return 'CRC 校验错误'
-    case WriteResultCode.PowerInsufficient:
-      return '功率不足'
-    case WriteResultCode.MemoryOverflow:
-      return '数据区溢出'
-    case WriteResultCode.MemoryLocked:
-      return '数据区被锁定'
-    case WriteResultCode.AccessPasswordError:
-      return '访问密码错误'
-    case WriteResultCode.OtherTagError:
-      return '其他标签错误'
-    case WriteResultCode.TagLost:
-      return '标签丢失'
-    case WriteResultCode.ReaderSendCommandError:
-      return '读写器发送指令错误'
-    default:
-      console.warn('未知写入结果:', payload)
-      return '未知写入结果: ' + payload
-  }
-}
-
 export enum LockResultCode {
   Success = 0x00,
   AntennaPortError = 0x01,
@@ -114,40 +41,6 @@ export enum LockResultCode {
   ReaderSendCommandError = 0x0b
 }
 
-export function getLockResultDesc(payload: string): string {
-  const cleanPayload = normalizeHex(payload)
-  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as LockResultCode
-  switch (code) {
-    case LockResultCode.Success:
-      return '锁操作成功'
-    case LockResultCode.AntennaPortError:
-      return '天线端口错误'
-    case LockResultCode.SelectParamError:
-      return '选择参数错误'
-    case LockResultCode.LockParamError:
-      return '锁操作参数错误'
-    case LockResultCode.CrcError:
-      return 'CRC 校验错误'
-    case LockResultCode.PowerInsufficient:
-      return '功率不足'
-    case LockResultCode.MemoryOverflow:
-      return '数据区溢出'
-    case LockResultCode.MemoryLocked:
-      return '数据区被锁定'
-    case LockResultCode.AccessPasswordError:
-      return '访问密码错误'
-    case LockResultCode.OtherTagError:
-      return '其他标签错误'
-    case LockResultCode.TagLost:
-      return '标签丢失'
-    case LockResultCode.ReaderSendCommandError:
-      return '读写器发送指令错误'
-    default:
-      console.warn('未知锁操作结果:', payload)
-      return '未知锁操作结果: ' + payload
-  }
-}
-
 export enum EPCBasebandParamConfigCode {
   Success = 0x00,
   UnsupportedBasebandRate = 0x01,
@@ -158,105 +51,163 @@ export enum EPCBasebandParamConfigCode {
   SaveFailed = 0x06
 }
 
-export function getEPCBasebandParamConfigDesc(payload: string): string {
-  const cleanPayload = normalizeHex(payload)
-  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as EPCBasebandParamConfigCode
-  switch (code) {
-    case EPCBasebandParamConfigCode.Success:
-      return '配置成功'
-    case EPCBasebandParamConfigCode.UnsupportedBasebandRate:
-      return '读写器不支持的基带速率'
-    case EPCBasebandParamConfigCode.InvalidQValue:
-      return 'Q 值参数错误'
-    case EPCBasebandParamConfigCode.InvalidSession:
-      return 'Session 参数错误'
-    case EPCBasebandParamConfigCode.InvalidInventoryFlag:
-      return '盘存参数错误'
-    case EPCBasebandParamConfigCode.OtherParamError:
-      return '其他参数错误'
-    case EPCBasebandParamConfigCode.SaveFailed:
-      return '保存失败'
-    default:
-      console.warn('未知 EPC 基带参数配置结果:', payload)
-      return '未知 EPC 基带参数配置结果: ' + payload
-  }
-}
-
 export enum StopReadResultCode {
   Success = 0x00,
   SystemError = 0x01
 }
 
-export function getStopReadDesc(payload: string): string {
-  const cleanPayload = normalizeHex(payload)
-  const code = parseInt(cleanPayload.slice(0, 2), 16) as unknown as StopReadResultCode
-  switch (code) {
-    case StopReadResultCode.Success:
-      return '停止成功'
-    case StopReadResultCode.SystemError:
-      return '系统错误'
-    default:
-      console.warn('未知停止盘存结果:', payload)
-      return '未知停止盘存结果: ' + payload
-  }
+const readDescMap: Record<number, string> = {
+  [ReadCode.SingleComplete]: '单次操作完成',
+  [ReadCode.StopCommand]: '收到停止指令',
+  [ReadCode.HardwareError]: '硬件故障导致读卡中断'
 }
 
-/**
- * 从十六进制字符串转换为字节数组
- * @param hex 十六进制字符串
- * @returns 字节数组
- */
-export function hexToBytes(hex: string): number[] {
-  const bytes = []
-  for (let i = 0; i < hex.length; i += 2) {
-    const byte = parseInt(hex.substr(i, 2), 16)
-    if (!isNaN(byte)) {
-      bytes.push(byte)
-    }
-  }
-  return bytes
+const powerConfigDescMap: Record<number, string> = {
+  [PowerConfigCode.Success]: '配置成功',
+  [PowerConfigCode.PortParamUnsupported]: '端口参数读写器硬件不支持',
+  [PowerConfigCode.PowerParamUnsupported]: '功率参数读写器硬件不支持',
+  [PowerConfigCode.SaveFailed]: '保存失败'
 }
 
-/**
- * 从字节数组转换为十六进制字符串
- * @param bytes 字节数组
- * @returns 十六进制字符串
- */
-export function bytesToHex(bytes: number[]): string {
-  return bytes
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-    .toUpperCase()
+const writeResultDescMap: Record<number, string> = {
+  [WriteResultCode.Success]: '写入成功',
+  [WriteResultCode.AntennaPortError]: '天线端口参数错误',
+  [WriteResultCode.SelectParamError]: '选择参数错误',
+  [WriteResultCode.WriteParamError]: '写入参数错误',
+  [WriteResultCode.CrcError]: 'CRC 校验错误',
+  [WriteResultCode.PowerInsufficient]: '功率不足',
+  [WriteResultCode.MemoryOverflow]: '数据区溢出',
+  [WriteResultCode.MemoryLocked]: '数据区被锁定',
+  [WriteResultCode.AccessPasswordError]: '访问密码错误',
+  [WriteResultCode.OtherTagError]: '其他标签错误',
+  [WriteResultCode.TagLost]: '标签丢失',
+  [WriteResultCode.ReaderSendCommandError]: '读写器发送指令错误'
 }
 
-// 提取功率值的数组
-export function extractPowerValues(hexString: string): number[] {
-  const cleanHex = hexString.replace(/\s/g, '')
-  const bytes: number[] = []
-  for (let i = 0; i < cleanHex.length; i += 2) {
-    bytes.push(parseInt(cleanHex.substring(i, i + 2), 16))
-  }
-  const result: number[] = []
-  // 提取每个PID后面的功率值
-  for (let i = 0; i < bytes.length; i += 2) {
-    if (i + 1 < bytes.length) {
-      result.push(bytes[i + 1]) // 提取功率值
-    }
-  }
-  return result
+const lockResultDescMap: Record<number, string> = {
+  [LockResultCode.Success]: '锁操作成功',
+  [LockResultCode.AntennaPortError]: '天线端口错误',
+  [LockResultCode.SelectParamError]: '选择参数错误',
+  [LockResultCode.LockParamError]: '锁操作参数错误',
+  [LockResultCode.CrcError]: 'CRC 校验错误',
+  [LockResultCode.PowerInsufficient]: '功率不足',
+  [LockResultCode.MemoryOverflow]: '数据区溢出',
+  [LockResultCode.MemoryLocked]: '数据区被锁定',
+  [LockResultCode.AccessPasswordError]: '访问密码错误',
+  [LockResultCode.OtherTagError]: '其他标签错误',
+  [LockResultCode.TagLost]: '标签丢失',
+  [LockResultCode.ReaderSendCommandError]: '读写器发送指令错误'
+}
+
+const epcBasebandDescMap: Record<number, string> = {
+  [EPCBasebandParamConfigCode.Success]: '配置成功',
+  [EPCBasebandParamConfigCode.UnsupportedBasebandRate]: '读写器不支持的基带速率',
+  [EPCBasebandParamConfigCode.InvalidQValue]: 'Q 值参数错误',
+  [EPCBasebandParamConfigCode.InvalidSession]: 'Session 参数错误',
+  [EPCBasebandParamConfigCode.InvalidInventoryFlag]: '盘存参数错误',
+  [EPCBasebandParamConfigCode.OtherParamError]: '其他参数错误',
+  [EPCBasebandParamConfigCode.SaveFailed]: '保存失败'
+}
+
+const stopReadDescMap: Record<number, string> = {
+  [StopReadResultCode.Success]: '停止成功',
+  [StopReadResultCode.SystemError]: '系统错误'
 }
 
 export function normalizeHex(input: string) {
-  return input.replace(/\s+/g, '').toUpperCase()
+  return String(input ?? '').replace(/\s+/g, '').toUpperCase()
 }
 
-// 协议控制字 16进制
+export function toHex(value: number, width: number = 2) {
+  return Number(value).toString(16).toUpperCase().padStart(width, '0')
+}
+
+function parsePayloadCode(payload: string) {
+  const clean = normalizeHex(payload)
+  if (clean.length < 2) {
+    return Number.NaN
+  }
+  return parseInt(clean.slice(0, 2), 16)
+}
+
+function describeCode(payload: string, map: Record<number, string>, label: string) {
+  const code = parsePayloadCode(payload)
+  const desc = map[code]
+  if (desc) {
+    return desc
+  }
+
+  console.warn(`未知${label}:`, payload)
+  return `未知${label}: ${payload}`
+}
+
+export function getReadDesc(payload: string): string {
+  return describeCode(payload, readDescMap, '读卡结束原因')
+}
+
+export function getPowerConfigDesc(payload: string): string {
+  return describeCode(payload, powerConfigDescMap, '功率配置结果')
+}
+
+export function getWriteResultDesc(payload: string): string {
+  return describeCode(payload, writeResultDescMap, '写入结果')
+}
+
+export function getLockResultDesc(payload: string): string {
+  return describeCode(payload, lockResultDescMap, '锁操作结果')
+}
+
+export function getEPCBasebandParamConfigDesc(payload: string): string {
+  return describeCode(payload, epcBasebandDescMap, 'EPC 基带参数配置结果')
+}
+
+export function getStopReadDesc(payload: string): string {
+  return describeCode(payload, stopReadDescMap, '停止盘存结果')
+}
+
+/**
+ * 从十六进制字符串转换为字节数组。
+ */
+export function hexToBytes(hex: string): number[] {
+  const cleanHex = normalizeHex(hex)
+  const bytes: number[] = []
+
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    const byte = parseInt(cleanHex.slice(i, i + 2), 16)
+    if (!Number.isNaN(byte)) {
+      bytes.push(byte)
+    }
+  }
+
+  return bytes
+}
+
+/**
+ * 从字节数组转换为十六进制字符串。
+ */
+export function bytesToHex(bytes: number[]): string {
+  return bytes.map((byte) => toHex(byte)).join('')
+}
+
+// 提取每个 PID 后面的功率值。
+export function extractPowerValues(hexString: string): number[] {
+  const cleanHex = normalizeHex(hexString)
+  const powers: number[] = []
+
+  for (let i = 0; i + 3 < cleanHex.length; i += 4) {
+    powers.push(parseInt(cleanHex.slice(i + 2, i + 4), 16))
+  }
+
+  return powers
+}
+
+// 协议控制字 16 进制解析。
 export function decodeControlWord(hex: string) {
-  const value = parseInt(hex, 16)
+  const value = parseInt(normalizeHex(hex), 16)
   const messageId = value & 0xff
-  const pad = (val: number, size: number) => val.toString(16).toUpperCase().padStart(size, '0')
+
   return {
-    hex,
+    hex: normalizeHex(hex),
     value,
     protocolType: (value >>> 24) & 0xff,
     protocolVersion: (value >>> 16) & 0xff,
@@ -264,46 +215,49 @@ export function decodeControlWord(hex: string) {
     uploadFlag: (value >>> 12) & 0x01,
     messageCategory: (value >>> 8) & 0x0f,
     messageId,
-    messageIdHex: `0x${pad(messageId, 2)}`
+    messageIdHex: `0x${toHex(messageId)}`
   }
 }
 
-// 计算长度函数（支持可控输出位数 + 支持直接输入数字作为值）
+function parseHexData(input: string) {
+  const cleanHex = normalizeHex(input)
+
+  if (!/^[0-9A-F]+$/.test(cleanHex)) {
+    throw new Error('无效的十六进制字符串')
+  }
+
+  if (cleanHex.length % 2 !== 0) {
+    throw new Error('十六进制字符串长度必须为偶数')
+  }
+
+  return hexToBytes(cleanHex)
+}
+
+// 计算 payload 长度。
 export function calculateDataLength(
-  input: string | number, // 支持字符串（原逻辑）或数字（直接作为值）
-  padLength: number = 4 // 默认改为 4 位（适合协议中总 length、newDataLength 等字段）
+  input: string | number,
+  padLength: number = 4
 ): {
   hexLength: string
   decimalLength: number
   byteCount: number
   dataArray: number[]
 } {
-  let byteCount: number
-  let dataArray: number[] = []
   if (typeof input === 'number') {
-    // 直接输入数字：视为值本身（可用于总 length、antMask、位长度等）
-    byteCount = input
-  } else {
-    // 原字符串逻辑
-    const cleanHex = input.replace(/\s/g, '')
-    if (!/^[0-9A-Fa-f]+$/.test(cleanHex)) {
-      throw new Error('无效的十六进制字符串')
-    }
-    if (cleanHex.length % 2 !== 0) {
-      throw new Error('十六进制字符串长度必须为偶数')
-    }
-    byteCount = cleanHex.length / 2
-    // 转换为字节数组（仅字符串输入需要）
-    for (let i = 0; i < cleanHex.length; i += 2) {
-      dataArray.push(parseInt(cleanHex.substring(i, i + 2), 16))
+    const byteCount = input
+    return {
+      hexLength: toHex(byteCount, padLength),
+      decimalLength: byteCount,
+      byteCount,
+      dataArray: []
     }
   }
 
-  // 十六进制长度（大端格式，可控位数）
-  const hexLength = byteCount.toString(16).toUpperCase().padStart(padLength, '0')
+  const dataArray = parseHexData(input)
+  const byteCount = dataArray.length
 
   return {
-    hexLength,
+    hexLength: toHex(byteCount, padLength),
     decimalLength: byteCount,
     byteCount,
     dataArray
@@ -311,47 +265,42 @@ export function calculateDataLength(
 }
 
 /**
- * 根据匹配数据（十六进制字符串）
- * 计算协议中的「匹配数据位长度」字段
- *
- * 规则：
- * - 1 个 hex 字符 = 4 bit
- * - 协议字段 = bit 数，以十六进制表示
- *
- * @param matchHex 匹配数据内容（如 EPC / TID）
+ * 根据匹配数据（十六进制字符串）计算协议中的匹配数据位长度字段。
  */
 export function calcMatchBitLength(matchHex: string): {
   bitLength: number
   hexField: string
 } {
-  const clean = matchHex.replace(/\s+/g, '').toUpperCase()
+  const clean = normalizeHex(matchHex)
+
   if (!/^[0-9A-F]+$/.test(clean)) {
     throw new Error('匹配数据不是有效的十六进制字符串')
   }
-  // 1 hex = 4 bit
+
   const bitLength = clean.length * 4
-  // 协议字段：bit 长度，用 hex 表示（至少 2 位）
-  const hexField = bitLength.toString(16).toUpperCase().padStart(2, '0')
+
   return {
-    bitLength, // 实际 bit 数（96）
-    hexField // 协议字段（"60"）
+    bitLength,
+    hexField: toHex(bitLength, 2)
   }
 }
 
-//天线转 16 进制
+// 天线数组转 16 进制掩码。
 export function antsToHexMask(ants: number[]): string {
   let mask = 0
+
   for (const ant of ants) {
     if (ant < 1 || ant > 32) {
       throw new Error(`Invalid antenna index: ${ant}`)
     }
-    mask |= 1 << (ant - 1)
+    mask = (mask | (1 << (ant - 1))) >>> 0
   }
-  return mask.toString(16).padStart(8, '0').toUpperCase()
+
+  return toHex(mask, 8)
 }
 
 /**
- * PID定义
+ * PID 定义。
  */
 const RFID_PID = {
   RSSI: 0x01,
@@ -361,9 +310,14 @@ const RFID_PID = {
   TAG_PHASE: 0x09
 } as const
 
-/**
- * RFID标签读取消息类型
- */
+const KNOWN_RFID_PIDS = new Set<number>([
+  RFID_PID.RSSI,
+  RFID_PID.READ_RESULT,
+  RFID_PID.TID_DATA,
+  RFID_PID.CURRENT_FREQUENCY,
+  RFID_PID.TAG_PHASE
+])
+
 export interface IRFIDTagReadMessage {
   epcLength: number
   epc: string
@@ -393,10 +347,198 @@ export interface IRFIDTagReadMessage {
   rawMessage?: string
 }
 
+type HexCursor = {
+  hex: string
+  index: number
+}
+
+function canRead(cursor: HexCursor, chars: number) {
+  return cursor.index + chars <= cursor.hex.length
+}
+
+function readHex(cursor: HexCursor, chars: number): string | null {
+  if (!canRead(cursor, chars)) {
+    return null
+  }
+
+  const value = cursor.hex.slice(cursor.index, cursor.index + chars)
+  cursor.index += chars
+  return value
+}
+
+function extractPayloadHex(hex: string) {
+  if (!hex.startsWith('5A') || hex.length < 14) {
+    return hex
+  }
+
+  const payloadLength = parseInt(hex.slice(10, 14), 16)
+  if (Number.isNaN(payloadLength)) {
+    return hex
+  }
+
+  const payloadEnd = 14 + payloadLength * 2
+  if (payloadEnd <= hex.length) {
+    return hex.slice(14, payloadEnd)
+  }
+
+  return hex.slice(14)
+}
+
+function resolveEpcHeader(payloadHex: string) {
+  const minTailChars = 6 // PC(4) + antenna(2)
+  const headerCandidates = [4, 2]
+
+  for (const headerChars of headerCandidates) {
+    if (payloadHex.length < headerChars + minTailChars) {
+      continue
+    }
+
+    const epcLengthHex = payloadHex.slice(0, headerChars)
+    const epcLength = parseInt(epcLengthHex, 16)
+    if (Number.isNaN(epcLength)) {
+      continue
+    }
+
+    const minRequiredChars = headerChars + epcLength * 2 + minTailChars
+    if (minRequiredChars <= payloadHex.length) {
+      return {
+        headerChars,
+        epcLength
+      }
+    }
+  }
+
+  return null
+}
+
+function parseRssi(message: Partial<IRFIDTagReadMessage>, cursor: HexCursor, pid: number) {
+  const rssiHex = readHex(cursor, 2)
+  if (!rssiHex) {
+    return false
+  }
+
+  message.rssi = {
+    pid,
+    value: parseInt(rssiHex, 16)
+  }
+
+  return true
+}
+
+function parseReadResult(message: Partial<IRFIDTagReadMessage>, cursor: HexCursor, pid: number) {
+  const resultHex = readHex(cursor, 2)
+  if (!resultHex) {
+    return false
+  }
+
+  message.readResult = {
+    pid,
+    success: parseInt(resultHex, 16) === 0x00
+  }
+
+  return true
+}
+
+function parseTidData(message: Partial<IRFIDTagReadMessage>, cursor: HexCursor, pid: number) {
+  const tidLengthHex = readHex(cursor, 4)
+  if (!tidLengthHex) {
+    return false
+  }
+
+  const tidLength = parseInt(tidLengthHex, 16)
+  const tidData = readHex(cursor, tidLength * 2)
+  if (!tidData) {
+    return false
+  }
+
+  message.tidData = {
+    pid,
+    length: tidLength,
+    data: tidData
+  }
+
+  return true
+}
+
+function resolveFrequencyChars(cursor: HexCursor) {
+  const remaining = cursor.hex.length - cursor.index
+  if (remaining < 6) {
+    return null
+  }
+
+  if (remaining < 8) {
+    return 6
+  }
+
+  const nextPidHex = cursor.hex.slice(cursor.index + 6, cursor.index + 8)
+  const nextPid = parseInt(nextPidHex, 16)
+  if (KNOWN_RFID_PIDS.has(nextPid)) {
+    return 6
+  }
+
+  return 8
+}
+
+function parseCurrentFrequency(
+  message: Partial<IRFIDTagReadMessage>,
+  cursor: HexCursor,
+  pid: number
+) {
+  const freqChars = resolveFrequencyChars(cursor)
+  if (!freqChars) {
+    return false
+  }
+
+  const freqHex = readHex(cursor, freqChars)
+  if (!freqHex) {
+    return false
+  }
+
+  message.currentFrequency = {
+    pid,
+    frequency: parseInt(freqHex, 16) / 1000
+  }
+
+  return true
+}
+
+function parseTagPhase(message: Partial<IRFIDTagReadMessage>, cursor: HexCursor, pid: number) {
+  const phaseHex = readHex(cursor, 2)
+  if (!phaseHex) {
+    return false
+  }
+
+  message.tagPhase = {
+    pid,
+    phase: parseInt(phaseHex, 16)
+  }
+
+  return true
+}
+
+function parseUnknownPid(cursor: HexCursor) {
+  return readHex(cursor, 2) !== null
+}
+
+function parsePidBlock(message: Partial<IRFIDTagReadMessage>, cursor: HexCursor, pid: number) {
+  switch (pid) {
+    case RFID_PID.RSSI:
+      return parseRssi(message, cursor, pid)
+    case RFID_PID.READ_RESULT:
+      return parseReadResult(message, cursor, pid)
+    case RFID_PID.TID_DATA:
+      return parseTidData(message, cursor, pid)
+    case RFID_PID.CURRENT_FREQUENCY:
+      return parseCurrentFrequency(message, cursor, pid)
+    case RFID_PID.TAG_PHASE:
+      return parseTagPhase(message, cursor, pid)
+    default:
+      return parseUnknownPid(cursor)
+  }
+}
+
 /**
- * 解析RFID标签读取消息（可传整帧或payload）
- * @param hexString 十六进制字符串消息
- * @returns 解析后的消息对象，无法解析时返回 null
+ * 解析 RFID 标签读取消息（可传整帧或 payload）。
  */
 export function parseEPCMessage(hexString: string): IRFIDTagReadMessage | null {
   const cleanHex = normalizeHex(hexString)
@@ -404,210 +546,43 @@ export function parseEPCMessage(hexString: string): IRFIDTagReadMessage | null {
     return null
   }
 
+  const payloadHex = extractPayloadHex(cleanHex)
+  const header = resolveEpcHeader(payloadHex)
+  if (!header) {
+    return null
+  }
+
   const message: Partial<IRFIDTagReadMessage> = {
-    rawMessage: cleanHex
+    rawMessage: cleanHex,
+    epcLength: header.epcLength
   }
 
-  let payloadHex = cleanHex
-  if (cleanHex.startsWith('5A') && cleanHex.length >= 14) {
-    const lengthHex = cleanHex.slice(10, 14)
-    const payloadLength = parseInt(lengthHex, 16)
-    const payloadEnd = 14 + payloadLength * 2
-    if (!Number.isNaN(payloadLength)) {
-      if (payloadEnd <= cleanHex.length) {
-        payloadHex = cleanHex.slice(14, payloadEnd)
-      } else {
-        payloadHex = cleanHex.slice(14)
-      }
-    }
+  const cursor: HexCursor = {
+    hex: payloadHex,
+    index: header.headerChars
   }
 
-  let index = 0
-  const read = (chars: number) => {
-    if (index + chars > payloadHex.length) {
-      return null
-    }
-    const value = payloadHex.slice(index, index + chars)
-    index += chars
-    return value
-  }
-  const canRead = (chars: number) => index + chars <= payloadHex.length
-
-  const minTailChars = 4 + 2
-  let epcLengthHex = payloadHex.slice(0, 4)
-  let epcLength = parseInt(epcLengthHex, 16)
-  let headerChars = 4
-  const twoByteValid =
-    payloadHex.length >= 4 + minTailChars &&
-    !Number.isNaN(epcLength) &&
-    epcLength * 2 + headerChars + minTailChars <= payloadHex.length
-
-  if (!twoByteValid) {
-    const epcLengthHex1 = payloadHex.slice(0, 2)
-    const epcLength1 = parseInt(epcLengthHex1, 16)
-    if (
-      payloadHex.length >= 2 + minTailChars &&
-      !Number.isNaN(epcLength1) &&
-      epcLength1 * 2 + 2 + minTailChars <= payloadHex.length
-    ) {
-      epcLengthHex = epcLengthHex1
-      epcLength = epcLength1
-      headerChars = 2
-    }
-  }
-
-  if (Number.isNaN(epcLength) || epcLength * 2 + headerChars + minTailChars > payloadHex.length) {
+  const epc = readHex(cursor, header.epcLength * 2)
+  const pcValue = readHex(cursor, 4)
+  const antenna = readHex(cursor, 2)
+  if (!epc || !pcValue || !antenna) {
     return null
   }
 
-  index = headerChars
-  message.epcLength = epcLength
+  message.epc = epc
+  message.pcValue = pcValue
+  message.antennaId = parseInt(antenna, 16)
 
-  const epcHex = read(epcLength * 2)
-  const pcHex = read(4)
-  const antHex = read(2)
-  if (epcHex === null || pcHex === null || antHex === null) {
-    return null
-  }
-  message.epc = epcHex
-  message.pcValue = pcHex
-  message.antennaId = parseInt(antHex, 16)
-
-  while (index < payloadHex.length) {
-    if (!canRead(2)) {
-      break
-    }
-    const pidHex = read(2)
+  while (canRead(cursor, 2)) {
+    const pidHex = readHex(cursor, 2)
     if (!pidHex) {
       break
     }
-    const pid = parseInt(pidHex, 16)
 
-    switch (pid) {
-      case RFID_PID.RSSI: {
-        if (!canRead(2)) {
-          index = payloadHex.length
-          break
-        }
-        const rssiHex = read(2)
-        if (!rssiHex) {
-          index = payloadHex.length
-          break
-        }
-        message.rssi = {
-          pid,
-          value: parseInt(rssiHex, 16)
-        }
-        break
-      }
-      case RFID_PID.READ_RESULT: {
-        if (!canRead(2)) {
-          index = payloadHex.length
-          break
-        }
-        const resultHex = read(2)
-        if (!resultHex) {
-          index = payloadHex.length
-          break
-        }
-        message.readResult = {
-          pid,
-          success: parseInt(resultHex, 16) === 0x00
-        }
-        break
-      }
-      case RFID_PID.TID_DATA: {
-        if (!canRead(4)) {
-          index = payloadHex.length
-          break
-        }
-        const tidLengthHex = read(4)
-        if (!tidLengthHex) {
-          index = payloadHex.length
-          break
-        }
-        const tidLength = parseInt(tidLengthHex, 16)
-        if (!canRead(tidLength * 2)) {
-          index = payloadHex.length
-          break
-        }
-        const tidData = read(tidLength * 2)
-        if (!tidData) {
-          index = payloadHex.length
-          break
-        }
-        message.tidData = {
-          pid,
-          length: tidLength,
-          data: tidData
-        }
-        break
-      }
-      case RFID_PID.CURRENT_FREQUENCY: {
-        const remaining = payloadHex.length - index
-        if (remaining < 6) {
-          index = payloadHex.length
-          break
-        }
-        let freqChars = 8
-        if (remaining >= 6) {
-          if (remaining < 8) {
-            freqChars = 6
-          } else {
-            const nextPidHex = payloadHex.slice(index + 6, index + 8)
-            const nextPid = parseInt(nextPidHex, 16)
-            const knownPids = [
-              RFID_PID.RSSI,
-              RFID_PID.READ_RESULT,
-              RFID_PID.TID_DATA,
-              RFID_PID.CURRENT_FREQUENCY,
-              RFID_PID.TAG_PHASE
-            ]
-            // @ts-ignore
-            if (knownPids.includes(nextPid)) {
-              freqChars = 6
-            }
-          }
-        }
-        if (!canRead(freqChars)) {
-          index = payloadHex.length
-          break
-        }
-        const freqHex = read(freqChars)
-        if (!freqHex) {
-          index = payloadHex.length
-          break
-        }
-        const freqInt = parseInt(freqHex, 16)
-        message.currentFrequency = {
-          pid,
-          frequency: freqInt / 1000.0
-        }
-        break
-      }
-      case RFID_PID.TAG_PHASE: {
-        if (!canRead(2)) {
-          index = payloadHex.length
-          break
-        }
-        const phaseHex = read(2)
-        if (!phaseHex) {
-          index = payloadHex.length
-          break
-        }
-        message.tagPhase = {
-          pid,
-          phase: parseInt(phaseHex, 16)
-        }
-        break
-      }
-      default:
-        if (canRead(2)) {
-          index += 2
-        } else {
-          index = payloadHex.length
-        }
-        break
+    const pid = parseInt(pidHex, 16)
+    const parsed = parsePidBlock(message, cursor, pid)
+    if (!parsed) {
+      break
     }
   }
 
@@ -616,90 +591,95 @@ export function parseEPCMessage(hexString: string): IRFIDTagReadMessage | null {
 
 export function parseFrame(input: string) {
   const hex = normalizeHex(input)
-  if (!hex) throw new Error('返回内容为空')
-  if (hex.length % 2 !== 0) throw new Error('HEX 长度不是偶数')
-  const minBytes = 1 + 4 + 2 + 2
-  if (hex.length < minBytes * 2) throw new Error('数据长度不足')
+
+  if (!hex) {
+    throw new Error('返回内容为空')
+  }
+
+  if (hex.length % 2 !== 0) {
+    throw new Error('HEX 长度不是偶数')
+  }
+
+  if (hex.length < 18) {
+    throw new Error('数据长度不足')
+  }
 
   const frameHead = hex.slice(0, 2)
-  if (frameHead !== '5A') throw new Error(`帧头错误: ${frameHead}`)
+  if (frameHead !== '5A') {
+    throw new Error(`帧头错误: ${frameHead}`)
+  }
 
   const controlHex = hex.slice(2, 10)
   const lengthHex = hex.slice(10, 14)
   const payloadLength = parseInt(lengthHex, 16)
+  if (Number.isNaN(payloadLength)) {
+    throw new Error('长度字段非法')
+  }
+
   const payloadStart = 14
   const payloadEnd = payloadStart + payloadLength * 2
   const crcEnd = payloadEnd + 4
-  if (hex.length < crcEnd) throw new Error('长度字段与实际数据不一致')
+  if (hex.length < crcEnd) {
+    throw new Error('长度字段与实际数据不一致')
+  }
 
   const payloadHex = hex.slice(payloadStart, payloadEnd)
   const crc = hex.slice(payloadEnd, crcEnd)
   const controlWord = decodeControlWord(controlHex)
-  const base = {
+
+  return {
     frameHead,
     controlWord,
     mid: controlWord.messageIdHex,
-    length: { hex: lengthHex, value: payloadLength },
+    length: {
+      hex: lengthHex,
+      value: payloadLength
+    },
+    payload: payloadHex,
     crc
   } as Record<string, unknown>
-
-  base.payload = payloadHex
-
-  return base
 }
-
-const padHex = (value: number, length: number) =>
-  value.toString(16).toUpperCase().padStart(length, '0')
 
 export const crc16Ccitt = (hex: string) => {
   const clean = normalizeHex(hex)
   let crc = 0x0000
+
   for (let i = 0; i < clean.length; i += 2) {
     const byte = parseInt(clean.slice(i, i + 2), 16)
-    crc ^= (byte << 8)
+    crc ^= byte << 8
+
     for (let j = 0; j < 8; j++) {
       crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1)
       crc &= 0xffff
     }
   }
-  return padHex(crc, 4)
-}
 
-/**
- * UHF RFID 读写器协议 - 协议控制字生成工具（TypeScript）
- *
- * 根据传入的字段参数，计算出 32 位协议控制字（big-endian 字节序）
- * 支持返回：
- *   - 32 位整数（number）
- *   - 十六进制字符串（如 "00010110"）
- *   - Uint8Array（4 字节，big-endian，适合直接发送）
- */
+  return toHex(crc, 4)
+}
 
 export interface ControlWordParams {
   /** 协议类型号 (bit 31-24)，默认 0（UHF RFID 读写器协议） */
-  protocolType?: number;       // 0 | 15 等，范围 0~255
+  protocolType?: number
   /** 协议版本号 (bit 23-16)，默认 1（即 0x01） */
-  protocolVersion?: number;    // 通常为 1
+  protocolVersion?: number
   /** RS485 标志位 (bit 13)，0 或 1 */
-  rs485Flag?: 0 | 1;
+  rs485Flag?: 0 | 1
   /** 读写器主动上传标志位 (bit 12)，0 或 1 */
-  uploadFlag?: 0 | 1;
+  uploadFlag?: 0 | 1
   /** 消息类别号 (bit 11-8)，0~5 常用 */
-  messageCategory: number;     // 必须传入，0~15（协议中 0~5 有定义）
+  messageCategory: number
   /** 消息 ID (bit 7-0)，0x00~0xFF */
-  messageId: number;           // 必须传入，0~255
+  messageId: number
 }
 
 /**
- * 生成协议控制字
- * @param params 参数对象
- * @returns 对象包含多种格式的结果
+ * 生成协议控制字。
  */
 export function generateControlWord(params: ControlWordParams): {
-  value: number;                    // 32 位整数
-  hex: string;                      // 8 位十六进制字符串（大写，无前缀）
-  bytes: Uint8Array;                // 4 字节数组（big-endian）
-  byteString: string;               // 字节序列空格分隔（如 "00 01 01 10"）
+  value: number
+  hex: string
+  bytes: Uint8Array
+  byteString: string
 } {
   const {
     protocolType = 0,
@@ -707,32 +687,32 @@ export function generateControlWord(params: ControlWordParams): {
     rs485Flag = 0,
     uploadFlag = 0,
     messageCategory = 2,
-    messageId,
-  } = params;
+    messageId
+  } = params
 
-  // 保留位固定为 0，无需参数
-
-  // 计算 32 位整数
-  const value =
+  const value = (
     (protocolType << 24) |
     (protocolVersion << 16) |
     (rs485Flag << 13) |
     (uploadFlag << 12) |
     (messageCategory << 8) |
-    messageId;
+    messageId
+  ) >>> 0
 
-  // 转为 8 位十六进制字符串（补零）
-  const hex = value.toString(16).toUpperCase().padStart(8, '0');
+  const hex = toHex(value, 8)
 
-  // 转为 big-endian 字节数组
-  const bytes = new Uint8Array(4);
-  const view = new DataView(bytes.buffer);
-  view.setUint32(0, value, false); // false 表示 big-endian
+  const bytes = new Uint8Array(4)
+  const view = new DataView(bytes.buffer)
+  view.setUint32(0, value, false)
 
-  // 字节序列字符串（常用于调试或日志）
   const byteString = Array.from(bytes)
-    .map(b => b.toString(16).toUpperCase().padStart(2, '0'))
-    .join(' ');
+    .map((byte) => toHex(byte))
+    .join(' ')
 
-  return { value, hex, bytes, byteString };
+  return {
+    value,
+    hex,
+    bytes,
+    byteString
+  }
 }

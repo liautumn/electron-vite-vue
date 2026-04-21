@@ -3,6 +3,7 @@ import {registerTcpRenderer} from './mod/tcp'
 import {registerSerialRenderer} from './mod/serial'
 import {registerMqttRenderer} from './mod/mqtt'
 import {registerSqliteRenderer} from './mod/sqlite'
+import {registerJsonRenderer} from './mod/json'
 
 // 注册 mod
 registerIpcRenderer()
@@ -10,6 +11,7 @@ registerTcpRenderer()
 registerSerialRenderer()
 registerMqttRenderer()
 registerSqliteRenderer()
+registerJsonRenderer()
 
 // ------------------------------------------------------------------
 // DOM Ready 工具函数

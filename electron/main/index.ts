@@ -18,6 +18,7 @@ import {registerSerial} from './mod/serial'
 import {registerTcp} from './mod/tcp'
 import {registerMqtt} from './mod/mqtt'
 import {registerSqlite} from './mod/sqlite'
+import {getJsonDirectory, registerJson} from './mod/json'
 import log, {getLogDirectory, getLogFilePath} from './utils/logger'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
@@ -64,6 +65,7 @@ log.info('=========>> Main process bootstrapped', {
     isPackaged: app.isPackaged,
     logDirectory: getLogDirectory(),
     logFile: getLogFilePath(),
+    jsonDirectory: getJsonDirectory(),
 })
 
 // =======================
@@ -137,6 +139,7 @@ async function createWindow() {
     registerTcp(window)
     registerMqtt(window)
     registerSqlite()
+    registerJson()
 
     // =======================
     // 加载页面（开发 / 生产）

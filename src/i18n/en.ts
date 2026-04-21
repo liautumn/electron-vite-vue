@@ -13,7 +13,21 @@ const en = {
     logTitle: 'Logging Demo',
     logTip: 'Opening the home page writes one log automatically. Use the buttons below to append more entries.',
     logInfoButton: 'Write Info Log',
-    logErrorButton: 'Write Error Log'
+    logErrorButton: 'Write Error Log',
+    jsonTitle: 'JSON Read/Write Demo',
+    jsonTip: 'Provide a file name and JSON payload, then use the buttons to read or write.',
+    jsonDirectory: 'Storage directory: {path}',
+    jsonFileLabel: 'File name (extension optional)',
+    jsonInputLabel: 'JSON to write',
+    jsonOutputLabel: 'JSON read result',
+    jsonWriteButton: 'Write JSON',
+    jsonReadButton: 'Read JSON',
+    jsonInvalid: 'Invalid JSON format. Fix it before writing.',
+    jsonWriteSuccess: 'JSON write succeeded.',
+    jsonReadSuccess: 'JSON read succeeded.',
+    jsonDirectoryError: 'Failed to resolve JSON directory: {error}',
+    jsonWriteError: 'JSON write failed: {error}',
+    jsonReadError: 'JSON read failed: {error}'
   },
   localeName: {
     en: 'English',

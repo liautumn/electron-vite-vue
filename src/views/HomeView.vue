@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onMounted} from 'vue'
+import {computed, onMounted, ref} from 'vue'
 import {useRouter} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 import {storeToRefs} from 'pinia'
@@ -45,10 +45,79 @@ const emitErrorLog = () => {
   pageLog.error('Home page error log example', error.message)
 }
 
+const jsonFileName = ref('home-demo')
+const jsonInput = ref(
+    JSON.stringify(
+        {
+          app: 'electron-vite-vue',
+          language: locale.value,
+          enabled: true,
+        },
+        null,
+        2
+    )
+)
+const jsonOutput = ref('')
+const jsonDirectory = ref('')
+const jsonStatus = ref('')
+
+const toErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : String(error)
+
+const loadJsonDirectory = async () => {
+  try {
+    jsonDirectory.value = await window.json.getDirectory()
+  } catch (error) {
+    jsonStatus.value = t('home.jsonDirectoryError', {error: toErrorMessage(error)})
+    pageLog.error('Failed to load JSON directory', error)
+  }
+}
+
+const writeJsonDemo = async () => {
+  try {
+    const payload = JSON.parse(jsonInput.value) as Record<string, unknown>
+
+    await window.json.write({
+      fileName: jsonFileName.value,
+      data: payload,
+      pretty: true,
+    })
+    jsonStatus.value = t('home.jsonWriteSuccess')
+    pageLog.info('JSON demo write success', {fileName: jsonFileName.value})
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      jsonStatus.value = t('home.jsonInvalid')
+    } else {
+      jsonStatus.value = t('home.jsonWriteError', {error: toErrorMessage(error)})
+    }
+    pageLog.error('JSON demo write failed', error)
+  }
+}
+
+const readJsonDemo = async () => {
+  try {
+    const result = await window.json.read<Record<string, unknown> | null>({
+      fileName: jsonFileName.value,
+      fallback: null,
+    })
+
+    jsonOutput.value = JSON.stringify(result, null, 2)
+    jsonStatus.value = t('home.jsonReadSuccess')
+    pageLog.info('JSON demo read success', {
+      fileName: jsonFileName.value,
+      exists: result !== null,
+    })
+  } catch (error) {
+    jsonStatus.value = t('home.jsonReadError', {error: toErrorMessage(error)})
+    pageLog.error('JSON demo read failed', error)
+  }
+}
+
 onMounted(() => {
   pageLog.info('Home page mounted', {
     locale: locale.value,
   })
+  void loadJsonDirectory()
 })
 </script>
 
@@ -102,6 +171,49 @@ onMounted(() => {
           <q-btn color="primary" no-caps unelevated @click="emitInfoLog">{{ t('home.logInfoButton') }}</q-btn>
           <q-btn color="negative" no-caps unelevated @click="emitErrorLog">{{ t('home.logErrorButton') }}</q-btn>
         </div>
+      </q-card-section>
+    </q-card>
+
+    <q-card flat bordered class="card">
+      <q-card-section class="card-section">
+        <p class="card-title">{{ t('home.jsonTitle') }}</p>
+        <p class="muted">{{ t('home.jsonTip') }}</p>
+        <p class="muted json-directory">{{ t('home.jsonDirectory', {path: jsonDirectory || '-'}) }}</p>
+
+        <q-input
+            v-model="jsonFileName"
+            dense
+            outlined
+            :label="t('home.jsonFileLabel')"
+        />
+
+        <q-input
+            v-model="jsonInput"
+            autogrow
+            outlined
+            type="textarea"
+            :label="t('home.jsonInputLabel')"
+        />
+
+        <div class="json-actions">
+          <q-btn color="primary" no-caps unelevated @click="writeJsonDemo">
+            {{ t('home.jsonWriteButton') }}
+          </q-btn>
+          <q-btn outline color="primary" no-caps @click="readJsonDemo">
+            {{ t('home.jsonReadButton') }}
+          </q-btn>
+        </div>
+
+        <q-input
+            :model-value="jsonOutput"
+            autogrow
+            outlined
+            readonly
+            type="textarea"
+            :label="t('home.jsonOutputLabel')"
+        />
+
+        <p v-if="jsonStatus" class="muted">{{ jsonStatus }}</p>
       </q-card-section>
     </q-card>
   </div>
@@ -177,9 +289,19 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.json-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .muted {
   color: var(--app-text-secondary);
   margin: 0;
+}
+
+.json-directory {
+  word-break: break-all;
 }
 
 .link {

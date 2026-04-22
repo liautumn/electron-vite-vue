@@ -2,7 +2,7 @@
 import {storeToRefs} from 'pinia'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {Notify} from 'quasar'
-import {guoxinSingleDevice} from '../components/rfid/guoxin/GuoXinSingleDevice'
+import {guoxinSingleDevice} from '../components/rfid/guoxin/GuoXinDevice'
 import type {IRFIDTagReadMessage} from '../components/rfid/guoxin/GuoXinCommon'
 import {normalizeHex} from '../components/rfid/guoxin/GuoXinCommon'
 import {

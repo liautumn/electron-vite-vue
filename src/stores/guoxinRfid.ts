@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { GuoxinConnectionMode } from '../components/rfid/guoxin/GuoXinSingleDevice'
+import type { GuoxinConnectionMode } from '../components/rfid/guoxin/GuoXinDevice'
 
 const MIN_ANTENNA_COUNT = 1
 const MAX_ANTENNA_COUNT = 32

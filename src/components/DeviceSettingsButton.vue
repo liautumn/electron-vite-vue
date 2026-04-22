@@ -4,11 +4,11 @@ import { computed } from 'vue'
 const props = withDefaults(
   defineProps<{
     connectedRfidCount?: number
-    connectedPadCount?: number
+    connectedLockCount?: number
   }>(),
   {
     connectedRfidCount: 0,
-    connectedPadCount: 0
+    connectedLockCount: 0
   }
 )
 
@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const label = computed(
-  () => `设备设置 RFID:${props.connectedRfidCount} PAD:${props.connectedPadCount}`
+  () => `设备设置 RFID:${props.connectedRfidCount} Lock:${props.connectedLockCount}`
 )
 </script>
 

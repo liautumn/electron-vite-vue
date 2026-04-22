@@ -1,28 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import {Notify} from 'quasar'
-import { padSingleDevice } from '../components/pad/PadSingleDevice'
+import { Notify } from 'quasar'
+import { lockDevice } from '../components/lock/LockDevice'
 import {
-  formatPadHex,
-  getPadFrameLabel,
-  resolvePadFrameStatusText,
-  toPadHexByte,
-  type PadParsedFrame
-} from '../components/pad/PadProtocol'
+  formatLockHex,
+  getLockFrameLabel,
+  resolveLockFrameStatusText,
+  toLockHexByte,
+  type LockParsedFrame
+} from '../components/lock/LockProtocol'
 import {
-  disablePadLockKeepOpen,
-  enablePadLockKeepOpen,
-  openPadLock,
-  queryPadLockStatus,
-  sendPadRawHex
-} from '../components/pad/PadHelper'
+  disableLockKeepOpen,
+  enableLockKeepOpen,
+  openLock,
+  queryLockStatus,
+  sendLockRawHex
+} from '../components/lock/LockHelper'
 import { useDeviceConnectionsStore } from '../stores/deviceConnections'
 
-defineOptions({ name: 'pad-lock-demo' })
+defineOptions({ name: 'lock-demo' })
 
 // 三个业务模块共用的地址配置结构。
-type PadTargetConfig = {
+type LockTargetConfig = {
   boardAddress: number | null
   lockAddress: number | null
 }
@@ -36,9 +36,9 @@ type FeedbackPanelData = {
 }
 
 // 页面初次加载时先从单例设备中恢复一份快照。
-const snapshot = padSingleDevice.getSnapshot()
+const snapshot = lockDevice.getSnapshot()
 const deviceConnectionsStore = useDeviceConnectionsStore()
-const { activePadSessionId } = storeToRefs(deviceConnectionsStore)
+const { activeLockSessionId } = storeToRefs(deviceConnectionsStore)
 
 // 会话连接状态。
 const connected = ref(snapshot.connected)
@@ -48,25 +48,25 @@ const rawHex = ref('')
 const log = ref('')
 
 // 三个模块分别维护自己的板地址和锁地址。
-const normalLockTarget = reactive<PadTargetConfig>({
+const normalLockTarget = reactive<LockTargetConfig>({
   boardAddress: 1,
   lockAddress: 1
 })
 
-const magneticLockTarget = reactive<PadTargetConfig>({
+const magneticLockTarget = reactive<LockTargetConfig>({
   boardAddress: 1,
   lockAddress: 2
 })
 
-const microswitchTarget = reactive<PadTargetConfig>({
+const microswitchTarget = reactive<LockTargetConfig>({
   boardAddress: 1,
   lockAddress: 2
 })
 
 // 三个模块各自最近一次展示用的反馈数据。
-const latestNormalLockFrame = ref<PadParsedFrame | null>(null)
-const latestMagneticLockFrame = ref<PadParsedFrame | null>(null)
-const latestMicroswitchFrame = ref<PadParsedFrame | null>(null)
+const latestNormalLockFrame = ref<LockParsedFrame | null>(null)
+const latestMagneticLockFrame = ref<LockParsedFrame | null>(null)
+const latestMicroswitchFrame = ref<LockParsedFrame | null>(null)
 const latestMagneticRawResponse = ref('')
 
 // 页面卸载时需要取消订阅的回调。
@@ -91,9 +91,9 @@ const normalLockPanel = computed<FeedbackPanelData>(() => {
 
   const isCloseFeedback = frame.header === '81'
   return {
-    typeLabel: isCloseFeedback ? '手动关锁反馈' : getPadFrameLabel(frame),
-    rawHex: formatPadHex(frame.rawHex),
-    statusText: `0x${frame.statusHex} / ${isCloseFeedback ? resolveNormalLockCloseFeedbackText(frame) : resolvePadFrameStatusText(frame)}`,
+    typeLabel: isCloseFeedback ? '手动关锁反馈' : getLockFrameLabel(frame),
+    rawHex: formatLockHex(frame.rawHex),
+    statusText: `0x${frame.statusHex} / ${isCloseFeedback ? resolveNormalLockCloseFeedbackText(frame) : resolveLockFrameStatusText(frame)}`,
     bccText: frame.bccValid ? '通过' : `错误，应为 0x${frame.expectedBccHex}`
   }
 })
@@ -103,9 +103,9 @@ const magneticLockPanel = computed<FeedbackPanelData>(() => {
   const frame = latestMagneticLockFrame.value
   if (frame) {
     return {
-      typeLabel: getPadFrameLabel(frame),
-      rawHex: formatPadHex(frame.rawHex),
-      statusText: `0x${frame.statusHex} / ${resolvePadFrameStatusText(frame)}`,
+      typeLabel: getLockFrameLabel(frame),
+      rawHex: formatLockHex(frame.rawHex),
+      statusText: `0x${frame.statusHex} / ${resolveLockFrameStatusText(frame)}`,
       bccText: frame.bccValid ? '通过' : `错误，应为 0x${frame.expectedBccHex}`
     }
   }
@@ -113,7 +113,7 @@ const magneticLockPanel = computed<FeedbackPanelData>(() => {
   if (latestMagneticRawResponse.value) {
     return {
       typeLabel: '原始反馈',
-      rawHex: formatPadHex(latestMagneticRawResponse.value),
+      rawHex: formatLockHex(latestMagneticRawResponse.value),
       statusText: '',
       bccText: ''
     }
@@ -131,7 +131,7 @@ const microswitchPanel = computed<FeedbackPanelData>(() => {
 
   return {
     typeLabel: '微动开关反馈',
-    rawHex: formatPadHex(frame.rawHex),
+    rawHex: formatLockHex(frame.rawHex),
     statusText: `0x${frame.statusHex} / ${resolveMicroswitchText(frame)}`,
     bccText: frame.bccValid ? '通过' : `错误，应为 0x${frame.expectedBccHex}`
   }
@@ -171,7 +171,7 @@ function requireSessionId(value: number | null) {
 }
 
 // 读取某个模块当前生效的板地址和锁地址。
-function getTargetAddress(target: PadTargetConfig, label: string) {
+function getTargetAddress(target: LockTargetConfig, label: string) {
   return {
     board: requireAddressValue(target.boardAddress, `${label}板地址`),
     lock: requireAddressValue(target.lockAddress, `${label}锁地址`)
@@ -179,7 +179,7 @@ function getTargetAddress(target: PadTargetConfig, label: string) {
 }
 
 // 判断一帧响应是否属于某个模块当前配置的地址。
-function matchesTarget(frame: PadParsedFrame, target: PadTargetConfig) {
+function matchesTarget(frame: LockParsedFrame, target: LockTargetConfig) {
   if (!Number.isInteger(target.boardAddress) || !Number.isInteger(target.lockAddress)) {
     return false
   }
@@ -188,17 +188,17 @@ function matchesTarget(frame: PadParsedFrame, target: PadTargetConfig) {
 }
 
 // 在页面上显示当前地址的十六进制预览。
-function formatTargetPreview(target: PadTargetConfig) {
+function formatTargetPreview(target: LockTargetConfig) {
   try {
     const { board, lock } = getTargetAddress(target, '')
-    return `板地址 0x${toPadHexByte(board, '板地址')} / 锁地址 0x${toPadHexByte(lock, '锁地址')}`
+    return `板地址 0x${toLockHexByte(board, '板地址')} / 锁地址 0x${toLockHexByte(lock, '锁地址')}`
   } catch {
     return '请填写有效的板地址和锁地址'
   }
 }
 
 // 普通锁模块里，81 响应按“手动关锁反馈”来解释。
-function resolveNormalLockCloseFeedbackText(frame: PadParsedFrame) {
+function resolveNormalLockCloseFeedbackText(frame: LockParsedFrame) {
   if (frame.statusHex === '00') {
     return '手动关锁反馈 / 状态位 00'
   }
@@ -209,7 +209,7 @@ function resolveNormalLockCloseFeedbackText(frame: PadParsedFrame) {
 }
 
 // 微动开关模块固定按微动状态解释 81 响应。
-function resolveMicroswitchText(frame: PadParsedFrame) {
+function resolveMicroswitchText(frame: LockParsedFrame) {
   if (frame.statusHex === '11') {
     return '微动按下'
   }
@@ -239,10 +239,10 @@ async function handleOpenNormalLock() {
   try {
     const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(normalLockTarget, '普通锁')
-    const { commandHex, frame } = await openPadLock(board, lock, 2000, targetSessionId)
+    const { commandHex, frame } = await openLock(board, lock, 2000, targetSessionId)
     latestNormalLockFrame.value = frame
-    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
-    notify('positive', resolvePadFrameStatusText(frame))
+    appendLog(`会话[${targetSessionId}] TX ${formatLockHex(commandHex)}`)
+    notify('positive', resolveLockFrameStatusText(frame))
   } catch (error) {
     notify('negative', resolveError(error))
   }
@@ -253,10 +253,10 @@ async function handleQueryNormalLockStatus() {
   try {
     const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(normalLockTarget, '普通锁')
-    const { commandHex, frame } = await queryPadLockStatus(board, lock, 2000, targetSessionId)
+    const { commandHex, frame } = await queryLockStatus(board, lock, 2000, targetSessionId)
     latestNormalLockFrame.value = frame
-    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
-    notify('positive', resolvePadFrameStatusText(frame))
+    appendLog(`会话[${targetSessionId}] TX ${formatLockHex(commandHex)}`)
+    notify('positive', resolveLockFrameStatusText(frame))
   } catch (error) {
     notify('negative', resolveError(error))
   }
@@ -267,24 +267,24 @@ async function handleEnableMagneticHoldOpen() {
   try {
     const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(magneticLockTarget, '电磁锁')
-    const { commandHex, rawResponseHex, parsedResponse } = await enablePadLockKeepOpen(board, lock, 2000, targetSessionId)
+    const { commandHex, rawResponseHex, parsedResponse } = await enableLockKeepOpen(board, lock, 2000, targetSessionId)
     const commandFrames = parsedResponse.parsedFrames.filter((frame) => frame.header === '9A')
 
     latestMagneticRawResponse.value = rawResponseHex
-    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
+    appendLog(`会话[${targetSessionId}] TX ${formatLockHex(commandHex)}`)
 
     if (commandFrames.length) {
       const latestFrame = commandFrames[commandFrames.length - 1]
       latestMagneticLockFrame.value = latestFrame
       if (rawResponseHex) {
-        appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
+        appendLog(`会话[${targetSessionId}] RX ${formatLockHex(rawResponseHex)}`)
       }
-      notify('positive', resolvePadFrameStatusText(latestFrame))
+      notify('positive', resolveLockFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
-      appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
+      appendLog(`会话[${targetSessionId}] RX ${formatLockHex(rawResponseHex)}`)
       notify('positive', '开启长通电指令已发送，收到原始反馈')
       return
     }
@@ -300,24 +300,24 @@ async function handleDisableMagneticHoldOpen() {
   try {
     const targetSessionId = requireSessionId(sessionId.value)
     const { board, lock } = getTargetAddress(magneticLockTarget, '电磁锁')
-    const { commandHex, rawResponseHex, parsedResponse } = await disablePadLockKeepOpen(board, lock, 2000, targetSessionId)
+    const { commandHex, rawResponseHex, parsedResponse } = await disableLockKeepOpen(board, lock, 2000, targetSessionId)
     const commandFrames = parsedResponse.parsedFrames.filter((frame) => frame.header === '9B')
 
     latestMagneticRawResponse.value = rawResponseHex
-    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
+    appendLog(`会话[${targetSessionId}] TX ${formatLockHex(commandHex)}`)
 
     if (commandFrames.length) {
       const latestFrame = commandFrames[commandFrames.length - 1]
       latestMagneticLockFrame.value = latestFrame
       if (rawResponseHex) {
-        appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
+        appendLog(`会话[${targetSessionId}] RX ${formatLockHex(rawResponseHex)}`)
       }
-      notify('positive', resolvePadFrameStatusText(latestFrame))
+      notify('positive', resolveLockFrameStatusText(latestFrame))
       return
     }
 
     if (rawResponseHex) {
-      appendLog(`会话[${targetSessionId}] RX ${formatPadHex(rawResponseHex)}`)
+      appendLog(`会话[${targetSessionId}] RX ${formatLockHex(rawResponseHex)}`)
       notify('positive', '关闭长通电指令已发送，收到原始反馈')
       return
     }
@@ -332,8 +332,8 @@ async function handleDisableMagneticHoldOpen() {
 async function handleSendRawHex() {
   try {
     const targetSessionId = requireSessionId(sessionId.value)
-    const commandHex = await sendPadRawHex(rawHex.value, targetSessionId)
-    appendLog(`会话[${targetSessionId}] TX ${formatPadHex(commandHex)}`)
+    const commandHex = await sendLockRawHex(rawHex.value, targetSessionId)
+    appendLog(`会话[${targetSessionId}] TX ${formatLockHex(commandHex)}`)
     notify('positive', '自定义 HEX 已发送')
   } catch (error) {
     notify('negative', resolveError(error))
@@ -341,8 +341,8 @@ async function handleSendRawHex() {
 }
 
 // 把收到的结构化帧按地址归档到对应模块。
-function routeIncomingFrame(incomingSessionId: number, frame: PadParsedFrame) {
-  appendLog(`会话[${incomingSessionId}] RX ${formatPadHex(frame.rawHex)}`)
+function routeIncomingFrame(incomingSessionId: number, frame: LockParsedFrame) {
+  appendLog(`会话[${incomingSessionId}] RX ${formatLockHex(frame.rawHex)}`)
 
   const activeSession = Number(sessionId.value)
   if (!Number.isInteger(activeSession) || activeSession < 0) {
@@ -373,12 +373,12 @@ function routeIncomingFrame(incomingSessionId: number, frame: PadParsedFrame) {
 // 页面挂载时订阅设备状态/响应帧。
 onMounted(() => {
   const targetSessionId = requireSessionId(sessionId.value)
-  padSingleDevice.setActiveSession(targetSessionId)
-  const currentSnapshot = padSingleDevice.getSnapshot(targetSessionId)
+  lockDevice.setActiveSession(targetSessionId)
+  const currentSnapshot = lockDevice.getSnapshot(targetSessionId)
   connected.value = currentSnapshot.connected
   lastError.value = currentSnapshot.lastError ?? ''
 
-  disposeStatusListener = padSingleDevice.subscribeStatus((state) => {
+  disposeStatusListener = lockDevice.subscribeStatus((state) => {
     if (state.sessionId !== requireSessionId(sessionId.value)) {
       return
     }
@@ -386,23 +386,23 @@ onMounted(() => {
     lastError.value = state.lastError ?? ''
   })
 
-  disposeFrameListener = padSingleDevice.subscribeFrame((incomingSessionId, frame) => {
+  disposeFrameListener = lockDevice.subscribeFrame((incomingSessionId, frame) => {
     routeIncomingFrame(incomingSessionId, frame)
   })
 })
 
 watch(sessionId, (nextSessionId) => {
   const targetSessionId = requireSessionId(nextSessionId)
-  if (activePadSessionId.value !== targetSessionId) {
-    deviceConnectionsStore.setActivePadSession(targetSessionId)
+  if (activeLockSessionId.value !== targetSessionId) {
+    deviceConnectionsStore.setActiveLockSession(targetSessionId)
   }
-  padSingleDevice.setActiveSession(targetSessionId)
-  const currentSnapshot = padSingleDevice.getSnapshot(targetSessionId)
+  lockDevice.setActiveSession(targetSessionId)
+  const currentSnapshot = lockDevice.getSnapshot(targetSessionId)
   connected.value = currentSnapshot.connected
   lastError.value = currentSnapshot.lastError ?? ''
 })
 
-watch(activePadSessionId, (nextSessionId) => {
+watch(activeLockSessionId, (nextSessionId) => {
   if (sessionId.value !== nextSessionId) {
     sessionId.value = nextSessionId
   }

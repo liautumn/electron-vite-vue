@@ -100,15 +100,15 @@
         }
       },
       {
-        "path": "pad-lock-demo",
-        "name": "pad-lock-demo",
-        "component": "PadLockView",
-        "alias": "/pad-lock-demo",
+        "path": "lock-demo",
+        "name": "lock-demo",
+        "component": "LockView",
+        "alias": "/lock-demo",
         "meta": {
-          "title": "PAD 锁控板 测试",
+          "title": "Lock 锁控板 测试",
           "visible": true,
           "enabled": true,
-          "permission": "app:demos:pad-lock",
+          "permission": "app:demos:lock",
           "type": "menu"
         }
       }

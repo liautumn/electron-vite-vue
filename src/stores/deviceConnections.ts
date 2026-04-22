@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { GuoxinConnectionMode, GuoxinDeviceSnapshot } from '../components/rfid/guoxin/GuoXinSingleDevice'
-import type { PadDeviceSnapshot } from '../components/pad/PadSingleDevice'
+import type { GuoxinConnectionMode, GuoxinDeviceSnapshot } from '../components/rfid/guoxin/GuoXinDevice'
+import type { LockDeviceSnapshot } from '../components/lock/LockDevice'
 
 export type RfidConnectionProfile = {
   id: string
@@ -15,7 +15,7 @@ export type RfidConnectionProfile = {
   antennaCount: number
 }
 
-export type PadConnectionProfile = {
+export type LockConnectionProfile = {
   id: string
   name: string
   sessionId: number
@@ -29,13 +29,13 @@ type RfidRuntimeStatus = {
   lastError: string | null
 }
 
-type PadRuntimeStatus = {
+type LockRuntimeStatus = {
   connected: boolean
   lastError: string | null
 }
 
 const DEFAULT_RFID_SESSION_ID = 0
-const DEFAULT_PAD_SESSION_ID = 0
+const DEFAULT_LOCK_SESSION_ID = 0
 
 function normalizeSessionId(value: number, fallback = 0) {
   const parsed = Number(value)
@@ -63,10 +63,10 @@ function createDefaultRfidProfile(sessionId = DEFAULT_RFID_SESSION_ID): RfidConn
   }
 }
 
-function createDefaultPadProfile(sessionId = DEFAULT_PAD_SESSION_ID): PadConnectionProfile {
+function createDefaultLockProfile(sessionId = DEFAULT_LOCK_SESSION_ID): LockConnectionProfile {
   return {
-    id: createId('pad'),
-    name: `PAD-${sessionId}`,
+    id: createId('lock'),
+    name: `Lock-${sessionId}`,
     sessionId,
     portPath: '',
     baudRate: 9600
@@ -77,13 +77,13 @@ export const useDeviceConnectionsStore = defineStore(
   'device-connections',
   () => {
     const rfidProfiles = ref<RfidConnectionProfile[]>([createDefaultRfidProfile(DEFAULT_RFID_SESSION_ID)])
-    const padProfiles = ref<PadConnectionProfile[]>([createDefaultPadProfile(DEFAULT_PAD_SESSION_ID)])
+    const lockProfiles = ref<LockConnectionProfile[]>([createDefaultLockProfile(DEFAULT_LOCK_SESSION_ID)])
 
     const activeRfidSessionId = ref(DEFAULT_RFID_SESSION_ID)
-    const activePadSessionId = ref(DEFAULT_PAD_SESSION_ID)
+    const activeLockSessionId = ref(DEFAULT_LOCK_SESSION_ID)
 
     const rfidRuntimeMap = ref<Record<number, RfidRuntimeStatus>>({})
-    const padRuntimeMap = ref<Record<number, PadRuntimeStatus>>({})
+    const lockRuntimeMap = ref<Record<number, LockRuntimeStatus>>({})
 
     const rfidSessionOptions = computed(() =>
       rfidProfiles.value
@@ -94,8 +94,8 @@ export const useDeviceConnectionsStore = defineStore(
         .sort((a, b) => a.value - b.value)
     )
 
-    const padSessionOptions = computed(() =>
-      padProfiles.value
+    const lockSessionOptions = computed(() =>
+      lockProfiles.value
         .map((item) => ({
           label: `${item.name} (Session ${item.sessionId})`,
           value: item.sessionId
@@ -107,8 +107,8 @@ export const useDeviceConnectionsStore = defineStore(
       activeRfidSessionId.value = normalizeSessionId(sessionId, DEFAULT_RFID_SESSION_ID)
     }
 
-    const setActivePadSession = (sessionId: number) => {
-      activePadSessionId.value = normalizeSessionId(sessionId, DEFAULT_PAD_SESSION_ID)
+    const setActiveLockSession = (sessionId: number) => {
+      activeLockSessionId.value = normalizeSessionId(sessionId, DEFAULT_LOCK_SESSION_ID)
     }
 
     const addRfidProfile = () => {
@@ -135,27 +135,27 @@ export const useDeviceConnectionsStore = defineStore(
       }
     }
 
-    const addPadProfile = () => {
+    const addLockProfile = () => {
       const nextSessionId =
-        Math.max(-1, ...padProfiles.value.map((item) => normalizeSessionId(item.sessionId, 0))) + 1
-      const profile = createDefaultPadProfile(nextSessionId)
-      padProfiles.value.push(profile)
+        Math.max(-1, ...lockProfiles.value.map((item) => normalizeSessionId(item.sessionId, 0))) + 1
+      const profile = createDefaultLockProfile(nextSessionId)
+      lockProfiles.value.push(profile)
       return profile
     }
 
-    const removePadProfile = (id: string) => {
-      const index = padProfiles.value.findIndex((item) => item.id === id)
+    const removeLockProfile = (id: string) => {
+      const index = lockProfiles.value.findIndex((item) => item.id === id)
       if (index === -1) {
         return
       }
 
-      const [removed] = padProfiles.value.splice(index, 1)
-      if (!padProfiles.value.length) {
-        padProfiles.value.push(createDefaultPadProfile(DEFAULT_PAD_SESSION_ID))
+      const [removed] = lockProfiles.value.splice(index, 1)
+      if (!lockProfiles.value.length) {
+        lockProfiles.value.push(createDefaultLockProfile(DEFAULT_LOCK_SESSION_ID))
       }
 
-      if (removed?.sessionId === activePadSessionId.value) {
-        setActivePadSession(padProfiles.value[0]?.sessionId ?? DEFAULT_PAD_SESSION_ID)
+      if (removed?.sessionId === activeLockSessionId.value) {
+        setActiveLockSession(lockProfiles.value[0]?.sessionId ?? DEFAULT_LOCK_SESSION_ID)
       }
     }
 
@@ -171,10 +171,10 @@ export const useDeviceConnectionsStore = defineStore(
       }
     }
 
-    const updatePadRuntimeStatus = (snapshot: PadDeviceSnapshot) => {
-      const sessionId = normalizeSessionId(snapshot.sessionId, DEFAULT_PAD_SESSION_ID)
-      padRuntimeMap.value = {
-        ...padRuntimeMap.value,
+    const updateLockRuntimeStatus = (snapshot: LockDeviceSnapshot) => {
+      const sessionId = normalizeSessionId(snapshot.sessionId, DEFAULT_LOCK_SESSION_ID)
+      lockRuntimeMap.value = {
+        ...lockRuntimeMap.value,
         [sessionId]: {
           connected: snapshot.connected,
           lastError: snapshot.lastError
@@ -193,10 +193,10 @@ export const useDeviceConnectionsStore = defineStore(
       )
     }
 
-    const getPadRuntimeStatus = (sessionId: number): PadRuntimeStatus => {
-      const targetSessionId = normalizeSessionId(sessionId, DEFAULT_PAD_SESSION_ID)
+    const getLockRuntimeStatus = (sessionId: number): LockRuntimeStatus => {
+      const targetSessionId = normalizeSessionId(sessionId, DEFAULT_LOCK_SESSION_ID)
       return (
-        padRuntimeMap.value[targetSessionId] ?? {
+        lockRuntimeMap.value[targetSessionId] ?? {
           connected: false,
           lastError: null
         }
@@ -205,30 +205,30 @@ export const useDeviceConnectionsStore = defineStore(
 
     return {
       rfidProfiles,
-      padProfiles,
+      lockProfiles,
       activeRfidSessionId,
-      activePadSessionId,
+      activeLockSessionId,
       rfidRuntimeMap,
-      padRuntimeMap,
+      lockRuntimeMap,
       rfidSessionOptions,
-      padSessionOptions,
+      lockSessionOptions,
       setActiveRfidSession,
-      setActivePadSession,
+      setActiveLockSession,
       addRfidProfile,
       removeRfidProfile,
-      addPadProfile,
-      removePadProfile,
+      addLockProfile,
+      removeLockProfile,
       updateRfidRuntimeStatus,
-      updatePadRuntimeStatus,
+      updateLockRuntimeStatus,
       getRfidRuntimeStatus,
-      getPadRuntimeStatus
+      getLockRuntimeStatus
     }
   },
   {
     persist: {
       key: 'device-connections-store',
       storage: localStorage,
-      pick: ['rfidProfiles', 'padProfiles', 'activeRfidSessionId', 'activePadSessionId']
+      pick: ['rfidProfiles', 'lockProfiles', 'activeRfidSessionId', 'activeLockSessionId']
     }
   }
 )

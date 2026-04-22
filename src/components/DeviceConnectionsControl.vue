@@ -3,11 +3,8 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { Notify, type QTableColumn } from 'quasar'
 import DeviceSettingsButton from './DeviceSettingsButton.vue'
-import {
-  transportSessionHub,
-  type TransportConnectionMode
-} from './transport/TransportSessionHub'
 import { useDeviceConnectionsStore, type DeviceConnectionProfile } from '../stores/deviceConnections'
+import type { TransportConnectionMode } from '../types/connection'
 
 defineOptions({ name: 'device-connections-control' })
 
@@ -178,7 +175,7 @@ const refreshSerialOptions = async () => {
   serialOptions.value = [{ label: '请选择串口', value: '' }]
 
   try {
-    const ports = await transportSessionHub.listSerialPorts()
+    const ports = await window.serial.list()
     ports.forEach((item: any) => {
       serialOptions.value.push({
         label: item.friendlyName || item.path,
@@ -201,7 +198,20 @@ const connectProfile = async (profile: DeviceConnectionProfile) => {
   try {
     const sessionId = requireSessionId(profile.sessionId)
     ensureUniqueSession(sessionId, connectionProfiles.value, profile.id)
-    await transportSessionHub.connect(profile)
+
+    if (profile.mode === 'serial') {
+      await window.serial.open({
+        sessionId,
+        path: profile.portPath,
+        baudRate: Number(profile.baudRate) || 9600
+      })
+    } else {
+      await window.tcp.connect({
+        sessionId,
+        host: profile.host,
+        port: Number(profile.port)
+      })
+    }
 
     Notify.create({
       type: 'positive',
@@ -222,7 +232,13 @@ const connectProfile = async (profile: DeviceConnectionProfile) => {
 const disconnectProfile = async (profile: DeviceConnectionProfile) => {
   try {
     const sessionId = requireSessionId(profile.sessionId)
-    await transportSessionHub.disconnect(sessionId)
+    if (profile.mode === 'serial') {
+      const session = window.serial.getSessionById(sessionId)
+      await session.close()
+    } else {
+      const session = window.tcp.getSessionById(sessionId)
+      await session.disconnect()
+    }
 
     Notify.create({
       type: 'positive',
@@ -373,26 +389,105 @@ const handleRemove = (profile: DeviceConnectionProfile) => {
   })
 }
 
+const statusDisposers = new Map<
+  number,
+  {
+    mode: TransportConnectionMode
+    dispose: () => void
+  }
+>()
+
+const wireSessionStatus = (profile: DeviceConnectionProfile) => {
+  const sessionId = requireSessionId(profile.sessionId)
+
+  const markConnected = () => {
+    deviceConnectionsStore.updateRuntimeStatus({
+      sessionId,
+      mode: profile.mode,
+      connected: true,
+      lastError: null
+    })
+  }
+
+  const markDisconnected = () => {
+    deviceConnectionsStore.updateRuntimeStatus({
+      sessionId,
+      mode: profile.mode,
+      connected: false,
+      lastError: getRuntimeStatus(sessionId).lastError
+    })
+  }
+
+  const markError = (message: string) => {
+    deviceConnectionsStore.updateRuntimeStatus({
+      sessionId,
+      mode: profile.mode,
+      connected: false,
+      lastError: String(message ?? '')
+    })
+  }
+
+  if (profile.mode === 'serial') {
+    const session = window.serial.getSessionById(sessionId)
+    const disposers = [
+      session.onOpen(markConnected),
+      session.onClose(markDisconnected),
+      session.onError((payload: { message: string }) => markError(payload.message))
+    ]
+
+    return () => {
+      disposers.forEach((dispose) => dispose())
+    }
+  }
+
+  const session = window.tcp.getSessionById(sessionId)
+  const disposers = [
+    session.onConnect(markConnected),
+    session.onClose(markDisconnected),
+    session.onError((payload: { message: string }) => markError(payload.message))
+  ]
+
+  return () => {
+    disposers.forEach((dispose) => dispose())
+  }
+}
+
 watch(
   connectionProfiles,
   (profiles) => {
-    transportSessionHub.applyProfiles(profiles)
+    const activeSessionIds = new Set<number>()
+
+    profiles.forEach((profile) => {
+      const sessionId = requireSessionId(profile.sessionId)
+      activeSessionIds.add(sessionId)
+
+      const existing = statusDisposers.get(sessionId)
+      if (!existing || existing.mode !== profile.mode) {
+        existing?.dispose()
+        const dispose = wireSessionStatus(profile)
+        statusDisposers.set(sessionId, {
+          mode: profile.mode,
+          dispose
+        })
+      }
+    })
+
+    Array.from(statusDisposers.entries()).forEach(([sessionId, entry]) => {
+      if (activeSessionIds.has(sessionId)) return
+      entry.dispose()
+      statusDisposers.delete(sessionId)
+    })
   },
   { deep: true, immediate: true }
 )
 
-let disposeTransportStatus = () => {}
-
 onMounted(() => {
   void refreshSerialOptions()
-
-  disposeTransportStatus = transportSessionHub.subscribeStatus((snapshot) => {
-    deviceConnectionsStore.updateRuntimeStatus(snapshot)
-  })
 })
 
 onUnmounted(() => {
-  disposeTransportStatus()
+  statusDisposers.forEach((entry) => entry.dispose())
+  statusDisposers.clear()
 })
 </script>
 

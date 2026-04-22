@@ -1,8 +1,5 @@
 import { normalizeHex } from './GuoXinCommon'
-import {
-  transportSessionHub,
-  type TransportConnectionMode
-} from '../../transport/TransportSessionHub'
+import type { TransportConnectionMode } from '../../../types/connection'
 
 export type GuoxinConnectionMode = TransportConnectionMode
 
@@ -27,11 +24,14 @@ export interface GuoxinDeviceSnapshot {
 type GuoxinSessionState = {
   mode: GuoxinConnectionMode
   antNum: number
+  connected: boolean
+  lastError: string | null
   rxBuffers: Record<GuoxinConnectionMode, string>
 }
 
 const DEFAULT_GUOXIN_SESSION_ID = 0
 const DEFAULT_GUOXIN_ANT_NUM = 4
+const DEFAULT_MODE: GuoxinConnectionMode = 'tcp'
 const FRAME_HEAD = '5A'
 const FRAME_MIN_HEAD_CHARS = 14
 const FRAME_FIXED_CHARS = 18
@@ -47,6 +47,8 @@ const normalizeSessionId = (sessionId?: number) => {
 const createSessionState = (mode: GuoxinConnectionMode): GuoxinSessionState => ({
   mode,
   antNum: DEFAULT_GUOXIN_ANT_NUM,
+  connected: false,
+  lastError: null,
   rxBuffers: {
     serial: '',
     tcp: ''
@@ -54,10 +56,11 @@ const createSessionState = (mode: GuoxinConnectionMode): GuoxinSessionState => (
 })
 
 class GuoXinDevice {
-  private initialized = false
   private activeSessionId = DEFAULT_GUOXIN_SESSION_ID
 
   private sessionStates = new Map<number, GuoxinSessionState>()
+  private sessionDisposers = new Map<number, Array<() => void>>()
+
   private commandDataListeners = new Map<number, Set<GuoXinDataListener>>()
   private rawDataListeners = new Set<GuoXinRawDataListener>()
   private statusListeners = new Set<GuoXinStatusListener>()
@@ -81,6 +84,7 @@ class GuoXinDevice {
   setActiveSession(sessionId: number) {
     const targetSessionId = this.activateSession(sessionId)
     this.getSessionState(targetSessionId)
+    this.ensureSessionWired(targetSessionId)
     this.emitStatus(targetSessionId)
   }
 
@@ -106,14 +110,13 @@ class GuoXinDevice {
   getSnapshot(sessionId = this.activeSessionId): GuoxinDeviceSnapshot {
     const targetSessionId = normalizeSessionId(sessionId)
     const state = this.getSessionState(targetSessionId)
-    const runtime = transportSessionHub.getSnapshot(targetSessionId)
 
     return {
-      mode: runtime.mode,
+      mode: state.mode,
       sessionId: targetSessionId,
-      connected: runtime.connected,
+      connected: state.connected,
       antNum: state.antNum,
-      lastError: runtime.lastError
+      lastError: state.lastError
     }
   }
 
@@ -127,7 +130,6 @@ class GuoXinDevice {
   }
 
   subscribeStatus(listener: GuoXinStatusListener) {
-    this.ensureInitialized()
     this.statusListeners.add(listener)
     listener(this.getSnapshot(this.activeSessionId))
 
@@ -137,7 +139,6 @@ class GuoXinDevice {
   }
 
   subscribeRawData(listener: GuoXinRawDataListener) {
-    this.ensureInitialized()
     this.rawDataListeners.add(listener)
 
     return () => {
@@ -146,23 +147,30 @@ class GuoXinDevice {
   }
 
   sendMessageNew(hex: string, sessionId = this.activeSessionId) {
-    this.ensureInitialized()
-
     const targetSessionId = this.activateSession(sessionId)
-    const snapshot = this.getSnapshot(targetSessionId)
-
-    if (!snapshot.connected) {
-      throw new Error(`国芯 RFID 会话[${targetSessionId}]未连接`)
-    }
+    this.getSessionState(targetSessionId)
+    this.ensureSessionWired(targetSessionId)
 
     const payload = normalizeHex(hex)
-    void transportSessionHub.sendHex(payload, targetSessionId)
+    if (!payload) {
+      throw new Error('HEX 不能为空')
+    }
+    if (!/^[0-9A-F]+$/.test(payload) || payload.length % 2 !== 0) {
+      throw new Error('HEX 必须是偶数位十六进制字符')
+    }
+
+    void this.writeHex(targetSessionId, payload).catch((error) => {
+      const state = this.getSessionState(targetSessionId)
+      state.connected = false
+      state.lastError = error instanceof Error ? error.message : String(error)
+      this.emitStatus(targetSessionId)
+    })
   }
 
   on(listener: GuoXinDataListener, sessionId = this.activeSessionId) {
-    this.ensureInitialized()
     const targetSessionId = normalizeSessionId(sessionId)
     this.getSessionState(targetSessionId)
+    this.ensureSessionWired(targetSessionId)
     this.getCommandListeners(targetSessionId).add(listener)
   }
 
@@ -191,35 +199,128 @@ class GuoXinDevice {
     return targetSessionId
   }
 
-  private ensureInitialized() {
-    if (this.initialized) {
+  private ensureSessionWired(sessionId: number) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    if (this.sessionDisposers.has(targetSessionId)) {
       return
     }
 
-    this.initialized = true
+    const disposers: Array<() => void> = []
+    const tcpSession = window.tcp.getSessionById(targetSessionId)
+    const serialSession = window.serial.getSessionById(targetSessionId)
 
-    transportSessionHub.subscribeStatus((snapshot) => {
-      const sessionId = normalizeSessionId(snapshot.sessionId)
-      const state = this.getSessionStateIfExists(sessionId)
-      if (!state) {
-        return
+    disposers.push(
+      tcpSession.onConnect(() => {
+        const state = this.getSessionState(targetSessionId)
+        if (state.mode !== 'tcp') {
+          state.mode = 'tcp'
+          this.resetRxBuffersByState(state)
+        }
+        state.connected = true
+        state.lastError = null
+        this.emitStatus(targetSessionId)
+      }),
+      tcpSession.onClose(() => {
+        const state = this.getSessionState(targetSessionId)
+        if (state.mode !== 'tcp') return
+        state.connected = false
+        this.emitStatus(targetSessionId)
+      })
+    )
+
+    disposers.push(
+      tcpSession.onError((payload: { message: string }) => {
+        const state = this.getSessionState(targetSessionId)
+        if (state.mode !== 'tcp') {
+          state.mode = 'tcp'
+          this.resetRxBuffersByState(state)
+        }
+        state.connected = false
+        state.lastError = payload.message
+        this.emitStatus(targetSessionId)
+      }),
+      tcpSession.onData((payload: { data: string }) => {
+        this.emitData('tcp', targetSessionId, payload.data)
+      })
+    )
+
+    disposers.push(
+      serialSession.onOpen(() => {
+        const state = this.getSessionState(targetSessionId)
+        if (state.mode !== 'serial') {
+          state.mode = 'serial'
+          this.resetRxBuffersByState(state)
+        }
+        state.connected = true
+        state.lastError = null
+        this.emitStatus(targetSessionId)
+      }),
+      serialSession.onClose(() => {
+        const state = this.getSessionState(targetSessionId)
+        if (state.mode !== 'serial') return
+        state.connected = false
+        this.emitStatus(targetSessionId)
+      })
+    )
+
+    disposers.push(
+      serialSession.onError((payload: { message: string }) => {
+        const state = this.getSessionState(targetSessionId)
+        if (state.mode !== 'serial') {
+          state.mode = 'serial'
+          this.resetRxBuffersByState(state)
+        }
+        state.connected = false
+        state.lastError = payload.message
+        this.emitStatus(targetSessionId)
+      }),
+      serialSession.onData((payload: { data: string }) => {
+        this.emitData('serial', targetSessionId, payload.data)
+      })
+    )
+
+    this.sessionDisposers.set(targetSessionId, disposers)
+  }
+
+  private async writeHex(sessionId: number, hex: string) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    const state = this.getSessionState(targetSessionId)
+
+    const tryWrite = async (mode: GuoxinConnectionMode) => {
+      const session =
+        mode === 'serial'
+          ? window.serial.getSessionById(targetSessionId)
+          : window.tcp.getSessionById(targetSessionId)
+
+      const ok = await session.write(hex)
+      if (!ok) {
+        return false
       }
 
-      if (state.mode !== snapshot.mode) {
-        state.mode = snapshot.mode
+      if (state.mode !== mode) {
+        state.mode = mode
         this.resetRxBuffersByState(state)
       }
 
-      this.emitStatus(sessionId)
-    })
-
-    transportSessionHub.subscribeData((sessionId, source, data) => {
-      if (!this.getSessionStateIfExists(sessionId)) {
-        return
+      if (!state.connected || state.lastError) {
+        state.connected = true
+        state.lastError = null
+        this.emitStatus(targetSessionId)
       }
 
-      this.emitData(source, sessionId, data)
-    })
+      return true
+    }
+
+    const primaryOk = await tryWrite(state.mode)
+    if (primaryOk) return
+
+    const fallbackMode: GuoxinConnectionMode =
+      state.mode === 'serial' ? 'tcp' : 'serial'
+    const fallbackOk = await tryWrite(fallbackMode)
+    if (fallbackOk) return
+
+    state.connected = false
+    this.emitStatus(targetSessionId)
   }
 
   private emitData(source: GuoxinConnectionMode, sessionId: number, data: string) {
@@ -228,9 +329,8 @@ class GuoXinDevice {
       return
     }
 
-    const runtime = transportSessionHub.getSnapshot(sessionId)
-    if (state.mode !== runtime.mode) {
-      state.mode = runtime.mode
+    if (state.mode !== source) {
+      state.mode = source
       this.resetRxBuffersByState(state)
     }
 
@@ -327,18 +427,12 @@ class GuoXinDevice {
 
   private getSessionState(sessionId: number) {
     const targetSessionId = normalizeSessionId(sessionId)
-    const runtime = transportSessionHub.getSnapshot(targetSessionId)
-    let state = this.sessionStates.get(targetSessionId)
 
+    let state = this.sessionStates.get(targetSessionId)
     if (!state) {
-      state = createSessionState(runtime.mode)
+      state = createSessionState(DEFAULT_MODE)
       this.sessionStates.set(targetSessionId, state)
       return state
-    }
-
-    if (state.mode !== runtime.mode) {
-      state.mode = runtime.mode
-      this.resetRxBuffersByState(state)
     }
 
     return state
@@ -349,4 +443,4 @@ class GuoXinDevice {
   }
 }
 
-export const guoxinSingleDevice = new GuoXinDevice()
+export const guoxinDevice = new GuoXinDevice()

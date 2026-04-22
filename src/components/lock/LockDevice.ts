@@ -5,10 +5,7 @@ import {
   parseLockFrame,
   type LockParsedFrame
 } from './LockProtocol'
-import {
-  transportSessionHub,
-  type TransportConnectionMode
-} from '../transport/TransportSessionHub'
+import type { TransportConnectionMode } from '../../types/connection'
 
 type LockStatusListener = (snapshot: LockDeviceSnapshot) => void
 type LockRawDataListener = (sessionId: number, data: string) => void
@@ -31,6 +28,12 @@ type LockSessionState = {
   fixedFrameBuffer: string
 }
 
+type LockSessionRuntime = {
+  mode: TransportConnectionMode
+  connected: boolean
+  lastError: string | null
+}
+
 const DEFAULT_LOCK_SESSION_ID = 0
 
 const normalizeSessionId = (sessionId?: number) => {
@@ -46,10 +49,11 @@ const createSessionState = (): LockSessionState => ({
 })
 
 class LockDevice {
-  private initialized = false
   private activeSessionId = DEFAULT_LOCK_SESSION_ID
 
   private sessionStates = new Map<number, LockSessionState>()
+  private sessionRuntime = new Map<number, LockSessionRuntime>()
+  private sessionDisposers = new Map<number, Array<() => void>>()
 
   private statusListeners = new Set<LockStatusListener>()
   private rawDataListeners = new Set<LockRawDataListener>()
@@ -59,13 +63,14 @@ class LockDevice {
     const targetSessionId = normalizeSessionId(sessionId)
     this.activeSessionId = targetSessionId
     this.getSessionState(targetSessionId)
+    this.ensureSessionWired(targetSessionId)
     this.emitStatus(targetSessionId)
   }
 
   getSnapshot(sessionId = this.activeSessionId): LockDeviceSnapshot {
     const targetSessionId = normalizeSessionId(sessionId)
     this.getSessionState(targetSessionId)
-    const runtime = transportSessionHub.getSnapshot(targetSessionId)
+    const runtime = this.getRuntimeState(targetSessionId)
 
     return {
       sessionId: targetSessionId,
@@ -85,7 +90,6 @@ class LockDevice {
   }
 
   subscribeStatus(listener: LockStatusListener) {
-    this.ensureInitialized()
     this.statusListeners.add(listener)
     listener(this.getSnapshot(this.activeSessionId))
 
@@ -95,7 +99,6 @@ class LockDevice {
   }
 
   subscribeRawData(listener: LockRawDataListener) {
-    this.ensureInitialized()
     this.rawDataListeners.add(listener)
 
     return () => {
@@ -104,7 +107,6 @@ class LockDevice {
   }
 
   subscribeFrame(listener: LockFrameListener) {
-    this.ensureInitialized()
     this.frameListeners.add(listener)
 
     return () => {
@@ -113,14 +115,44 @@ class LockDevice {
   }
 
   async sendHex(hex: string, sessionId = this.activeSessionId) {
-    this.ensureInitialized()
-
     const targetSessionId = normalizeSessionId(sessionId)
     this.activeSessionId = targetSessionId
     this.getSessionState(targetSessionId)
+    this.ensureSessionWired(targetSessionId)
 
     const payload = requireLockHexPayload(hex)
-    await transportSessionHub.sendHex(payload, targetSessionId)
+    const runtime = this.getRuntimeState(targetSessionId)
+
+    const primarySession =
+      runtime.mode === 'serial'
+        ? window.serial.getSessionById(targetSessionId)
+        : window.tcp.getSessionById(targetSessionId)
+
+    const primaryOk = await primarySession.write(payload)
+    if (primaryOk) {
+      if (!runtime.connected || runtime.lastError) {
+        runtime.connected = true
+        runtime.lastError = null
+        this.emitStatus(targetSessionId)
+      }
+      return
+    }
+
+    const fallbackSession =
+      runtime.mode === 'serial'
+        ? window.tcp.getSessionById(targetSessionId)
+        : window.serial.getSessionById(targetSessionId)
+
+    const fallbackOk = await fallbackSession.write(payload)
+    if (fallbackOk) {
+      runtime.mode = runtime.mode === 'serial' ? 'tcp' : 'serial'
+      runtime.connected = true
+      runtime.lastError = null
+      this.emitStatus(targetSessionId)
+      return
+    }
+
+    throw new Error(`会话[${targetSessionId}]未连接`)
   }
 
   async requestFrame(
@@ -129,10 +161,9 @@ class LockDevice {
     timeout = 2000,
     sessionId = this.activeSessionId
   ) {
-    this.ensureInitialized()
-
     const targetSessionId = normalizeSessionId(sessionId)
     this.getSessionState(targetSessionId)
+    this.ensureSessionWired(targetSessionId)
 
     return await new Promise<LockParsedFrame>(async (resolve, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -176,10 +207,9 @@ class LockDevice {
     options: LockRawResponseOptions = {},
     sessionId = this.activeSessionId
   ) {
-    this.ensureInitialized()
-
     const targetSessionId = normalizeSessionId(sessionId)
     this.getSessionState(targetSessionId)
+    this.ensureSessionWired(targetSessionId)
     const { timeout = 2000, idleMs = 120, optional = false } = options
 
     return await new Promise<string>(async (resolve, reject) => {
@@ -249,20 +279,80 @@ class LockDevice {
     })
   }
 
-  private ensureInitialized() {
-    if (this.initialized) {
+  private ensureSessionWired(sessionId: number) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    if (this.sessionDisposers.has(targetSessionId)) {
       return
     }
 
-    this.initialized = true
+    const disposers: Array<() => void> = []
 
-    transportSessionHub.subscribeStatus((snapshot) => {
-      this.emitStatus(snapshot.sessionId)
-    })
+    const tcpSession = window.tcp.getSessionById(targetSessionId)
+    const serialSession = window.serial.getSessionById(targetSessionId)
 
-    transportSessionHub.subscribeData((sessionId, _mode, data) => {
-      this.handleIncomingData(sessionId, data)
-    })
+    disposers.push(
+      tcpSession.onConnect(() => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        runtime.mode = 'tcp'
+        runtime.connected = true
+        runtime.lastError = null
+        this.emitStatus(targetSessionId)
+      }),
+      tcpSession.onClose(() => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        if (runtime.mode !== 'tcp') return
+        runtime.connected = false
+        this.emitStatus(targetSessionId)
+      })
+    )
+
+    disposers.push(
+      tcpSession.onError((payload: { message: string }) => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        runtime.mode = 'tcp'
+        runtime.connected = false
+        runtime.lastError = payload.message
+        this.emitStatus(targetSessionId)
+      }),
+      tcpSession.onData((payload: { data: string }) => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        runtime.mode = 'tcp'
+        this.handleIncomingData(targetSessionId, payload.data)
+      })
+    )
+
+    disposers.push(
+      serialSession.onOpen(() => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        runtime.mode = 'serial'
+        runtime.connected = true
+        runtime.lastError = null
+        this.emitStatus(targetSessionId)
+      }),
+      serialSession.onClose(() => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        if (runtime.mode !== 'serial') return
+        runtime.connected = false
+        this.emitStatus(targetSessionId)
+      })
+    )
+
+    disposers.push(
+      serialSession.onError((payload: { message: string }) => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        runtime.mode = 'serial'
+        runtime.connected = false
+        runtime.lastError = payload.message
+        this.emitStatus(targetSessionId)
+      }),
+      serialSession.onData((payload: { data: string }) => {
+        const runtime = this.getRuntimeState(targetSessionId)
+        runtime.mode = 'serial'
+        this.handleIncomingData(targetSessionId, payload.data)
+      })
+    )
+
+    this.sessionDisposers.set(targetSessionId, disposers)
   }
 
   private emitStatus(sessionId: number) {
@@ -305,6 +395,20 @@ class LockDevice {
     if (!state) {
       state = createSessionState()
       this.sessionStates.set(targetSessionId, state)
+    }
+    return state
+  }
+
+  private getRuntimeState(sessionId: number): LockSessionRuntime {
+    const targetSessionId = normalizeSessionId(sessionId)
+    let state = this.sessionRuntime.get(targetSessionId)
+    if (!state) {
+      state = {
+        mode: 'tcp',
+        connected: false,
+        lastError: null
+      }
+      this.sessionRuntime.set(targetSessionId, state)
     }
     return state
   }

@@ -1,5 +1,5 @@
 // 引入国芯设备单例，负责按会话发送串口/TCP 数据。
-import { guoxinSingleDevice } from './GuoXinDevice'
+import { guoxinDevice } from './GuoXinDevice'
 // 引入国芯协议里用到的基础工具函数和类型。
 import {
   antsToHexMask,
@@ -114,7 +114,7 @@ const buildControlWord = (messageId: number) =>
 // 对底层发送动作做一层包装，保持 helper 层调用统一。
 const sendFrame = (frame: string, sessionId?: number) => {
   // 交给设备单例按会话发送。
-  guoxinSingleDevice.sendMessageNew(frame, sessionId)
+  guoxinDevice.sendMessageNew(frame, sessionId)
 }
 
 // 组装一条完整的国芯协议帧。
@@ -270,7 +270,7 @@ export async function stopReadEPC(sessionId?: number): Promise<void> {
  */
 export async function configPower(powerLevels: number[], sessionId?: number): Promise<void> {
   // 从设备状态里拿到当前会话实际配置的天线数量。
-  const antNum = guoxinSingleDevice.getAntNum(sessionId)
+  const antNum = guoxinDevice.getAntNum(sessionId)
   // 把功率数组编码成 payload。
   const payload = buildPowerPayload(powerLevels, antNum)
   // 拼出完整帧。

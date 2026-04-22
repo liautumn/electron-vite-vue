@@ -1,46 +1,101 @@
-import {contextBridge, ipcRenderer} from "electron";
-import {TcpMethods} from '../../../shared/types/tcp';
+import { contextBridge, ipcRenderer } from 'electron'
+import type {
+  TcpApi,
+  TcpConnectRequest,
+  TcpDataEvent,
+  TcpErrorEvent,
+  TcpSession,
+  TcpSessionEvent,
+  TcpSessionId
+} from '../../../shared/types/tcp'
 
 const DEFAULT_TCP_SESSION_ID = 0
 
-const resolveSessionId = (sessionId?: number) =>
-    Number.isInteger(sessionId) ? Number(sessionId) : DEFAULT_TCP_SESSION_ID
+const normalizeSessionId = (value?: number) => {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return DEFAULT_TCP_SESSION_ID
+  }
+  return parsed
+}
+
+const sessions = new Map<number, TcpSession>()
+
+function createTcpSession(sessionId: TcpSessionId): TcpSession {
+  const normalizedSessionId = normalizeSessionId(sessionId)
+
+  return {
+    sessionId: normalizedSessionId,
+
+    disconnect: () => ipcRenderer.invoke('tcp:disconnect', normalizedSessionId),
+
+    write: (hex: string) =>
+      ipcRenderer.invoke('tcp:write', {
+        hex,
+        sessionId: normalizedSessionId
+      }),
+
+    onConnect: (cb: (payload: TcpSessionEvent) => void) => {
+      const handler = (_event: unknown, payload: TcpSessionEvent) => {
+        if (payload?.sessionId !== normalizedSessionId) return
+        cb(payload)
+      }
+      ipcRenderer.on('tcp:connect', handler)
+      return () => ipcRenderer.off('tcp:connect', handler)
+    },
+
+    onClose: (cb: (payload: TcpSessionEvent) => void) => {
+      const handler = (_event: unknown, payload: TcpSessionEvent) => {
+        if (payload?.sessionId !== normalizedSessionId) return
+        cb(payload)
+      }
+      ipcRenderer.on('tcp:close', handler)
+      return () => ipcRenderer.off('tcp:close', handler)
+    },
+
+    onData: (cb: (payload: TcpDataEvent) => void) => {
+      const handler = (_event: unknown, payload: TcpDataEvent) => {
+        if (payload?.sessionId !== normalizedSessionId) return
+        cb(payload)
+      }
+      ipcRenderer.on('tcp:data', handler)
+      return () => ipcRenderer.off('tcp:data', handler)
+    },
+
+    onError: (cb: (payload: TcpErrorEvent) => void) => {
+      const handler = (_event: unknown, payload: TcpErrorEvent) => {
+        if (payload?.sessionId !== normalizedSessionId) return
+        cb(payload)
+      }
+      ipcRenderer.on('tcp:error', handler)
+      return () => ipcRenderer.off('tcp:error', handler)
+    }
+  }
+}
 
 export function registerTcpRenderer() {
-    contextBridge.exposeInMainWorld('tcp', {
-        connect: (options: { sessionId?: number; host: string; port: number }) =>
-            ipcRenderer.invoke('tcp:connect', {
-                ...options,
-                sessionId: resolveSessionId(options?.sessionId)
-            }),
+  const getSessionById = (sessionId: TcpSessionId) => {
+    const normalizedSessionId = normalizeSessionId(sessionId)
+    let session = sessions.get(normalizedSessionId)
+    if (!session) {
+      session = createTcpSession(normalizedSessionId)
+      sessions.set(normalizedSessionId, session)
+    }
+    return session
+  }
 
-        disconnect: (sessionId = DEFAULT_TCP_SESSION_ID) =>
-            ipcRenderer.invoke('tcp:disconnect', resolveSessionId(sessionId)),
+  const api: TcpApi = {
+    connect: (options: TcpConnectRequest) => {
+      const normalizedSessionId = normalizeSessionId(options?.sessionId)
+      getSessionById(normalizedSessionId)
+      return ipcRenderer.invoke('tcp:connect', {
+        ...options,
+        sessionId: normalizedSessionId
+      })
+    },
 
-        write: (hex: string, sessionId = DEFAULT_TCP_SESSION_ID) =>
-            ipcRenderer.invoke('tcp:write', {
-                hex,
-                sessionId: resolveSessionId(sessionId)
-            }),
+    getSessionById
+  }
 
-        onConnect: (cb: (_: any, payload: { sessionId: number }) => void) => {
-            ipcRenderer.on('tcp:connect', cb)
-            return () => ipcRenderer.off('tcp:connect', cb)
-        },
-
-        onClose: (cb: (_: any, payload: { sessionId: number }) => void) => {
-            ipcRenderer.on('tcp:close', cb)
-            return () => ipcRenderer.off('tcp:close', cb)
-        },
-
-        onData: (cb: (_: any, payload: { sessionId: number; data: string }) => void) => {
-            ipcRenderer.on('tcp:data', cb)
-            return () => ipcRenderer.off('tcp:data', cb)
-        },
-
-        onError: (cb: (_: any, payload: { sessionId: number; message: string }) => void) => {
-            ipcRenderer.on('tcp:error', cb)
-            return () => ipcRenderer.off('tcp:error', cb)
-        },
-    } as TcpMethods)
+  contextBridge.exposeInMainWorld('tcp', api)
 }

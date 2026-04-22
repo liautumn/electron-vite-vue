@@ -2,9 +2,8 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   TransportConnectionMode,
-  TransportConnectionProfile,
-  TransportSessionSnapshot
-} from '../components/transport/TransportSessionHub'
+  TransportConnectionProfile
+} from '../types/connection'
 
 export type DeviceConnectionProfile = TransportConnectionProfile
 
@@ -121,7 +120,12 @@ export const useDeviceConnectionsStore = defineStore(
       }
     }
 
-    const updateRuntimeStatus = (snapshot: TransportSessionSnapshot) => {
+    const updateRuntimeStatus = (snapshot: {
+      sessionId: number
+      mode: TransportConnectionMode
+      connected: boolean
+      lastError: string | null
+    }) => {
       const sessionId = normalizeSessionId(snapshot.sessionId)
       runtimeMap.value = {
         ...runtimeMap.value,

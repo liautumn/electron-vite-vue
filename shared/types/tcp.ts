@@ -1,9 +1,12 @@
 export type TcpSessionId = number
 
 export interface TcpConnectOptions {
-    sessionId?: TcpSessionId
     host: string
     port: number
+}
+
+export interface TcpConnectRequest extends TcpConnectOptions {
+    sessionId?: TcpSessionId
 }
 
 export interface TcpSessionEvent {
@@ -18,25 +21,31 @@ export interface TcpErrorEvent extends TcpSessionEvent {
     message: string
 }
 
-export interface TcpMethods {
-    /** 连接 TCP */
-    connect(options: TcpConnectOptions): Promise<boolean>
+export interface TcpSession {
+    sessionId: TcpSessionId
 
     /** 断开 TCP */
-    disconnect(sessionId?: TcpSessionId): Promise<boolean>
+    disconnect(): Promise<boolean>
 
     /** 发送十六进制数据 */
-    write(hex: string, sessionId?: TcpSessionId): Promise<boolean>
+    write(hex: string): Promise<boolean>
 
     /** 连接成功事件 */
-    onConnect(cb: (event: Electron.IpcRendererEvent, payload: TcpSessionEvent) => void): () => void
+    onConnect(cb: (payload: TcpSessionEvent) => void): () => void
 
     /** 连接关闭事件 */
-    onClose(cb: (event: Electron.IpcRendererEvent, payload: TcpSessionEvent) => void): () => void
+    onClose(cb: (payload: TcpSessionEvent) => void): () => void
 
     /** TCP 数据事件 */
-    onData(cb: (event: Electron.IpcRendererEvent, payload: TcpDataEvent) => void): () => void
+    onData(cb: (payload: TcpDataEvent) => void): () => void
 
     /** TCP 错误事件 */
-    onError(cb: (event: Electron.IpcRendererEvent, payload: TcpErrorEvent) => void): () => void
+    onError(cb: (payload: TcpErrorEvent) => void): () => void
+}
+
+export interface TcpApi {
+    /** 连接 TCP */
+    connect(options: TcpConnectRequest): Promise<boolean>
+
+    getSessionById(sessionId: TcpSessionId): TcpSession
 }

@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import net, { Socket } from 'node:net'
 import {createLogger} from '../utils/logger'
-import type { TcpConnectOptions } from '../../../shared/types/tcp'
+import type { TcpConnectOptions, TcpConnectRequest } from '../../../shared/types/tcp'
 
 type TcpWriteRequest =
   | string
@@ -118,7 +118,7 @@ export function registerTcp(mainWindow: BrowserWindow) {
   tcpRegistered = true
   log.info('TCP IPC handlers registered')
 
-  ipcMain.handle('tcp:connect', async (_, options: TcpConnectOptions) => {
+  ipcMain.handle('tcp:connect', async (_, options: TcpConnectRequest) => {
     const sessionId = resolveSessionId(options?.sessionId)
 
     log.info('Connecting TCP socket', {

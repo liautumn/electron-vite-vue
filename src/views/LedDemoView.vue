@@ -17,7 +17,6 @@ import {
   turnOffAllLeds,
   turnOffSingleLed
 } from '../components/led/LedHelper'
-import { transportSessionHub } from '../components/transport/TransportSessionHub'
 import { useDeviceConnectionsStore } from '../stores/deviceConnections'
 
 defineOptions({ name: 'led-demo' })
@@ -164,6 +163,48 @@ function syncSnapshot(targetSessionId: number) {
   lastError.value = currentSnapshot.lastError ?? ''
 }
 
+function wireSession(targetSessionId: number) {
+  disposeStatusListener()
+  disposeDataListener()
+
+  const tcpSession = window.tcp.getSessionById(targetSessionId)
+  const serialSession = window.serial.getSessionById(targetSessionId)
+
+  const updateStatus = () => {
+    const currentSnapshot = ledSingleDevice.getSnapshot(targetSessionId)
+    connected.value = currentSnapshot.connected
+    lastError.value = currentSnapshot.lastError ?? ''
+  }
+
+  const statusDisposers = [
+    tcpSession.onConnect(updateStatus),
+    tcpSession.onClose(updateStatus),
+    tcpSession.onError(updateStatus),
+    serialSession.onOpen(updateStatus),
+    serialSession.onClose(updateStatus),
+    serialSession.onError(updateStatus)
+  ]
+
+  disposeStatusListener = () => {
+    statusDisposers.forEach((dispose) => dispose())
+  }
+
+  const dataDisposers = [
+    tcpSession.onData((payload: { data: string }) => {
+      appendLog(`会话[${targetSessionId}] RX ${formatHex(payload.data)}`)
+    }),
+    serialSession.onData((payload: { data: string }) => {
+      appendLog(`会话[${targetSessionId}] RX ${formatHex(payload.data)}`)
+    })
+  ]
+
+  disposeDataListener = () => {
+    dataDisposers.forEach((dispose) => dispose())
+  }
+
+  updateStatus()
+}
+
 const singleCommandPreview = computed(() => {
   try {
     const commandHex = buildShowSingleLedCommand(
@@ -289,27 +330,7 @@ onMounted(() => {
   const targetSessionId = parseSessionId(sessionId.value) ?? 0
   ledSingleDevice.setActiveSession(targetSessionId)
   syncSnapshot(targetSessionId)
-
-  disposeStatusListener = transportSessionHub.subscribeStatus((state) => {
-    const activeSessionId = parseSessionId(sessionId.value)
-    if (activeSessionId === null || state.sessionId !== activeSessionId) {
-      return
-    }
-
-    connected.value = state.connected
-    lastError.value = state.lastError ?? ''
-  })
-
-  disposeDataListener = transportSessionHub.subscribeData(
-    (incomingSessionId, _mode, data) => {
-      const activeSessionId = parseSessionId(sessionId.value)
-      if (activeSessionId === null || incomingSessionId !== activeSessionId) {
-        return
-      }
-
-      appendLog(`会话[${incomingSessionId}] RX ${formatHex(data)}`)
-    }
-  )
+  wireSession(targetSessionId)
 })
 
 watch(sessionId, (nextSessionId) => {
@@ -323,6 +344,7 @@ watch(sessionId, (nextSessionId) => {
   }
   ledSingleDevice.setActiveSession(parsedSessionId)
   syncSnapshot(parsedSessionId)
+  wireSession(parsedSessionId)
 })
 
 watch(

@@ -13,7 +13,7 @@ import {
 } from './GuoXinCommon'
 
 // 引入设备单例，用来按会话挂载/移除监听器。
-import { guoxinSingleDevice } from './GuoXinDevice'
+import { guoxinDevice } from './GuoXinDevice'
 
 // 统一约束“发送动作”函数签名。
 type SendAction = () => void
@@ -39,7 +39,7 @@ const SUCCESS_PAYLOAD = '00'
 
 // 如果外部没显式传会话，就回退到当前激活会话。
 function resolveSessionId(sessionId?: number) {
-  return sessionId ?? guoxinSingleDevice.currentSessionId
+  return sessionId ?? guoxinDevice.currentSessionId
 }
 
 // 把未知异常统一收敛成 Error 对象，避免后续到处判断类型。
@@ -113,11 +113,11 @@ function waitForSingleResponse<T>(options: SingleResponseOptions<T>): Promise<T>
       // 停掉超时计时。
       clearTimeout(timer)
       // 从目标会话移除当前监听器。
-      guoxinSingleDevice.off(handler, targetSessionId)
+      guoxinDevice.off(handler, targetSessionId)
     }
 
     // 先注册监听，再发送指令，避免设备回包太快被漏掉。
-    guoxinSingleDevice.on(handler, targetSessionId)
+    guoxinDevice.on(handler, targetSessionId)
 
     // 如果调用方只是想单纯挂等待器，不要求立即发送，则到这里直接返回。
     if (!send) {
@@ -265,11 +265,11 @@ export function readEPCParseFrame(
     // 清掉超时定时器。
     clearTimeout(timer)
     // 从当前会话移除监听器。
-    guoxinSingleDevice.off(handler, targetSessionId)
+    guoxinDevice.off(handler, targetSessionId)
   }
 
   // 先监听，再发命令。
-  guoxinSingleDevice.on(handler, targetSessionId)
+  guoxinDevice.on(handler, targetSessionId)
 
   // 如果这里只想单纯开始监听，不要求立即发送，则直接结束函数。
   if (!send) {
@@ -318,7 +318,7 @@ export function readEPCContinuousParseFrame(
   }
 
   // 注册监听器。
-  guoxinSingleDevice.on(handler, targetSessionId)
+  guoxinDevice.on(handler, targetSessionId)
 
   // 如果要求立即发送连续盘存指令，就在监听就位后执行。
   if (send) {
@@ -327,7 +327,7 @@ export function readEPCContinuousParseFrame(
       send()
     } catch (error) {
       // 发送失败时移除监听器，避免遗留脏监听。
-      guoxinSingleDevice.off(handler, targetSessionId)
+      guoxinDevice.off(handler, targetSessionId)
       // 把异常继续向上抛。
       throw toError(error)
     }
@@ -336,7 +336,7 @@ export function readEPCContinuousParseFrame(
   // 返回一个取消函数，供外层主动停止监听。
   return () => {
     // 把当前监听器从目标会话卸载掉。
-    guoxinSingleDevice.off(handler, targetSessionId)
+    guoxinDevice.off(handler, targetSessionId)
   }
 }
 

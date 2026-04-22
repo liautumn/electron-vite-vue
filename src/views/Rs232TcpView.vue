@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
-import type { IpcRendererEvent } from 'electron'
 
 type SelectOption<T = string | number | boolean> = {
   label: string
@@ -116,10 +115,10 @@ const connect = () => {
 
 const disconnect = () => {
   if (isRs232.value) {
-    window.serial.close(SESSION_ID)
+    window.serial.getSessionById(SESSION_ID).close()
     return
   }
-  window.tcp.disconnect(SESSION_ID)
+  window.tcp.getSessionById(SESSION_ID).disconnect()
 }
 
 // 校验 HEX 并按当前模式发送。
@@ -137,9 +136,9 @@ const sendData = () => {
   }
 
   if (isRs232.value) {
-    window.serial.write(payload, SESSION_ID)
+    window.serial.getSessionById(SESSION_ID).write(payload)
   } else {
-    window.tcp.write(payload, SESSION_ID)
+    window.tcp.getSessionById(SESSION_ID).write(payload)
   }
   appendLog(`${modeLabel.value} TX: ${payload}`)
 }
@@ -158,10 +157,10 @@ const clearLog = () => {
 // 按模式关闭连接。
 const closeByMode = (target: Mode) => {
   if (target === 'rs232') {
-    window.serial.close(SESSION_ID)
+    window.serial.getSessionById(SESSION_ID).close()
     return
   }
-  window.tcp.disconnect(SESSION_ID)
+  window.tcp.getSessionById(SESSION_ID).disconnect()
 }
 
 // 切换模式时清理旧连接并准备新模式。
@@ -178,56 +177,48 @@ onMounted(() => {
     refreshPorts()
   }
 
-  window.serial.onOpen((_event: IpcRendererEvent, payload: SessionEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
+  const serialSession = window.serial.getSessionById(SESSION_ID)
+  const tcpSession = window.tcp.getSessionById(SESSION_ID)
+  const disposers: Array<() => void> = []
 
+  disposers.push(serialSession.onOpen(() => {
     serialConnected.value = true
     appendLog('RS232 已连接')
-  })
+  }))
 
-  window.serial.onClose((_event: IpcRendererEvent, payload: SessionEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
-
+  disposers.push(serialSession.onClose(() => {
     serialConnected.value = false
     appendLog('RS232 已断开')
-  })
+  }))
 
-  window.serial.onData((_event: IpcRendererEvent, payload: DataEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
-
+  disposers.push(serialSession.onData((payload: DataEvent) => {
     handleRx('RS232', payload.data)
-  })
+  }))
 
-  window.serial.onError((_event: IpcRendererEvent, payload: ErrorEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
-
+  disposers.push(serialSession.onError((payload: ErrorEvent) => {
     appendLog(`RS232 错误: ${payload.message}`)
-  })
+  }))
 
-  window.tcp.onConnect((_event: IpcRendererEvent, payload: SessionEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
-
+  disposers.push(tcpSession.onConnect(() => {
     tcpConnected.value = true
     appendLog('TCP 已连接')
-  })
+  }))
 
-  window.tcp.onClose((_event: IpcRendererEvent, payload: SessionEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
-
+  disposers.push(tcpSession.onClose(() => {
     tcpConnected.value = false
     appendLog('TCP 已断开')
-  })
+  }))
 
-  window.tcp.onData((_event: IpcRendererEvent, payload: DataEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
-
+  disposers.push(tcpSession.onData((payload: DataEvent) => {
     handleRx('TCP', payload.data)
-  })
+  }))
 
-  window.tcp.onError((_event: IpcRendererEvent, payload: ErrorEvent) => {
-    if (payload.sessionId !== SESSION_ID) return
-
+  disposers.push(tcpSession.onError((payload: ErrorEvent) => {
     appendLog(`TCP 错误: ${payload.message}`)
+  }))
+
+  onUnmounted(() => {
+    disposers.forEach((dispose) => dispose())
   })
 })
 

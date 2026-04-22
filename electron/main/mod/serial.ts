@@ -1,7 +1,7 @@
 import { SerialPort } from 'serialport'
 import { BrowserWindow, ipcMain } from 'electron'
 import {createLogger} from '../utils/logger'
-import type { SerialOpenOptions } from '../../../shared/types/serial'
+import type { SerialOpenOptions, SerialOpenRequest } from '../../../shared/types/serial'
 
 type SerialWriteRequest =
   | string
@@ -134,7 +134,7 @@ export function registerSerial(mainWindow: BrowserWindow) {
   })
 
   /* 打开串口 */
-  ipcMain.handle('serial:open', async (_, options: SerialOpenOptions) => {
+  ipcMain.handle('serial:open', async (_, options: SerialOpenRequest) => {
     const sessionId = resolveSessionId(options?.sessionId)
 
     log.info('Opening serial port', {

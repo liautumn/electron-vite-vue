@@ -111,6 +111,19 @@
           "permission": "app:demos:lock",
           "type": "menu"
         }
+      },
+      {
+        "path": "led-demo",
+        "name": "led-demo",
+        "component": "LedDemoView",
+        "alias": "/led-demo",
+        "meta": {
+          "title": "LED 指示灯控制",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:led",
+          "type": "menu"
+        }
       }
     ]
   },

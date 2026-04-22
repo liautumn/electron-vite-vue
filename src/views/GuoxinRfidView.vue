@@ -2,7 +2,7 @@
 import {storeToRefs} from 'pinia'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {Notify} from 'quasar'
-import {guoxinSingleDevice} from '../components/rfid/guoxin/GuoXinDevice'
+import {guoxinDevice} from '../components/rfid/guoxin/GuoXinDevice'
 import type {IRFIDTagReadMessage} from '../components/rfid/guoxin/GuoXinCommon'
 import {normalizeHex} from '../components/rfid/guoxin/GuoXinCommon'
 import {
@@ -20,7 +20,7 @@ import {useDeviceConnectionsStore} from '../stores/deviceConnections'
 
 defineOptions({name: 'guoxin-rfid-demo'})
 
-const snapshot = guoxinSingleDevice.getSnapshot()
+const snapshot = guoxinDevice.getSnapshot()
 
 const rfidStore = useGuoxinRfidStore()
 const {config: rfidConfig} = storeToRefs(rfidStore)
@@ -182,7 +182,7 @@ function parseAntennas(input: string, antennaCount = Number.POSITIVE_INFINITY) {
 
 function syncDeviceAntNum() {
   const connectionSessionId = requireSessionId(rfidConfig.value.connectionSessionId)
-  guoxinSingleDevice.setAntNum(rfidConfig.value.antennaCount, connectionSessionId)
+  guoxinDevice.setAntNum(rfidConfig.value.antennaCount, connectionSessionId)
 }
 
 function handleTagData(data: IRFIDTagReadMessage | null) {
@@ -405,7 +405,7 @@ function sendRawHex() {
     if (!payload) {
       throw new Error('请输入待发送的 HEX')
     }
-    guoxinSingleDevice.sendMessageNew(payload, connectionSessionId)
+    guoxinDevice.sendMessageNew(payload, connectionSessionId)
     appendLog(`会话[${connectionSessionId}]TX: ${payload}`)
   } catch (error) {
     const messageText = resolveError(error)
@@ -423,8 +423,8 @@ watch(() => rfidConfig.value.connectionSessionId, (nextSessionId) => {
   if (activeRfidSessionId.value !== sessionId) {
     deviceConnectionsStore.setActiveRfidSession(sessionId)
   }
-  guoxinSingleDevice.setActiveSession(sessionId)
-  const snapshot = guoxinSingleDevice.getSnapshot(sessionId)
+  guoxinDevice.setActiveSession(sessionId)
+  const snapshot = guoxinDevice.getSnapshot(sessionId)
   connected.value = snapshot.connected
   currentMode.value = snapshot.mode
   lastError.value = snapshot.lastError ?? ''
@@ -447,13 +447,13 @@ watch(() => rfidConfig.value.antennaCount, (nextCount) => {
 
 onMounted(() => {
   const sessionId = requireSessionId(rfidConfig.value.connectionSessionId)
-  guoxinSingleDevice.setActiveSession(sessionId)
-  const snapshot = guoxinSingleDevice.getSnapshot(sessionId)
+  guoxinDevice.setActiveSession(sessionId)
+  const snapshot = guoxinDevice.getSnapshot(sessionId)
   connected.value = snapshot.connected
   currentMode.value = snapshot.mode
   lastError.value = snapshot.lastError ?? ''
 
-  disposeStatusListener = guoxinSingleDevice.subscribeStatus((state) => {
+  disposeStatusListener = guoxinDevice.subscribeStatus((state) => {
     if (state.sessionId !== rfidConfig.value.connectionSessionId) {
       return
     }
@@ -462,7 +462,7 @@ onMounted(() => {
     lastError.value = state.lastError ?? ''
   })
 
-  disposeRawListener = guoxinSingleDevice.subscribeRawData((sessionId, source, data) => {
+  disposeRawListener = guoxinDevice.subscribeRawData((sessionId, source, data) => {
     if (sessionId !== rfidConfig.value.connectionSessionId) return
     appendLog(`会话[${sessionId}] ${source.toUpperCase()} RX: ${data}`)
   })

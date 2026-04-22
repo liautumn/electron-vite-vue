@@ -6,7 +6,6 @@ import { ledSingleDevice } from '../components/led/LedDevice'
 import {
   buildShowAllLedsCommand,
   buildShowSingleLedCommand,
-  DEFAULT_LED_BRIGHTNESS,
   DEFAULT_LED_MODULE_ID,
   type LedColorCode,
   type LedDisplayMode
@@ -67,7 +66,6 @@ const singleColor = ref<LedColorCode>(0x01)
 
 const allMode = ref<LedDisplayMode>(0x00)
 const allColor = ref<LedColorCode>(0x01)
-const allBrightness = ref<number | null>(DEFAULT_LED_BRIGHTNESS)
 
 const rawHex = ref('')
 const log = ref('')
@@ -224,8 +222,7 @@ const allCommandPreview = computed(() => {
     const commandHex = buildShowAllLedsCommand(
       allMode.value,
       allColor.value,
-      requireByte(moduleId.value, '模块地址'),
-      requireByte(allBrightness.value, '亮度')
+      requireByte(moduleId.value, '模块地址')
     )
     return formatHex(commandHex)
   } catch (error) {
@@ -275,13 +272,11 @@ async function handleShowAllLeds() {
   try {
     const targetSessionId = requireSessionId(sessionId.value)
     const targetModuleId = requireByte(moduleId.value, '模块地址')
-    const targetBrightness = requireByte(allBrightness.value, '亮度')
 
     const commandHex = await showAllLeds(
       allMode.value,
       allColor.value,
       targetModuleId,
-      targetBrightness,
       targetSessionId
     )
     appendLog(`会话[${targetSessionId}] TX ${formatHex(commandHex)}`)
@@ -295,11 +290,9 @@ async function handleTurnOffAllLeds() {
   try {
     const targetSessionId = requireSessionId(sessionId.value)
     const targetModuleId = requireByte(moduleId.value, '模块地址')
-    const targetBrightness = requireByte(allBrightness.value, '亮度')
 
     const commandHex = await turnOffAllLeds(
       targetModuleId,
-      targetBrightness,
       targetSessionId
     )
     appendLog(`会话[${targetSessionId}] TX ${formatHex(commandHex)}`)
@@ -466,15 +459,6 @@ onUnmounted(() => {
               map-options
               label="颜色"
               :options="colorOptions"
-            />
-            <q-input
-              v-model.number="allBrightness"
-              outlined
-              type="number"
-              min="0"
-              max="255"
-              step="1"
-              label="亮度 (0-255)"
             />
           </div>
           <div class="action-buttons">

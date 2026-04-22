@@ -56,13 +56,11 @@ export async function showAllLeds(
   color: LedColorCode,
   // 模块地址，默认 0x01。
   moduleId = 0x01,
-  // 亮度，默认 0xFF。
-  brightness = 0xFF,
   // 串口会话 ID，可选。
   sessionId?: number
 ) {
   // 先组装全体显示命令。
-  const commandHex = buildShowAllLedsCommand(mode, color, moduleId, brightness)
+  const commandHex = buildShowAllLedsCommand(mode, color, moduleId)
   // 只发送，不等待响应。
   await ledSingleDevice.sendHex(commandHex, sessionId)
   // 返回发送命令。
@@ -73,13 +71,11 @@ export async function showAllLeds(
 export async function turnOffAllLeds(
   // 模块地址，默认 0x01。
   moduleId = 0x01,
-  // 亮度，默认 0xFF。
-  brightness = 0xFF,
   // 串口会话 ID，可选。
   sessionId?: number
 ) {
   // 先组装全体关闭命令。
-  const commandHex = buildTurnOffAllLedsCommand(moduleId, brightness)
+  const commandHex = buildTurnOffAllLedsCommand(moduleId)
   // 只发送，不等待响应。
   await ledSingleDevice.sendHex(commandHex, sessionId)
   // 返回发送命令。

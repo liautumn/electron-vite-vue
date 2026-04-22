@@ -88,6 +88,19 @@ class GuoXinDevice {
     this.emitStatus(targetSessionId)
   }
 
+  setMode(mode: GuoxinConnectionMode, sessionId = this.activeSessionId) {
+    const targetSessionId = normalizeSessionId(sessionId)
+    const state = this.getSessionState(targetSessionId)
+
+    if (state.mode === mode) {
+      return
+    }
+
+    state.mode = mode
+    this.resetRxBuffersByState(state)
+    this.emitStatus(targetSessionId)
+  }
+
   getAntNum(sessionId = this.activeSessionId) {
     return this.getSessionState(sessionId).antNum
   }
@@ -213,8 +226,7 @@ class GuoXinDevice {
       tcpSession.onConnect(() => {
         const state = this.getSessionState(targetSessionId)
         if (state.mode !== 'tcp') {
-          state.mode = 'tcp'
-          this.resetRxBuffersByState(state)
+          return
         }
         state.connected = true
         state.lastError = null
@@ -232,8 +244,7 @@ class GuoXinDevice {
       tcpSession.onError((payload: { message: string }) => {
         const state = this.getSessionState(targetSessionId)
         if (state.mode !== 'tcp') {
-          state.mode = 'tcp'
-          this.resetRxBuffersByState(state)
+          return
         }
         state.connected = false
         state.lastError = payload.message
@@ -248,8 +259,7 @@ class GuoXinDevice {
       serialSession.onOpen(() => {
         const state = this.getSessionState(targetSessionId)
         if (state.mode !== 'serial') {
-          state.mode = 'serial'
-          this.resetRxBuffersByState(state)
+          return
         }
         state.connected = true
         state.lastError = null
@@ -267,8 +277,7 @@ class GuoXinDevice {
       serialSession.onError((payload: { message: string }) => {
         const state = this.getSessionState(targetSessionId)
         if (state.mode !== 'serial') {
-          state.mode = 'serial'
-          this.resetRxBuffersByState(state)
+          return
         }
         state.connected = false
         state.lastError = payload.message
@@ -286,38 +295,20 @@ class GuoXinDevice {
     const targetSessionId = normalizeSessionId(sessionId)
     const state = this.getSessionState(targetSessionId)
 
-    const tryWrite = async (mode: GuoxinConnectionMode) => {
-      const session =
-        mode === 'serial'
-          ? window.serial.getSessionById(targetSessionId)
-          : window.tcp.getSessionById(targetSessionId)
+    const session =
+      state.mode === 'serial'
+        ? window.serial.getSessionById(targetSessionId)
+        : window.tcp.getSessionById(targetSessionId)
 
-      const ok = await session.write(hex)
-      if (!ok) {
-        return false
-      }
-
-      if (state.mode !== mode) {
-        state.mode = mode
-        this.resetRxBuffersByState(state)
-      }
-
+    const ok = await session.write(hex)
+    if (ok) {
       if (!state.connected || state.lastError) {
         state.connected = true
         state.lastError = null
         this.emitStatus(targetSessionId)
       }
-
-      return true
+      return
     }
-
-    const primaryOk = await tryWrite(state.mode)
-    if (primaryOk) return
-
-    const fallbackMode: GuoxinConnectionMode =
-      state.mode === 'serial' ? 'tcp' : 'serial'
-    const fallbackOk = await tryWrite(fallbackMode)
-    if (fallbackOk) return
 
     state.connected = false
     this.emitStatus(targetSessionId)
@@ -330,8 +321,7 @@ class GuoXinDevice {
     }
 
     if (state.mode !== source) {
-      state.mode = source
-      this.resetRxBuffersByState(state)
+      return
     }
 
     const frames = this.handleNewRx(sessionId, source, data)

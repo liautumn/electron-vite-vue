@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { Notify } from 'quasar'
 import { ledSingleDevice } from '../components/led/LedDevice'
@@ -16,7 +16,7 @@ import {
   turnOffAllLeds,
   turnOffSingleLed
 } from '../components/led/LedHelper'
-import { useDeviceConnectionsStore } from '../stores/deviceConnections'
+import { useDeviceConnectionsStore, type DeviceConnectionProfile } from '../stores/deviceConnections'
 
 defineOptions({ name: 'led-demo' })
 
@@ -52,7 +52,7 @@ const colorOptions: SelectOption<LedColorCode>[] = [
 ]
 
 const deviceConnectionsStore = useDeviceConnectionsStore()
-const { activeLedSessionId } = storeToRefs(deviceConnectionsStore)
+const { activeLedSessionId, connectionProfiles } = storeToRefs(deviceConnectionsStore)
 const snapshot = ledSingleDevice.getSnapshot()
 
 const sessionId = ref<number | null>(snapshot.sessionId)
@@ -69,6 +69,24 @@ const allColor = ref<LedColorCode>(0x01)
 
 const rawHex = ref('')
 const log = ref('')
+
+const connectionSessionOptions = computed(() =>
+  getSerialConnectionProfiles().map((profile) => ({
+    label: formatConnectionSessionLabel(profile),
+    value: profile.sessionId
+  }))
+)
+const selectedConnectionProfile = computed(() =>
+  getSerialConnectionProfiles().find((profile) => profile.sessionId === sessionId.value) ?? null
+)
+const connectionSessionHint = computed(() => {
+  const profile = selectedConnectionProfile.value
+  if (!profile) {
+    return '当前未配置串口会话，请先在项目设置里新增串口连接。'
+  }
+
+  return `当前串口会话：${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
+})
 
 let disposeStatusListener = () => {}
 let disposeDataListener = () => {}
@@ -101,6 +119,29 @@ function appendLog(messageText: string) {
 
 function resolveError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+function formatConnectionSessionLabel(profile: Extract<DeviceConnectionProfile, { mode: 'serial' }>) {
+  return `${profile.name} / Session ${profile.sessionId} / ${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
+}
+
+function getSerialConnectionProfiles() {
+  return connectionProfiles.value
+    .filter((profile): profile is Extract<DeviceConnectionProfile, { mode: 'serial' }> => profile.mode === 'serial')
+    .sort((left, right) => left.sessionId - right.sessionId)
+}
+
+function resolveSerialSessionId(preferredSessionId?: unknown) {
+  const profiles = getSerialConnectionProfiles()
+  const normalizedPreferredSessionId = parseSessionId(preferredSessionId)
+
+  return profiles.find((profile) => profile.sessionId === normalizedPreferredSessionId)?.sessionId
+    ?? profiles[0]?.sessionId
+    ?? null
+}
+
+function handleSessionChange(nextSessionId: number | null) {
+  sessionId.value = resolveSerialSessionId(nextSessionId)
 }
 
 function parseSessionId(value: unknown) {
@@ -155,15 +196,25 @@ function requireHexPayload(input: string, label = '命令 HEX') {
   return value
 }
 
-function syncSnapshot(targetSessionId: number) {
+function syncSnapshot(targetSessionId: number | null) {
+  if (targetSessionId === null) {
+    connected.value = false
+    lastError.value = ''
+    return
+  }
+
   const currentSnapshot = ledSingleDevice.getSnapshot(targetSessionId)
   connected.value = currentSnapshot.connected
   lastError.value = currentSnapshot.lastError ?? ''
 }
 
-function wireSession(targetSessionId: number) {
+function wireSession(targetSessionId: number | null) {
   disposeStatusListener()
   disposeDataListener()
+
+  if (targetSessionId === null) {
+    return
+  }
 
   const tcpSession = window.tcp.getSessionById(targetSessionId)
   const serialSession = window.serial.getSessionById(targetSessionId)
@@ -319,32 +370,37 @@ function clearLog() {
   log.value = ''
 }
 
-onMounted(() => {
-  const targetSessionId = parseSessionId(sessionId.value) ?? 0
-  ledSingleDevice.setActiveSession(targetSessionId)
-  syncSnapshot(targetSessionId)
-  wireSession(targetSessionId)
-})
+watch(
+  [sessionId, connectionProfiles],
+  ([nextSessionId]) => {
+    const resolvedSessionId = resolveSerialSessionId(nextSessionId)
+    if (resolvedSessionId !== nextSessionId) {
+      sessionId.value = resolvedSessionId
+      return
+    }
 
-watch(sessionId, (nextSessionId) => {
-  const parsedSessionId = parseSessionId(nextSessionId)
-  if (parsedSessionId === null) {
-    return
-  }
+    if (resolvedSessionId === null) {
+      syncSnapshot(null)
+      wireSession(null)
+      return
+    }
 
-  if (activeLedSessionId.value !== parsedSessionId) {
-    deviceConnectionsStore.setActiveLedSession(parsedSessionId)
-  }
-  ledSingleDevice.setActiveSession(parsedSessionId)
-  syncSnapshot(parsedSessionId)
-  wireSession(parsedSessionId)
-})
+    if (activeLedSessionId.value !== resolvedSessionId) {
+      deviceConnectionsStore.setActiveLedSession(resolvedSessionId)
+    }
+    ledSingleDevice.setActiveSession(resolvedSessionId)
+    syncSnapshot(resolvedSessionId)
+    wireSession(resolvedSessionId)
+  },
+  { deep: true, immediate: true }
+)
 
 watch(
   activeLedSessionId,
   (nextSessionId) => {
-    if (sessionId.value !== nextSessionId) {
-      sessionId.value = nextSessionId
+    const resolvedSessionId = resolveSerialSessionId(nextSessionId)
+    if (sessionId.value !== resolvedSessionId) {
+      sessionId.value = resolvedSessionId
     }
   },
   { immediate: true }
@@ -369,13 +425,15 @@ onUnmounted(() => {
         <q-separator />
         <q-card-section class="panel-stack">
           <div class="form-grid">
-            <q-input
-              v-model.number="sessionId"
+            <q-select
+              :model-value="selectedConnectionProfile?.sessionId ?? null"
               outlined
-              type="number"
-              min="0"
-              step="1"
+              emit-value
+              map-options
+              :options="connectionSessionOptions"
               label="连接会话 ID"
+              placeholder="选择串口 sessionId"
+              @update:model-value="handleSessionChange"
             />
             <q-input
               v-model.number="moduleId"
@@ -387,7 +445,8 @@ onUnmounted(() => {
               label="模块地址 (0-255)"
             />
           </div>
-          <div class="muted-text">连接参数请在“设备连接管理”里维护，此页面只按 sessionId 发送命令。</div>
+          <div class="muted-text">{{ connectionSessionHint }}</div>
+          <div class="muted-text">LED 页面仅支持串口会话，连接参数请在“设备连接管理”里维护。</div>
           <div v-if="lastError" class="error-text">
             最近错误：{{ lastError }}
           </div>

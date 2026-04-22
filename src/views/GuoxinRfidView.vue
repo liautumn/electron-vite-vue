@@ -2,7 +2,7 @@
 import {storeToRefs} from 'pinia'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
 import {Notify} from 'quasar'
-import {guoxinDevice} from '../components/rfid/guoxin/GuoXinDevice'
+import {guoxinDevice, type GuoxinConnectionMode} from '../components/rfid/guoxin/GuoXinDevice'
 import type {IRFIDTagReadMessage} from '../components/rfid/guoxin/GuoXinCommon'
 import {normalizeHex} from '../components/rfid/guoxin/GuoXinCommon'
 import {
@@ -16,7 +16,7 @@ import {
   writeEPCFirstTime
 } from '../components/rfid/guoxin/GuoXinRfidHelper'
 import {useGuoxinRfidStore, type GuoxinRfidConfig} from '../stores/guoxinRfid'
-import {useDeviceConnectionsStore} from '../stores/deviceConnections'
+import {useDeviceConnectionsStore, type DeviceConnectionProfile} from '../stores/deviceConnections'
 
 defineOptions({name: 'guoxin-rfid-demo'})
 
@@ -25,7 +25,7 @@ const snapshot = guoxinDevice.getSnapshot()
 const rfidStore = useGuoxinRfidStore()
 const {config: rfidConfig} = storeToRefs(rfidStore)
 const deviceConnectionsStore = useDeviceConnectionsStore()
-const {activeRfidSessionId} = storeToRefs(deviceConnectionsStore)
+const {activeRfidSessionId, connectionProfiles} = storeToRefs(deviceConnectionsStore)
 
 if (snapshot.connected) {
   rfidStore.setConfig({
@@ -45,6 +45,10 @@ const powerModalVisible = ref(false)
 const powerSubmitting = ref(false)
 const powerEditor = ref<number[]>([])
 const DEFAULT_WRITE_EPC_DEMO = '192012345678901234567895'
+const CONNECTION_MODE_OPTIONS: Array<{label: string, value: GuoxinConnectionMode}> = [
+  {label: 'TCP', value: 'tcp'},
+  {label: 'Serial', value: 'serial'}
+]
 
 let stopContinuousRead: null | (() => void) = null
 let disposeStatusListener = () => {
@@ -96,17 +100,40 @@ const writeAntennaModel = computed<number>({
     rfidStore.setConfig({writeAntenna: value})
   }
 })
-const connectionSessionModel = computed<number>({
-  get: () => rfidConfig.value.connectionSessionId,
-  set: (value) => {
-    if (typeof value !== 'number') return
-    rfidStore.setConfig({connectionSessionId: value})
+const connectionSessionOptions = computed(() =>
+  getConnectionProfilesByMode(rfidConfig.value.mode).map((profile) => ({
+    label: formatConnectionSessionLabel(profile),
+    value: profile.sessionId
+  }))
+)
+const selectedConnectionProfile = computed(() =>
+  getConnectionProfilesByMode(rfidConfig.value.mode)
+    .find((profile) => profile.sessionId === rfidConfig.value.connectionSessionId) ?? null
+)
+const connectionSessionHint = computed(() => {
+  const profile = selectedConnectionProfile.value
+  if (!profile) {
+    return rfidConfig.value.mode === 'serial'
+      ? '当前未配置 Serial 会话，请先在项目设置里新增串口连接。'
+      : '当前未配置 TCP 会话，请先在项目设置里新增 TCP 连接。'
   }
+
+  return profile.mode === 'serial'
+    ? `当前 Serial 会话：${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
+    : `当前 TCP 会话：${profile.host || '-'}:${profile.port || '-'}`
 })
 
 function appendLog(messageText: string) {
   const stamp = new Date().toLocaleTimeString('zh-CN', {hour12: false})
   log.value += `[${stamp}] ${messageText}\n`
+}
+
+function normalizeSessionId(value: unknown) {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null
+  }
+  return parsed
 }
 
 function randomHex(length: number) {
@@ -128,6 +155,61 @@ function randomHex(length: number) {
 
 function formatPowerLevels(powerLevels: number[]) {
   return powerLevels.map((power, index) => `天线${index + 1}=${power}`).join(', ')
+}
+
+function formatConnectionModeLabel(mode: GuoxinConnectionMode) {
+  return mode === 'serial' ? 'Serial' : 'TCP'
+}
+
+function formatConnectionSessionLabel(profile: DeviceConnectionProfile) {
+  const endpoint =
+    profile.mode === 'serial'
+      ? `${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
+      : `${profile.host || '-'}:${profile.port || '-'}`
+
+  return `${profile.name} / Session ${profile.sessionId} / ${endpoint}`
+}
+
+function getConnectionProfilesByMode(mode: GuoxinConnectionMode) {
+  return connectionProfiles.value
+    .filter((profile) => profile.mode === mode)
+    .sort((left, right) => left.sessionId - right.sessionId)
+}
+
+function resolveSessionIdForMode(mode: GuoxinConnectionMode, preferredSessionId?: unknown) {
+  const profiles = getConnectionProfilesByMode(mode)
+  const normalizedPreferredSessionId = normalizeSessionId(preferredSessionId)
+
+  return profiles.find((profile) => profile.sessionId === normalizedPreferredSessionId)?.sessionId
+    ?? profiles[0]?.sessionId
+    ?? 0
+}
+
+function syncConnectionSnapshot(mode: GuoxinConnectionMode, sessionId: number) {
+  guoxinDevice.setActiveSession(sessionId)
+  guoxinDevice.setMode(mode, sessionId)
+  const snapshot = guoxinDevice.getSnapshot(sessionId)
+  connected.value = snapshot.connected
+  currentMode.value = snapshot.mode
+  lastError.value = snapshot.lastError ?? ''
+}
+
+function handleConnectionModeChange(mode: GuoxinConnectionMode) {
+  rfidStore.setConfig({
+    mode,
+    connectionSessionId: resolveSessionIdForMode(mode, rfidConfig.value.connectionSessionId)
+  })
+}
+
+function handleConnectionSessionChange(sessionId: number | null) {
+  if (typeof sessionId !== 'number') {
+    return
+  }
+
+  rfidStore.setConfig({
+    mode: rfidConfig.value.mode,
+    connectionSessionId: resolveSessionIdForMode(rfidConfig.value.mode, sessionId)
+  })
 }
 
 function openPowerConfigModal() {
@@ -418,22 +500,35 @@ function clearLog() {
   log.value = ''
 }
 
-watch(() => rfidConfig.value.connectionSessionId, (nextSessionId) => {
-  const sessionId = requireSessionId(nextSessionId)
-  if (activeRfidSessionId.value !== sessionId) {
-    deviceConnectionsStore.setActiveRfidSession(sessionId)
-  }
-  guoxinDevice.setActiveSession(sessionId)
-  const snapshot = guoxinDevice.getSnapshot(sessionId)
-  connected.value = snapshot.connected
-  currentMode.value = snapshot.mode
-  lastError.value = snapshot.lastError ?? ''
-})
+watch(
+  [() => rfidConfig.value.mode, () => rfidConfig.value.connectionSessionId, connectionProfiles],
+  ([nextMode, nextSessionId]) => {
+    const resolvedSessionId = resolveSessionIdForMode(nextMode, nextSessionId)
+    if (resolvedSessionId !== nextSessionId) {
+      rfidStore.setConfig({connectionSessionId: resolvedSessionId})
+      return
+    }
+
+    const sessionId = requireSessionId(resolvedSessionId)
+    if (activeRfidSessionId.value !== sessionId) {
+      deviceConnectionsStore.setActiveRfidSession(sessionId)
+    }
+
+    syncConnectionSnapshot(nextMode, sessionId)
+  },
+  {deep: true, immediate: true}
+)
 
 watch(activeRfidSessionId, (nextSessionId) => {
-  if (rfidConfig.value.connectionSessionId !== nextSessionId) {
-    rfidStore.setConfig({connectionSessionId: nextSessionId})
+  if (rfidConfig.value.connectionSessionId === nextSessionId) {
+    return
   }
+
+  const profile = deviceConnectionsStore.getProfileBySessionId(nextSessionId)
+  rfidStore.setConfig({
+    connectionSessionId: nextSessionId,
+    mode: profile?.mode ?? rfidConfig.value.mode
+  })
 }, {immediate: true})
 
 watch(() => rfidConfig.value.antennaCount, (nextCount) => {
@@ -447,11 +542,7 @@ watch(() => rfidConfig.value.antennaCount, (nextCount) => {
 
 onMounted(() => {
   const sessionId = requireSessionId(rfidConfig.value.connectionSessionId)
-  guoxinDevice.setActiveSession(sessionId)
-  const snapshot = guoxinDevice.getSnapshot(sessionId)
-  connected.value = snapshot.connected
-  currentMode.value = snapshot.mode
-  lastError.value = snapshot.lastError ?? ''
+  syncConnectionSnapshot(rfidConfig.value.mode, sessionId)
 
   disposeStatusListener = guoxinDevice.subscribeStatus((state) => {
     if (state.sessionId !== rfidConfig.value.connectionSessionId) {
@@ -463,7 +554,7 @@ onMounted(() => {
   })
 
   disposeRawListener = guoxinDevice.subscribeRawData((sessionId, source, data) => {
-    if (sessionId !== rfidConfig.value.connectionSessionId) return
+    if (sessionId !== rfidConfig.value.connectionSessionId || source !== rfidConfig.value.mode) return
     appendLog(`会话[${sessionId}] ${source.toUpperCase()} RX: ${data}`)
   })
 })
@@ -485,14 +576,25 @@ onUnmounted(() => {
           </q-card-section>
           <q-separator />
           <q-card-section class="panel-stack">
-            <q-input
-                v-model.number="connectionSessionModel"
+            <q-btn-toggle
+                :model-value="rfidConfig.mode"
+                no-caps
+                rounded
+                unelevated
+                toggle-color="primary"
+                :options="CONNECTION_MODE_OPTIONS"
+                @update:model-value="handleConnectionModeChange"
+            />
+
+            <q-select
+                :model-value="selectedConnectionProfile?.sessionId ?? null"
                 outlined
-                type="number"
-                min="0"
-                step="1"
+                emit-value
+                map-options
+                :options="connectionSessionOptions"
                 label="连接会话 ID"
-                placeholder="直接输入 sessionId"
+                placeholder="选择当前连接方式下的 sessionId"
+                @update:model-value="handleConnectionSessionChange"
             />
 
             <div class="action-buttons">
@@ -500,10 +602,11 @@ onUnmounted(() => {
                 {{ connected ? '已连接' : '未连接' }}
               </q-chip>
               <q-chip square dense color="primary" text-color="white">
-                {{ currentMode.toUpperCase() }}
+                {{ formatConnectionModeLabel(currentMode) }}
               </q-chip>
             </div>
-            <div class="muted-text">连接参数请在项目设置维护，当前页面仅按 sessionId 调用。</div>
+            <div class="muted-text">{{ connectionSessionHint }}</div>
+            <div class="muted-text">当前页面按所选连接方式调用对应会话：TCP 走 TCP session，Serial 走串口 session。</div>
 
             <q-banner
                 v-if="lastError"

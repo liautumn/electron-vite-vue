@@ -17,7 +17,7 @@ import {
   queryLockStatus,
   sendLockRawHex
 } from '../components/lock/LockHelper'
-import { useDeviceConnectionsStore } from '../stores/deviceConnections'
+import { useDeviceConnectionsStore, type DeviceConnectionProfile } from '../stores/deviceConnections'
 
 defineOptions({ name: 'lock-demo' })
 
@@ -38,7 +38,7 @@ type FeedbackPanelData = {
 // 页面初次加载时先从单例设备中恢复一份快照。
 const snapshot = lockDevice.getSnapshot()
 const deviceConnectionsStore = useDeviceConnectionsStore()
-const { activeLockSessionId } = storeToRefs(deviceConnectionsStore)
+const { activeLockSessionId, connectionProfiles } = storeToRefs(deviceConnectionsStore)
 
 // 会话连接状态。
 const connected = ref(snapshot.connected)
@@ -46,6 +46,24 @@ const lastError = ref(snapshot.lastError ?? '')
 const sessionId = ref<number | null>(snapshot.sessionId)
 const rawHex = ref('')
 const log = ref('')
+
+const connectionSessionOptions = computed(() =>
+  getTcpConnectionProfiles().map((profile) => ({
+    label: formatConnectionSessionLabel(profile),
+    value: profile.sessionId
+  }))
+)
+const selectedConnectionProfile = computed(() =>
+  getTcpConnectionProfiles().find((profile) => profile.sessionId === sessionId.value) ?? null
+)
+const connectionSessionHint = computed(() => {
+  const profile = selectedConnectionProfile.value
+  if (!profile) {
+    return '当前未配置 TCP 会话，请先在项目设置里新增 TCP 连接。'
+  }
+
+  return `当前 TCP 会话：${profile.host || '-'}:${profile.port || '-'}`
+})
 
 // 三个模块分别维护自己的板地址和锁地址。
 const normalLockTarget = reactive<LockTargetConfig>({
@@ -146,6 +164,50 @@ function appendLog(messageText: string) {
 // 把 unknown 错误收敛成页面可提示的文本。
 function resolveError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+function normalizeSessionId(value: unknown) {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null
+  }
+  return parsed
+}
+
+function formatConnectionSessionLabel(profile: Extract<DeviceConnectionProfile, { mode: 'tcp' }>) {
+  return `${profile.name} / Session ${profile.sessionId} / ${profile.host}:${profile.port}`
+}
+
+function getTcpConnectionProfiles() {
+  return connectionProfiles.value
+    .filter((profile): profile is Extract<DeviceConnectionProfile, { mode: 'tcp' }> => profile.mode === 'tcp')
+    .sort((left, right) => left.sessionId - right.sessionId)
+}
+
+function resolveTcpSessionId(preferredSessionId?: unknown) {
+  const profiles = getTcpConnectionProfiles()
+  const normalizedPreferredSessionId = normalizeSessionId(preferredSessionId)
+
+  return profiles.find((profile) => profile.sessionId === normalizedPreferredSessionId)?.sessionId
+    ?? profiles[0]?.sessionId
+    ?? null
+}
+
+function syncSessionSnapshot(targetSessionId: number | null) {
+  if (targetSessionId === null) {
+    connected.value = false
+    lastError.value = ''
+    return
+  }
+
+  lockDevice.setActiveSession(targetSessionId)
+  const currentSnapshot = lockDevice.getSnapshot(targetSessionId)
+  connected.value = currentSnapshot.connected
+  lastError.value = currentSnapshot.lastError ?? ''
+}
+
+function handleSessionChange(nextSessionId: number | null) {
+  sessionId.value = resolveTcpSessionId(nextSessionId)
 }
 
 // 校验板地址、锁地址这类单字节数值输入。
@@ -372,14 +434,9 @@ function routeIncomingFrame(incomingSessionId: number, frame: LockParsedFrame) {
 
 // 页面挂载时订阅设备状态/响应帧。
 onMounted(() => {
-  const targetSessionId = requireSessionId(sessionId.value)
-  lockDevice.setActiveSession(targetSessionId)
-  const currentSnapshot = lockDevice.getSnapshot(targetSessionId)
-  connected.value = currentSnapshot.connected
-  lastError.value = currentSnapshot.lastError ?? ''
-
   disposeStatusListener = lockDevice.subscribeStatus((state) => {
-    if (state.sessionId !== requireSessionId(sessionId.value)) {
+    const activeSessionId = normalizeSessionId(sessionId.value)
+    if (activeSessionId === null || state.sessionId !== activeSessionId) {
       return
     }
     connected.value = state.connected
@@ -391,22 +448,38 @@ onMounted(() => {
   })
 })
 
-watch(sessionId, (nextSessionId) => {
-  const targetSessionId = requireSessionId(nextSessionId)
-  if (activeLockSessionId.value !== targetSessionId) {
-    deviceConnectionsStore.setActiveLockSession(targetSessionId)
-  }
-  lockDevice.setActiveSession(targetSessionId)
-  const currentSnapshot = lockDevice.getSnapshot(targetSessionId)
-  connected.value = currentSnapshot.connected
-  lastError.value = currentSnapshot.lastError ?? ''
-})
+watch(
+  [sessionId, connectionProfiles],
+  ([nextSessionId]) => {
+    const resolvedSessionId = resolveTcpSessionId(nextSessionId)
+    if (resolvedSessionId !== nextSessionId) {
+      sessionId.value = resolvedSessionId
+      return
+    }
 
-watch(activeLockSessionId, (nextSessionId) => {
-  if (sessionId.value !== nextSessionId) {
-    sessionId.value = nextSessionId
-  }
-}, {immediate: true})
+    if (resolvedSessionId === null) {
+      syncSessionSnapshot(null)
+      return
+    }
+
+    if (activeLockSessionId.value !== resolvedSessionId) {
+      deviceConnectionsStore.setActiveLockSession(resolvedSessionId)
+    }
+    syncSessionSnapshot(resolvedSessionId)
+  },
+  { deep: true, immediate: true }
+)
+
+watch(
+  activeLockSessionId,
+  (nextSessionId) => {
+    const resolvedSessionId = resolveTcpSessionId(nextSessionId)
+    if (sessionId.value !== resolvedSessionId) {
+      sessionId.value = resolvedSessionId
+    }
+  },
+  { immediate: true }
+)
 
 // 页面卸载时释放订阅，避免重复监听。
 onUnmounted(() => {
@@ -427,18 +500,22 @@ onUnmounted(() => {
         </q-card-section>
         <q-separator />
         <q-card-section class="panel-stack">
-          <q-input
-            v-model.number="sessionId"
+          <q-select
+            :model-value="selectedConnectionProfile?.sessionId ?? null"
             outlined
-            type="number"
-            min="0"
-            step="1"
+            emit-value
+            map-options
+            :options="connectionSessionOptions"
             label="连接会话 ID"
-            placeholder="直接输入 sessionId"
+            placeholder="选择 TCP sessionId"
+            @update:model-value="handleSessionChange"
           />
 
           <div class="muted-text">
-            连接参数请在项目设置维护，当前页面仅按 sessionId 调用。
+            {{ connectionSessionHint }}
+          </div>
+          <div class="muted-text">
+            锁控板页面仅支持 TCP 会话，连接参数请在项目设置维护。
           </div>
           <div v-if="lastError" class="error-text">
             最近错误：{{ lastError }}
@@ -607,7 +684,7 @@ onUnmounted(() => {
         <q-separator />
         <q-card-section class="panel-stack">
           <div class="muted-text">
-            自定义 HEX 会直接走当前串口发送，便于补测文档之外的命令。
+            自定义 HEX 会直接走当前 TCP 会话发送，便于补测文档之外的命令。
           </div>
           <div class="serial-port-row">
             <q-input v-model="rawHex" outlined class="field-grow" label="命令 HEX" placeholder="例如：8A 01 01 11 9B" />

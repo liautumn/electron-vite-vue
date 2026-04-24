@@ -48,21 +48,21 @@ const rawHex = ref('')
 const log = ref('')
 
 const connectionSessionOptions = computed(() =>
-  getTcpConnectionProfiles().map((profile) => ({
+  getSerialConnectionProfiles().map((profile) => ({
     label: formatConnectionSessionLabel(profile),
     value: profile.sessionId
   }))
 )
 const selectedConnectionProfile = computed(() =>
-  getTcpConnectionProfiles().find((profile) => profile.sessionId === sessionId.value) ?? null
+  getSerialConnectionProfiles().find((profile) => profile.sessionId === sessionId.value) ?? null
 )
 const connectionSessionHint = computed(() => {
   const profile = selectedConnectionProfile.value
   if (!profile) {
-    return '当前未配置 TCP 会话，请先在项目设置里新增 TCP 连接。'
+    return '当前未配置串口会话，请先在项目设置里新增串口连接。'
   }
 
-  return `当前 TCP 会话：${profile.host || '-'}:${profile.port || '-'}`
+  return `当前串口会话：${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
 })
 
 // 三个模块分别维护自己的板地址和锁地址。
@@ -174,18 +174,18 @@ function normalizeSessionId(value: unknown) {
   return parsed
 }
 
-function formatConnectionSessionLabel(profile: Extract<DeviceConnectionProfile, { mode: 'tcp' }>) {
-  return `${profile.name} / Session ${profile.sessionId} / ${profile.host}:${profile.port}`
+function formatConnectionSessionLabel(profile: Extract<DeviceConnectionProfile, { mode: 'serial' }>) {
+  return `${profile.name} / Session ${profile.sessionId} / ${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
 }
 
-function getTcpConnectionProfiles() {
+function getSerialConnectionProfiles() {
   return connectionProfiles.value
-    .filter((profile): profile is Extract<DeviceConnectionProfile, { mode: 'tcp' }> => profile.mode === 'tcp')
+    .filter((profile): profile is Extract<DeviceConnectionProfile, { mode: 'serial' }> => profile.mode === 'serial')
     .sort((left, right) => left.sessionId - right.sessionId)
 }
 
-function resolveTcpSessionId(preferredSessionId?: unknown) {
-  const profiles = getTcpConnectionProfiles()
+function resolveSerialSessionId(preferredSessionId?: unknown) {
+  const profiles = getSerialConnectionProfiles()
   const normalizedPreferredSessionId = normalizeSessionId(preferredSessionId)
 
   return profiles.find((profile) => profile.sessionId === normalizedPreferredSessionId)?.sessionId
@@ -207,7 +207,7 @@ function syncSessionSnapshot(targetSessionId: number | null) {
 }
 
 function handleSessionChange(nextSessionId: number | null) {
-  sessionId.value = resolveTcpSessionId(nextSessionId)
+  sessionId.value = resolveSerialSessionId(nextSessionId)
 }
 
 // 校验板地址、锁地址这类单字节数值输入。
@@ -230,6 +230,10 @@ function requireSessionId(value: number | null) {
     throw new Error('会话 ID 必须是大于等于 0 的整数')
   }
   return value
+}
+
+function requireConnectionSessionSelection(value: unknown) {
+  return normalizeSessionId(value) !== null || '请选择串口会话'
 }
 
 // 读取某个模块当前生效的板地址和锁地址。
@@ -451,7 +455,7 @@ onMounted(() => {
 watch(
   [sessionId, connectionProfiles],
   ([nextSessionId]) => {
-    const resolvedSessionId = resolveTcpSessionId(nextSessionId)
+    const resolvedSessionId = resolveSerialSessionId(nextSessionId)
     if (resolvedSessionId !== nextSessionId) {
       sessionId.value = resolvedSessionId
       return
@@ -473,7 +477,7 @@ watch(
 watch(
   activeLockSessionId,
   (nextSessionId) => {
-    const resolvedSessionId = resolveTcpSessionId(nextSessionId)
+    const resolvedSessionId = resolveSerialSessionId(nextSessionId)
     if (sessionId.value !== resolvedSessionId) {
       sessionId.value = resolvedSessionId
     }
@@ -507,7 +511,9 @@ onUnmounted(() => {
             map-options
             :options="connectionSessionOptions"
             label="连接会话 ID"
-            placeholder="选择 TCP sessionId"
+            placeholder="选择串口 sessionId"
+            :rules="[requireConnectionSessionSelection]"
+            lazy-rules
             @update:model-value="handleSessionChange"
           />
 
@@ -515,7 +521,7 @@ onUnmounted(() => {
             {{ connectionSessionHint }}
           </div>
           <div class="muted-text">
-            锁控板页面仅支持 TCP 会话，连接参数请在项目设置维护。
+            锁控板页面仅支持串口会话，连接参数请在项目设置维护。
           </div>
           <div v-if="lastError" class="error-text">
             最近错误：{{ lastError }}
@@ -684,7 +690,7 @@ onUnmounted(() => {
         <q-separator />
         <q-card-section class="panel-stack">
           <div class="muted-text">
-            自定义 HEX 会直接走当前 TCP 会话发送，便于补测文档之外的命令。
+            自定义 HEX 会直接走当前串口会话发送，便于补测文档之外的命令。
           </div>
           <div class="serial-port-row">
             <q-input v-model="rawHex" outlined class="field-grow" label="命令 HEX" placeholder="例如：8A 01 01 11 9B" />

@@ -44,6 +44,11 @@ app.use(Quasar, {
     plugins: {
         Notify,
     },
+    config: {
+        notify: {
+            position: 'top',
+        },
+    },
 })
 
 // 指令：权限控制（v-permission）

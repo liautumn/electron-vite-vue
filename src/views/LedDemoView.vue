@@ -95,7 +95,7 @@ const notify = (type: 'positive' | 'negative', content: unknown) => {
   Notify.create({
     type,
     message: String(content ?? ''),
-    position: 'top-right',
+    position: 'top',
     timeout: 2200
   })
 }

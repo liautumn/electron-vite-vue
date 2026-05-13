@@ -186,7 +186,7 @@ const refreshSerialOptions = async () => {
     Notify.create({
       type: 'negative',
       message: `串口列表刷新失败: ${resolveError(error)}`,
-      position: 'top-right',
+      position: 'top',
       timeout: 2200
     })
   } finally {
@@ -216,14 +216,14 @@ const connectProfile = async (profile: DeviceConnectionProfile) => {
     Notify.create({
       type: 'positive',
       message: `会话[${sessionId}]连接成功`,
-      position: 'top-right',
+      position: 'top',
       timeout: 2200
     })
   } catch (error) {
     Notify.create({
       type: 'negative',
       message: `连接失败: ${resolveError(error)}`,
-      position: 'top-right',
+      position: 'top',
       timeout: 2200
     })
   }
@@ -243,14 +243,14 @@ const disconnectProfile = async (profile: DeviceConnectionProfile) => {
     Notify.create({
       type: 'positive',
       message: `会话[${sessionId}]已断开`,
-      position: 'top-right',
+      position: 'top',
       timeout: 2200
     })
   } catch (error) {
     Notify.create({
       type: 'negative',
       message: `断开失败: ${resolveError(error)}`,
-      position: 'top-right',
+      position: 'top',
       timeout: 2200
     })
   }
@@ -364,7 +364,7 @@ const submitEditor = () => {
     Notify.create({
       type: 'positive',
       message: editorMode.value === 'create' ? '连接已新增' : '连接已更新',
-      position: 'top-right',
+      position: 'top',
       timeout: 2200
     })
 
@@ -373,7 +373,7 @@ const submitEditor = () => {
     Notify.create({
       type: 'negative',
       message: resolveError(error),
-      position: 'top-right',
+      position: 'top',
       timeout: 2200
     })
   }
@@ -384,7 +384,7 @@ const handleRemove = (profile: DeviceConnectionProfile) => {
   Notify.create({
     type: 'positive',
     message: '连接已删除',
-    position: 'top-right',
+    position: 'top',
     timeout: 2200
   })
 }

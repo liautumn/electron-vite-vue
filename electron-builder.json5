@@ -39,7 +39,8 @@
   "linux": {
     "icon": "public/icons/png",
     "target": [
-      "AppImage"
+      "AppImage",
+      "deb"
     ],
     "artifactName": "${productName}-Linux-${version}.${ext}"
   }

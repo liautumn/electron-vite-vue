@@ -85,7 +85,7 @@ const connectionSessionHint = computed(() => {
     return '当前未配置串口会话，请先在项目设置里新增串口连接。'
   }
 
-  return `当前串口会话：${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
+  return `当前会话：${formatConnectionSessionLabel(profile)}`
 })
 
 let disposeStatusListener = () => {}
@@ -122,7 +122,7 @@ function resolveError(error: unknown) {
 }
 
 function formatConnectionSessionLabel(profile: Extract<DeviceConnectionProfile, { mode: 'serial' }>) {
-  return `${profile.name} / Session ${profile.sessionId} / ${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
+  return `${profile.name} / Session ${profile.sessionId}`
 }
 
 function getSerialConnectionProfiles() {

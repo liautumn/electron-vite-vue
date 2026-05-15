@@ -42,7 +42,7 @@ const comList = ref<SelectOption<string>[]>([
   {value: '', label: '请选择串口'}
 ])
 
-const host = ref('192.168.1.168')
+const host = ref('')
 const tcpPort = ref(8160)
 
 // 规范化 HEX 输入，便于校验与发送。

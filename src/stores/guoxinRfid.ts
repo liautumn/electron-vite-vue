@@ -12,10 +12,6 @@ const MAX_SESSION_ID = Number.MAX_SAFE_INTEGER
 export type GuoxinRfidConfig = {
   mode: GuoxinConnectionMode
   connectionSessionId: number
-  portPath: string
-  baudRate: number
-  host: string
-  tcpPort: number
   antennaCount: number
   antsInput: string
   powerLevels: number[]
@@ -82,10 +78,6 @@ function createDefaultConfig(): GuoxinRfidConfig {
   return {
     mode: 'tcp',
     connectionSessionId: 0,
-    portPath: '',
-    baudRate: 9600,
-    host: '192.168.1.168',
-    tcpPort: 8160,
     antennaCount: 4,
     antsInput: '1',
     powerLevels: createDefaultPowerLevels(4),
@@ -118,31 +110,34 @@ function normalizeConfig(input: LegacyGuoxinRfidConfig = {}): GuoxinRfidConfig {
       ? buildLegacyPowerLevels(input, antennaCount)
       : normalizePowerLevels(defaults.powerLevels, antennaCount, defaults.powerLevels)
 
-  const {
-    powerLevels: _powerLevels,
-    readWriteIndex: _readWriteIndex,
-    readWritePower: _readWritePower,
-    otherPower: _otherPower,
-    ...rest
-  } = input
-
   return {
     ...defaults,
-    ...rest,
+    mode: input.mode ?? defaults.mode,
     connectionSessionId: clampInteger(
-      rest.connectionSessionId,
+      input.connectionSessionId,
       defaults.connectionSessionId,
       MIN_SESSION_ID,
       MAX_SESSION_ID
     ),
     antennaCount,
+    antsInput: input.antsInput ?? defaults.antsInput,
     powerLevels,
+    epcBasebandRate: input.epcBasebandRate ?? defaults.epcBasebandRate,
+    defaultQ: input.defaultQ ?? defaults.defaultQ,
+    session: input.session ?? defaults.session,
+    inventoryFlag: input.inventoryFlag ?? defaults.inventoryFlag,
     writeAntenna: clampInteger(
-      rest.writeAntenna,
+      input.writeAntenna,
       defaults.writeAntenna,
       MIN_ANTENNA_COUNT,
       antennaCount
-    )
+    ),
+    writeTid: input.writeTid ?? defaults.writeTid,
+    writeEpc: input.writeEpc ?? defaults.writeEpc,
+    accessPassword: input.accessPassword ?? defaults.accessPassword,
+    oldAccessPassword: input.oldAccessPassword ?? defaults.oldAccessPassword,
+    killPassword: input.killPassword ?? defaults.killPassword,
+    rawHex: input.rawHex ?? defaults.rawHex
   }
 }
 

@@ -14,6 +14,9 @@ export type DeviceConnectionRuntimeStatus = {
 }
 
 const DEFAULT_SESSION_ID = 0
+export const DEFAULT_SERIAL_BAUD_RATE = 9600
+export const DEFAULT_TCP_HOST = '127.0.0.1'
+export const DEFAULT_TCP_PORT = 8160
 
 function normalizeSessionId(value: number, fallback = DEFAULT_SESSION_ID) {
   const parsed = Number(value)
@@ -38,7 +41,7 @@ function createDefaultProfile(
       sessionId,
       mode,
       portPath: '',
-      baudRate: 9600
+      baudRate: DEFAULT_SERIAL_BAUD_RATE
     }
   }
 
@@ -47,17 +50,15 @@ function createDefaultProfile(
     name: `TCP-${sessionId}`,
     sessionId,
     mode,
-    host: '192.168.1.168',
-    port: 8160
+    host: DEFAULT_TCP_HOST,
+    port: DEFAULT_TCP_PORT
   }
 }
 
 export const useDeviceConnectionsStore = defineStore(
   'device-connections',
   () => {
-    const connectionProfiles = ref<DeviceConnectionProfile[]>([
-      createDefaultProfile('tcp', DEFAULT_SESSION_ID)
-    ])
+    const connectionProfiles = ref<DeviceConnectionProfile[]>([])
 
     const activeRfidSessionId = ref(DEFAULT_SESSION_ID)
     const activeLockSessionId = ref(DEFAULT_SESSION_ID)
@@ -98,14 +99,10 @@ export const useDeviceConnectionsStore = defineStore(
     const removeConnectionProfile = (id: string) => {
       const index = connectionProfiles.value.findIndex((item) => item.id === id)
       if (index === -1) {
-        return
+        return false
       }
 
       const [removed] = connectionProfiles.value.splice(index, 1)
-
-      if (!connectionProfiles.value.length) {
-        connectionProfiles.value.push(createDefaultProfile('tcp', DEFAULT_SESSION_ID))
-      }
 
       const fallbackSessionId = connectionProfiles.value[0]?.sessionId ?? DEFAULT_SESSION_ID
 
@@ -118,6 +115,8 @@ export const useDeviceConnectionsStore = defineStore(
       if (removed?.sessionId === activeLedSessionId.value) {
         setActiveLedSession(fallbackSessionId)
       }
+
+      return true
     }
 
     const updateRuntimeStatus = (snapshot: {

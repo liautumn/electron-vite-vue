@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { Notify, type QTableColumn } from 'quasar'
+import {computed, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
+import {storeToRefs} from 'pinia'
+import {Notify, type QTableColumn} from 'quasar'
 import DeviceSettingsButton from './DeviceSettingsButton.vue'
-import { useDeviceConnectionsStore, type DeviceConnectionProfile } from '../stores/deviceConnections'
-import type { TransportConnectionMode } from '../types/connection'
+import {
+  DEFAULT_SERIAL_BAUD_RATE,
+  DEFAULT_TCP_HOST,
+  DEFAULT_TCP_PORT,
+  useDeviceConnectionsStore,
+  type DeviceConnectionProfile
+} from '../stores/deviceConnections'
+import type {TransportConnectionMode} from '../types/connection'
 
-defineOptions({ name: 'device-connections-control' })
+defineOptions({name: 'device-connections-control'})
 
 type EditorMode = 'create' | 'edit'
 
@@ -22,8 +28,8 @@ type ConnectionTableRow = {
 }
 
 type ConnectionFormPayload =
-  | Omit<Extract<DeviceConnectionProfile, { mode: 'serial' }>, 'id'>
-  | Omit<Extract<DeviceConnectionProfile, { mode: 'tcp' }>, 'id'>
+    | Omit<Extract<DeviceConnectionProfile, { mode: 'serial' }>, 'id'>
+    | Omit<Extract<DeviceConnectionProfile, { mode: 'tcp' }>, 'id'>
 
 const deviceConnectionsStore = useDeviceConnectionsStore()
 const {
@@ -41,74 +47,74 @@ const setActiveLockSession = deviceConnectionsStore.setActiveLockSession
 const setActiveLedSession = deviceConnectionsStore.setActiveLedSession
 
 const loadingSerialOptions = ref(false)
-const serialOptions = ref<{ label: string; value: string }[]>([{ label: '请选择串口', value: '' }])
+const serialOptions = ref<{ label: string; value: string }[]>([{label: '请选择串口', value: ''}])
 
 const connectedSerialCount = computed(
-  () =>
-    connectionProfiles.value.filter(
-      (item) => item.mode === 'serial' && getRuntimeStatus(item.sessionId).connected
-    ).length
+    () =>
+        connectionProfiles.value.filter(
+            (item) => item.mode === 'serial' && getRuntimeStatus(item.sessionId).connected
+        ).length
 )
 const connectedTcpCount = computed(
-  () =>
-    connectionProfiles.value.filter(
-      (item) => item.mode === 'tcp' && getRuntimeStatus(item.sessionId).connected
-    ).length
+    () =>
+        connectionProfiles.value.filter(
+            (item) => item.mode === 'tcp' && getRuntimeStatus(item.sessionId).connected
+        ).length
 )
 
 const deviceSettingsVisible = ref(false)
 const editorVisible = ref(false)
 const editorMode = ref<EditorMode>('create')
 const editingProfileId = ref('')
-const tablePagination = { rowsPerPage: 10 }
+const tablePagination = {rowsPerPage: 10}
 
 const connectionForm = reactive({
   name: '',
   sessionId: 0 as number | null,
   mode: 'serial' as TransportConnectionMode,
   portPath: '',
-  baudRate: 9600 as number | null,
-  host: '192.168.1.168',
-  port: 8160 as number | null
+  baudRate: DEFAULT_SERIAL_BAUD_RATE as number | null,
+  host: DEFAULT_TCP_HOST,
+  port: DEFAULT_TCP_PORT as number | null
 })
 
 const columns: QTableColumn<ConnectionTableRow>[] = [
-  { name: 'status', label: '状态', field: 'connected', align: 'left' },
-  { name: 'name', label: '连接名称', field: 'name', align: 'left' },
-  { name: 'sessionId', label: 'Session ID', field: 'sessionId', align: 'left', sortable: true },
-  { name: 'mode', label: '连接方式', field: 'mode', align: 'left' },
-  { name: 'endpoint', label: '连接目标', field: 'endpoint', align: 'left' },
-  { name: 'lastError', label: '最近错误', field: 'lastError', align: 'left' },
-  { name: 'actions', label: '操作', field: 'id', align: 'left' }
+  {name: 'status', label: '状态', field: 'connected', align: 'center'},
+  {name: 'name', label: '连接名称', field: 'name', align: 'center'},
+  {name: 'sessionId', label: 'Session ID', field: 'sessionId', align: 'center', sortable: true},
+  {name: 'mode', label: '连接方式', field: 'mode', align: 'center'},
+  {name: 'endpoint', label: '连接目标', field: 'endpoint', align: 'center'},
+  {name: 'lastError', label: '最近错误', field: 'lastError', align: 'center'},
+  {name: 'actions', label: '操作', field: 'id', align: 'center'}
 ]
 
 const rows = computed<ConnectionTableRow[]>(() =>
-  [...connectionProfiles.value]
-    .sort((a, b) => a.sessionId - b.sessionId)
-    .map((profile) => {
-      const runtime = getRuntimeStatus(profile.sessionId)
-      const endpoint =
-        profile.mode === 'serial'
-          ? `${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
-          : `${profile.host || '-'}:${profile.port || '-'}`
+    [...connectionProfiles.value]
+        .sort((a, b) => a.sessionId - b.sessionId)
+        .map((profile) => {
+          const runtime = getRuntimeStatus(profile.sessionId)
+          const endpoint =
+              profile.mode === 'serial'
+                  ? `${profile.portPath || '未选择串口'} / ${profile.baudRate || DEFAULT_SERIAL_BAUD_RATE}`
+                  : `${profile.host || '-'}:${profile.port || '-'}`
 
-      return {
-        id: profile.id,
-        name: profile.name,
-        sessionId: profile.sessionId,
-        mode: profile.mode,
-        endpoint,
-        connected: runtime.connected,
-        lastError: runtime.lastError,
-        profile
-      }
-    })
+          return {
+            id: profile.id,
+            name: profile.name,
+            sessionId: profile.sessionId,
+            mode: profile.mode,
+            endpoint,
+            connected: runtime.connected,
+            lastError: runtime.lastError,
+            profile
+          }
+        })
 )
 
 const editorTitle = computed(() =>
-  `${editorMode.value === 'create' ? '新增' : '编辑'}${
-    connectionForm.mode === 'serial' ? '串口' : 'TCP'
-  }连接`
+    `${editorMode.value === 'create' ? '新增' : '编辑'}${
+        connectionForm.mode === 'serial' ? '串口' : 'TCP'
+    }连接`
 )
 
 const isEditingConnectedProfile = computed(() => {
@@ -121,7 +127,7 @@ const isEditingConnectedProfile = computed(() => {
 })
 
 const resolveError = (error: unknown) =>
-  error instanceof Error ? error.message : String(error)
+    error instanceof Error ? error.message : String(error)
 
 const requireSessionId = (value: unknown, label = '会话 ID') => {
   const parsed = Number(value)
@@ -140,12 +146,12 @@ const requireText = (value: string, label: string) => {
 }
 
 const requireInteger = (
-  value: unknown,
-  label: string,
-  options: { min?: number; max?: number } = {}
+    value: unknown,
+    label: string,
+    options: { min?: number; max?: number } = {}
 ) => {
   const parsed = Number(value)
-  const { min = 0, max } = options
+  const {min = 0, max} = options
 
   if (!Number.isInteger(parsed)) {
     throw new Error(`${label}必须是整数`)
@@ -161,9 +167,9 @@ const requireInteger = (
 }
 
 const ensureUniqueSession = (
-  sessionId: number,
-  items: Array<{ id: string; sessionId: number }>,
-  currentId: string
+    sessionId: number,
+    items: Array<{ id: string; sessionId: number }>,
+    currentId: string
 ) => {
   if (items.some((item) => item.id !== currentId && item.sessionId === sessionId)) {
     throw new Error('会话 ID 不能重复')
@@ -172,7 +178,7 @@ const ensureUniqueSession = (
 
 const refreshSerialOptions = async () => {
   loadingSerialOptions.value = true
-  serialOptions.value = [{ label: '请选择串口', value: '' }]
+  serialOptions.value = [{label: '请选择串口', value: ''}]
 
   try {
     const ports = await window.serial.list()
@@ -203,7 +209,7 @@ const connectProfile = async (profile: DeviceConnectionProfile) => {
       await window.serial.open({
         sessionId,
         path: profile.portPath,
-        baudRate: Number(profile.baudRate) || 9600
+        baudRate: Number(profile.baudRate) || DEFAULT_SERIAL_BAUD_RATE
       })
     } else {
       await window.tcp.connect({
@@ -246,6 +252,7 @@ const disconnectProfile = async (profile: DeviceConnectionProfile) => {
       position: 'top',
       timeout: 2200
     })
+    return true
   } catch (error) {
     Notify.create({
       type: 'negative',
@@ -253,11 +260,12 @@ const disconnectProfile = async (profile: DeviceConnectionProfile) => {
       position: 'top',
       timeout: 2200
     })
+    return false
   }
 }
 
 const getNextSessionId = (items: Array<{ sessionId: number }>) =>
-  Math.max(-1, ...items.map((item) => Number(item.sessionId) || 0)) + 1
+    Math.max(-1, ...items.map((item) => Number(item.sessionId) || 0)) + 1
 
 const resetForm = (mode: TransportConnectionMode) => {
   const nextSessionId = getNextSessionId(connectionProfiles.value)
@@ -265,9 +273,9 @@ const resetForm = (mode: TransportConnectionMode) => {
   connectionForm.name = `${mode === 'serial' ? 'Serial' : 'TCP'}-${nextSessionId}`
   connectionForm.sessionId = nextSessionId
   connectionForm.portPath = ''
-  connectionForm.baudRate = 9600
-  connectionForm.host = '192.168.1.168'
-  connectionForm.port = 8160
+  connectionForm.baudRate = DEFAULT_SERIAL_BAUD_RATE
+  connectionForm.host = DEFAULT_TCP_HOST
+  connectionForm.port = DEFAULT_TCP_PORT
 }
 
 const openCreateDialog = (mode: TransportConnectionMode) => {
@@ -288,13 +296,13 @@ const openEditDialog = (profile: DeviceConnectionProfile) => {
   if (profile.mode === 'serial') {
     connectionForm.portPath = profile.portPath
     connectionForm.baudRate = profile.baudRate
-    connectionForm.host = '192.168.1.168'
-    connectionForm.port = 8160
+    connectionForm.host = DEFAULT_TCP_HOST
+    connectionForm.port = DEFAULT_TCP_PORT
   } else {
     connectionForm.host = profile.host
     connectionForm.port = profile.port
     connectionForm.portPath = ''
-    connectionForm.baudRate = 9600
+    connectionForm.baudRate = DEFAULT_SERIAL_BAUD_RATE
   }
 
   editorVisible.value = true
@@ -310,7 +318,7 @@ const normalizeForm = (): ConnectionFormPayload => {
       sessionId,
       mode: 'serial',
       portPath: requireText(connectionForm.portPath, '串口'),
-      baudRate: requireInteger(connectionForm.baudRate, '波特率', { min: 300 })
+      baudRate: requireInteger(connectionForm.baudRate, '波特率', {min: 300})
     }
   }
 
@@ -319,7 +327,7 @@ const normalizeForm = (): ConnectionFormPayload => {
     sessionId,
     mode: 'tcp',
     host: requireText(connectionForm.host, 'TCP 地址'),
-    port: requireInteger(connectionForm.port, '端口', { min: 1, max: 65535 })
+    port: requireInteger(connectionForm.port, '端口', {min: 1, max: 65535})
   }
 }
 
@@ -333,9 +341,9 @@ const submitEditor = () => {
     const payload = normalizeForm()
 
     ensureUniqueSession(
-      payload.sessionId,
-      connectionProfiles.value,
-      editorMode.value === 'edit' ? editingProfileId.value : ''
+        payload.sessionId,
+        connectionProfiles.value,
+        editorMode.value === 'edit' ? editingProfileId.value : ''
     )
 
     if (editorMode.value === 'create') {
@@ -379,8 +387,25 @@ const submitEditor = () => {
   }
 }
 
-const handleRemove = (profile: DeviceConnectionProfile) => {
-  removeConnectionProfile(profile.id)
+const handleRemove = async (profile: DeviceConnectionProfile) => {
+  if (getRuntimeStatus(profile.sessionId).connected) {
+    const disconnected = await disconnectProfile(profile)
+    if (!disconnected) {
+      return
+    }
+  }
+
+  const removed = removeConnectionProfile(profile.id)
+  if (!removed) {
+    Notify.create({
+      type: 'warning',
+      message: '连接不存在或已被删除',
+      position: 'top',
+      timeout: 2200
+    })
+    return
+  }
+
   Notify.create({
     type: 'positive',
     message: '连接已删除',
@@ -390,11 +415,11 @@ const handleRemove = (profile: DeviceConnectionProfile) => {
 }
 
 const statusDisposers = new Map<
-  number,
-  {
-    mode: TransportConnectionMode
-    dispose: () => void
-  }
+    number,
+    {
+      mode: TransportConnectionMode
+      dispose: () => void
+    }
 >()
 
 const wireSessionStatus = (profile: DeviceConnectionProfile) => {
@@ -453,32 +478,32 @@ const wireSessionStatus = (profile: DeviceConnectionProfile) => {
 }
 
 watch(
-  connectionProfiles,
-  (profiles) => {
-    const activeSessionIds = new Set<number>()
+    connectionProfiles,
+    (profiles) => {
+      const activeSessionIds = new Set<number>()
 
-    profiles.forEach((profile) => {
-      const sessionId = requireSessionId(profile.sessionId)
-      activeSessionIds.add(sessionId)
+      profiles.forEach((profile) => {
+        const sessionId = requireSessionId(profile.sessionId)
+        activeSessionIds.add(sessionId)
 
-      const existing = statusDisposers.get(sessionId)
-      if (!existing || existing.mode !== profile.mode) {
-        existing?.dispose()
-        const dispose = wireSessionStatus(profile)
-        statusDisposers.set(sessionId, {
-          mode: profile.mode,
-          dispose
-        })
-      }
-    })
+        const existing = statusDisposers.get(sessionId)
+        if (!existing || existing.mode !== profile.mode) {
+          existing?.dispose()
+          const dispose = wireSessionStatus(profile)
+          statusDisposers.set(sessionId, {
+            mode: profile.mode,
+            dispose
+          })
+        }
+      })
 
-    Array.from(statusDisposers.entries()).forEach(([sessionId, entry]) => {
-      if (activeSessionIds.has(sessionId)) return
-      entry.dispose()
-      statusDisposers.delete(sessionId)
-    })
-  },
-  { deep: true, immediate: true }
+      Array.from(statusDisposers.entries()).forEach(([sessionId, entry]) => {
+        if (activeSessionIds.has(sessionId)) return
+        entry.dispose()
+        statusDisposers.delete(sessionId)
+      })
+    },
+    {deep: true, immediate: true}
 )
 
 onMounted(() => {
@@ -494,12 +519,12 @@ onUnmounted(() => {
 <template>
   <div class="device-control">
     <DeviceSettingsButton
-      :connected-serial-count="connectedSerialCount"
-      :connected-tcp-count="connectedTcpCount"
-      @click="deviceSettingsVisible = true"
+        :connected-serial-count="connectedSerialCount"
+        :connected-tcp-count="connectedTcpCount"
+        @click="deviceSettingsVisible = true"
     />
 
-    <q-dialog v-model="deviceSettingsVisible" persistent maximized>
+    <q-dialog v-model="deviceSettingsVisible">
       <q-card class="device-settings-card">
         <q-card-section class="device-settings-header">
           <div>
@@ -511,12 +536,12 @@ onUnmounted(() => {
 
           <div class="device-settings-actions">
             <q-btn
-              outline
-              color="primary"
-              no-caps
-              icon="refresh"
-              :loading="loadingSerialOptions"
-              @click="refreshSerialOptions"
+                outline
+                color="primary"
+                no-caps
+                icon="refresh"
+                :loading="loadingSerialOptions"
+                @click="refreshSerialOptions"
             >
               刷新串口
             </q-btn>
@@ -524,17 +549,17 @@ onUnmounted(() => {
           </div>
         </q-card-section>
 
-        <q-separator />
+        <q-separator/>
 
         <q-card-section class="device-settings-panel">
           <q-table
-            flat
-            bordered
-            row-key="id"
-            :rows="rows"
-            :columns="columns"
-            :pagination="tablePagination"
-            class="device-table"
+              flat
+              bordered
+              row-key="id"
+              :rows="rows"
+              :columns="columns"
+              :pagination="tablePagination"
+              class="device-table"
           >
             <template #top>
               <div class="table-toolbar">
@@ -557,10 +582,10 @@ onUnmounted(() => {
             <template #body-cell-status="{ row }">
               <q-td>
                 <q-chip
-                  square
-                  dense
-                  :color="row.connected ? 'positive' : 'negative'"
-                  text-color="white"
+                    square
+                    dense
+                    :color="row.connected ? 'positive' : 'negative'"
+                    text-color="white"
                 >
                   {{ row.connected ? '已连接' : '未连接' }}
                 </q-chip>
@@ -581,39 +606,38 @@ onUnmounted(() => {
               <q-td>
                 <div class="table-actions">
                   <q-btn
-                    dense
-                    flat
-                    round
-                    color="primary"
-                    icon="edit"
-                    @click="openEditDialog(row.profile)"
+                      dense
+                      flat
+                      round
+                      color="primary"
+                      icon="edit"
+                      @click="openEditDialog(row.profile)"
                   />
                   <q-btn
-                    dense
-                    color="primary"
-                    no-caps
-                    unelevated
-                    @click="connectProfile(row.profile)"
+                      dense
+                      color="primary"
+                      flat
+                      no-caps
+                      @click="connectProfile(row.profile)"
                   >
                     连接
                   </q-btn>
                   <q-btn
-                    dense
-                    color="negative"
-                    no-caps
-                    unelevated
-                    @click="disconnectProfile(row.profile)"
+                      dense
+                      color="negative"
+                      flat
+                      no-caps
+                      @click="disconnectProfile(row.profile)"
                   >
                     断开
                   </q-btn>
                   <q-btn
-                    dense
-                    flat
-                    round
-                    color="negative"
-                    icon="delete"
-                    :disable="row.connected || connectionProfiles.length <= 1"
-                    @click="handleRemove(row.profile)"
+                      dense
+                      flat
+                      round
+                      color="negative"
+                      icon="delete"
+                      @click="handleRemove(row.profile)"
                   />
                 </div>
               </q-td>
@@ -627,10 +651,10 @@ onUnmounted(() => {
       <q-card class="editor-card">
         <q-card-section class="editor-header">
           <div class="editor-title">{{ editorTitle }}</div>
-          <q-btn flat round dense icon="close" @click="closeEditor" />
+          <q-btn flat round dense icon="close" @click="closeEditor"/>
         </q-card-section>
 
-        <q-separator />
+        <q-separator/>
 
         <q-card-section class="editor-body">
           <q-banner v-if="isEditingConnectedProfile" dense rounded class="editor-banner">
@@ -638,73 +662,58 @@ onUnmounted(() => {
           </q-banner>
 
           <div class="editor-grid">
-            <q-input v-model="connectionForm.name" outlined label="连接名称" />
+            <q-input v-model="connectionForm.name" outlined label="连接名称"/>
             <q-input
-              v-model.number="connectionForm.sessionId"
-              outlined
-              type="number"
-              min="0"
-              label="Session ID"
-              :disable="isEditingConnectedProfile"
+                v-model.number="connectionForm.sessionId"
+                outlined
+                type="number"
+                min="0"
+                label="Session ID"
+                :disable="isEditingConnectedProfile"
             />
-
-            <q-btn-toggle
-              v-model="connectionForm.mode"
-              no-caps
-              rounded
-              unelevated
-              toggle-color="primary"
-              :disable="isEditingConnectedProfile"
-              :options="[
-                { label: 'RS232', value: 'serial' },
-                { label: 'TCP', value: 'tcp' }
-              ]"
-            />
-
-            <div />
 
             <template v-if="connectionForm.mode === 'serial'">
               <q-select
-                v-model="connectionForm.portPath"
-                outlined
-                emit-value
-                map-options
-                label="串口"
-                :options="serialOptions"
-                :disable="isEditingConnectedProfile"
+                  v-model="connectionForm.portPath"
+                  outlined
+                  emit-value
+                  map-options
+                  label="串口"
+                  :options="serialOptions"
+                  :disable="isEditingConnectedProfile"
               />
               <q-input
-                v-model.number="connectionForm.baudRate"
-                outlined
-                type="number"
-                min="300"
-                step="300"
-                label="波特率"
-                :disable="isEditingConnectedProfile"
+                  v-model.number="connectionForm.baudRate"
+                  outlined
+                  type="number"
+                  min="300"
+                  step="300"
+                  label="波特率"
+                  :disable="isEditingConnectedProfile"
               />
             </template>
 
             <template v-else>
               <q-input
-                v-model="connectionForm.host"
-                outlined
-                label="TCP 地址"
-                :disable="isEditingConnectedProfile"
+                  v-model="connectionForm.host"
+                  outlined
+                  label="TCP 地址"
+                  :disable="isEditingConnectedProfile"
               />
               <q-input
-                v-model.number="connectionForm.port"
-                outlined
-                type="number"
-                min="1"
-                max="65535"
-                label="端口"
-                :disable="isEditingConnectedProfile"
+                  v-model.number="connectionForm.port"
+                  outlined
+                  type="number"
+                  min="1"
+                  max="65535"
+                  label="端口"
+                  :disable="isEditingConnectedProfile"
               />
             </template>
           </div>
         </q-card-section>
 
-        <q-separator />
+        <q-separator/>
 
         <q-card-actions align="right">
           <q-btn flat no-caps @click="closeEditor">取消</q-btn>
@@ -726,7 +735,9 @@ onUnmounted(() => {
   border-radius: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  width: 80vw;
+  max-width: 1200px;
+  height: 70vh;
 }
 
 .device-settings-header {

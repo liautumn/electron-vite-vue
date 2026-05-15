@@ -118,9 +118,7 @@ const connectionSessionHint = computed(() => {
       : '当前未配置 TCP 会话，请先在项目设置里新增 TCP 连接。'
   }
 
-  return profile.mode === 'serial'
-    ? `当前 Serial 会话：${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
-    : `当前 TCP 会话：${profile.host || '-'}:${profile.port || '-'}`
+  return `当前会话：${formatConnectionSessionLabel(profile)}`
 })
 
 function appendLog(messageText: string) {
@@ -162,12 +160,7 @@ function formatConnectionModeLabel(mode: GuoxinConnectionMode) {
 }
 
 function formatConnectionSessionLabel(profile: DeviceConnectionProfile) {
-  const endpoint =
-    profile.mode === 'serial'
-      ? `${profile.portPath || '未选择串口'} / ${profile.baudRate || 9600}`
-      : `${profile.host || '-'}:${profile.port || '-'}`
-
-  return `${profile.name} / Session ${profile.sessionId} / ${endpoint}`
+  return `${profile.name} / Session ${profile.sessionId}`
 }
 
 function getConnectionProfilesByMode(mode: GuoxinConnectionMode) {

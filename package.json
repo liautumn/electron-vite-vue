@@ -43,6 +43,7 @@
   "dependencies": {
     "@quasar/extras": "^1.17.0",
     "better-sqlite3": "^12.9.0",
+    "echarts": "^6.0.0",
     "electron-log": "^5.4.3",
     "mqtt": "^5.15.1",
     "quasar": "^2.18.6",

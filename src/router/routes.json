@@ -100,6 +100,19 @@
         }
       },
       {
+        "path": "luodan-rfid-phase-demo",
+        "name": "luodan-rfid-phase-demo",
+        "component": "LuodanRfidPhaseView",
+        "alias": "/luodan-rfid-phase-demo",
+        "meta": {
+          "title": "Luodan RFID 相位测距",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:luodan-rfid-phase",
+          "type": "menu"
+        }
+      },
+      {
         "path": "lock-demo",
         "name": "lock-demo",
         "component": "LockView",

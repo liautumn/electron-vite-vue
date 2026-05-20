@@ -13,6 +13,7 @@ const DEFAULT_PERMISSIONS = [
     'app:demos:mqtt',
     'app:demos:sqlite',
     'app:demos:guoxin-rfid',
+    'app:demos:luodan-rfid-phase',
     'app:demos:lock',
     'app:demos:led',
 ] as const

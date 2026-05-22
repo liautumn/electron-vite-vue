@@ -18,6 +18,24 @@ describe('LuodanCommon', () => {
     assert.equal(frame, 'A008FF8B0100000101CB')
   })
 
+  it('builds luodan permanent output power frames for all antennas', () => {
+    const frame = buildLuodanFrame(0x76, '1E1E0C1E')
+
+    assert.equal(frame, 'A007FF761E1E0C1E7E')
+  })
+
+  it('builds luodan uniform permanent output power frames', () => {
+    const frame = buildLuodanFrame(0x76, '1E')
+
+    assert.equal(frame, 'A004FF761EC9')
+  })
+
+  it('builds luodan fixed frequency frames with custom spectrum quantity 1', () => {
+    const frame = buildLuodanFrame(0x78, '04 32 01 0D F6 38')
+
+    assert.equal(frame, 'A009FF780432010DF6386E')
+  })
+
   it('buffers incomplete callback data until a full A0 frame arrives', () => {
     const first = splitLuodanFrames('', 'A008FF8B0100')
     assert.deepEqual(first.frames, [])

@@ -73,7 +73,45 @@ const ERROR_MESSAGES: Record<number, string> = {
   0x02: 'CRC 校验错误',
   0x03: '参数错误',
   0x04: '读写器忙',
-  0x22: '天线未连接'
+  0x10: '命令成功完成',
+  0x11: '命令执行失败',
+  0x20: 'CPU复位错误',
+  0x22: '天线未连接',
+  0x23: '写Flash错误',
+  0x24: '读Flash错误',
+  0x25: '设置发射功率错误',
+  0x31: '盘存标签错误',
+  0x32: '读标签错误',
+  0x33: '写标签错误',
+  0x34: '锁定标签错误',
+  0x35: '灭活标签错误',
+  0x36: '无可操作标签错误',
+  0x37: '成功盘存但访问失败',
+  0x38: '缓存为空',
+  0x3c: 'NXP芯片自定义指令失败',
+  0x40: '访问标签错误或访问密码错误',
+  0x41: '无效的参数',
+  0x42: 'wordCnt参数超过规定长度',
+  0x43: 'MemBank参数超出范围',
+  0x44: 'Lock数据区参数超出范围',
+  0x45: 'LockType参数超出范围',
+  0x46: '读写器地址无效',
+  0x47: '天线号超出范围',
+  0x48: '输出功率参数超出范围',
+  0x49: '射频规范区域参数超出范围',
+  0x4a: '波特率参数超出范围',
+  0x4b: '蜂鸣器设置参数超出范围',
+  0x4c: 'EPC匹配长度越界',
+  0x4d: 'EPC匹配长度错误',
+  0x4e: 'EPC匹配参数超出范围',
+  0x4f: '频率范围设置参数错误',
+  0x50: '无法接收标签的RN16',
+  0x51: 'DRM设置参数错误',
+  0x52: 'PLL不能锁定',
+  0x53: '射频芯片无响应',
+  0x54: '输出达不到指定的输出功率',
+  0x55: '版权认证未通过',
+  0x56: '频谱规范设置错误'
 }
 
 function assertByte(value: number, label: string) {
@@ -144,6 +182,10 @@ export function resolveLuodanFrequencyMHz(frequencyParameter: number) {
 
 function formatErrorCode(errorCode: number) {
   return ERROR_MESSAGES[errorCode] ?? `未知错误码 0x${toHex(errorCode)}`
+}
+
+export function describeLuodanStatusCode(statusCode: number) {
+  return formatErrorCode(statusCode)
 }
 
 export function buildLuodanFrame(command: number, payload = '', address = 0xff) {

@@ -23,7 +23,12 @@ import {
 import {
   buildPhaseInventoryFrame,
   readEPCPhaseContinuous,
-  sendRawLuodanHex
+  readPermanentOutputPower,
+  sendRawLuodanHex,
+  setAntennaPermanentOutputPower,
+  setBeeperMode,
+  setFixedFrequency,
+  setHoppingFrequency
 } from '../components/rfid/luodan/LuodanRfidHelper'
 import {
   luodanDevice,
@@ -46,6 +51,9 @@ type TagRow = {
   phaseDegrees: number | null
   estimatedDistanceCm: number | null
   relativeDistanceCm: number | null
+  movementText: string
+  movementTone: 'positive' | 'negative' | 'neutral'
+  movementDelta: number | null
   count: number
   lastSeenAt: string
   rawFrame: string
@@ -57,8 +65,10 @@ type ChartPoint = {
   antennaId: number
   frequencyParameter: number
   frequencyMHz: number | null
-  distanceCm: number
-  relativeDistanceCm: number
+  rssi: number
+  movementText: string
+  movementTone: 'positive' | 'negative' | 'neutral'
+  movementDelta: number | null
 }
 
 type PhaseBaseline = {
@@ -80,8 +90,17 @@ const CHART_FILTER_OPTIONS: Array<{ label: string, value: 'all' | 'latest' }> = 
   { label: '当前频点', value: 'latest' }
 ]
 
+const BEEPER_MODE_OPTIONS = [
+  { label: '安静', value: 0 },
+  { label: '盘存后响', value: 1 },
+  { label: '读到标签响', value: 2 }
+]
+
 const MAX_CHART_POINTS = 200
 const NEXT_ROUND_DELAY_MS = 80
+const RSSI_TREND_WINDOW_SIZE = 8
+const RSSI_TREND_HALF_WINDOW = 4
+const RSSI_NEAR_FAR_THRESHOLD = 2
 
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -110,12 +129,17 @@ const log = ref('')
 const isReading = ref(false)
 const logScroller = ref<HTMLElement | null>(null)
 const chartEl = ref<HTMLElement | null>(null)
+const powerSubmitting = ref(false)
+const powerReading = ref(false)
+const beeperSubmitting = ref(false)
+const frequencySubmitting = ref(false)
 
 let stopPhaseRead: null | (() => void) = null
 let nextRoundTimer: ReturnType<typeof setTimeout> | null = null
 let activeReadSessionId: number | null = null
 let chartInstance: ECharts | null = null
 const phaseBaselines = new Map<string, PhaseBaseline>()
+const rssiTrendWindows = new Map<string, number[]>()
 let disposeStatusListener = () => {
 }
 let disposeRawListener = () => {
@@ -130,6 +154,27 @@ const connectionSessionOptions = computed(() =>
 const selectedConnectionProfile = computed(() =>
   getConnectionProfilesByMode(config.value.mode)
     .find((profile) => profile.sessionId === config.value.connectionSessionId) ?? null
+)
+function formatLogicalAntennaLabel(antennaId: number) {
+  if (config.value.antennaCount <= 8) {
+    return `天线${antennaId}`
+  }
+
+  const group = Math.floor((antennaId - 1) / 8) + 1
+  const groupAntenna = ((antennaId - 1) % 8) + 1
+  return `${group}组-天线${groupAntenna}`
+}
+
+const powerAntennaOptions = computed(() =>
+  Array.from({ length: config.value.antennaCount }, (_, index) => ({
+    label: formatLogicalAntennaLabel(index + 1),
+    value: index + 1
+  }))
+)
+const formattedPowerLevels = computed(() =>
+  config.value.powerLevels
+    .map((power, index) => `${formatLogicalAntennaLabel(index + 1)}=${power} dBm`)
+    .join(', ')
 )
 const connectionSessionHint = computed(() => {
   const profile = selectedConnectionProfile.value
@@ -213,6 +258,10 @@ function formatConnectionSessionLabel(profile: DeviceConnectionProfile) {
   return `${profile.name} / Session ${profile.sessionId}`
 }
 
+function formatPowerLevels(powerLevels: number[]) {
+  return powerLevels.map((power, index) => `${formatLogicalAntennaLabel(index + 1)}=${power} dBm`).join(', ')
+}
+
 function getConnectionProfilesByMode(mode: LuodanConnectionMode) {
   return connectionProfiles.value
     .filter((profile) => profile.mode === mode)
@@ -271,6 +320,67 @@ function createPhaseBaselineKey(tag: LuodanTagReadMessage) {
   return `${tag.epc}-${tag.antennaId}-${tag.frequencyParameter}`
 }
 
+function createMovementKey(tag: LuodanTagReadMessage) {
+  return `${tag.epc}-${tag.antennaId}`
+}
+
+function average(values: number[]) {
+  if (!values.length) {
+    return 0
+  }
+
+  return values.reduce((total, value) => total + value, 0) / values.length
+}
+
+function updateMovementTrend(tag: LuodanTagReadMessage) {
+  const key = createMovementKey(tag)
+  const samples = [...(rssiTrendWindows.get(key) ?? []), tag.rssi.value]
+    .slice(-RSSI_TREND_WINDOW_SIZE)
+  rssiTrendWindows.set(key, samples)
+
+  if (samples.length < RSSI_TREND_WINDOW_SIZE) {
+    return {
+      movementText: '观察中',
+      movementTone: 'neutral' as const,
+      movementDelta: null
+    }
+  }
+
+  const previousAverage = average(samples.slice(0, RSSI_TREND_HALF_WINDOW))
+  const currentAverage = average(samples.slice(RSSI_TREND_HALF_WINDOW))
+  const delta = currentAverage - previousAverage
+
+  if (delta >= RSSI_NEAR_FAR_THRESHOLD) {
+    return {
+      movementText: '靠近',
+      movementTone: 'positive' as const,
+      movementDelta: delta
+    }
+  }
+
+  if (delta <= -RSSI_NEAR_FAR_THRESHOLD) {
+    return {
+      movementText: '远离',
+      movementTone: 'negative' as const,
+      movementDelta: delta
+    }
+  }
+
+  return {
+    movementText: '稳定',
+    movementTone: 'neutral' as const,
+    movementDelta: delta
+  }
+}
+
+function formatMovementDelta(value: number | null) {
+  if (value === null) {
+    return '-'
+  }
+
+  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1)
+}
+
 function createTagRow(tag: LuodanTagReadMessage): TagRow {
   const phaseRaw = tag.phase?.raw ?? null
   const frequencyMHz = tag.frequencyMHz ?? config.value.carrierFrequencyMHz
@@ -283,6 +393,7 @@ function createTagRow(tag: LuodanTagReadMessage): TagRow {
     phaseBaselines.set(baselineKey, { phaseRaw, frequencyMHz })
   }
   const effectiveBaseline = baseline ?? phaseBaselines.get(baselineKey)
+  const movement = updateMovementTrend(tag)
 
   return {
     key: `${tag.epc}-${tag.antennaId}`,
@@ -299,6 +410,9 @@ function createTagRow(tag: LuodanTagReadMessage): TagRow {
       phaseRaw === null || !effectiveBaseline
         ? null
         : estimateRelativePhaseDistanceCm(phaseRaw, effectiveBaseline.phaseRaw, effectiveBaseline.frequencyMHz),
+    movementText: movement.movementText,
+    movementTone: movement.movementTone,
+    movementDelta: movement.movementDelta,
     count: 1,
     lastSeenAt: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
     rawFrame: tag.rawFrame
@@ -306,18 +420,16 @@ function createTagRow(tag: LuodanTagReadMessage): TagRow {
 }
 
 function appendChartPoint(row: TagRow) {
-  if (row.estimatedDistanceCm === null) {
-    return
-  }
-
   const point: ChartPoint = {
     time: row.lastSeenAt,
     epc: row.epc,
     antennaId: row.antennaId,
     frequencyParameter: row.frequencyParameter,
     frequencyMHz: row.frequencyMHz,
-    distanceCm: row.estimatedDistanceCm,
-    relativeDistanceCm: row.relativeDistanceCm ?? 0
+    rssi: row.rssi,
+    movementText: row.movementText,
+    movementTone: row.movementTone,
+    movementDelta: row.movementDelta
   }
 
   chartPoints.value = [...chartPoints.value, point].slice(-MAX_CHART_POINTS)
@@ -451,11 +563,137 @@ function sendRawHex() {
   }
 }
 
+async function applyPermanentPower() {
+  try {
+    const connectionSessionId = requireSessionId(config.value.connectionSessionId)
+    powerSubmitting.value = true
+    const currentPowerLevels = await readPermanentOutputPower({
+      address: config.value.readerAddress,
+      sessionId: connectionSessionId,
+      antennaCount: config.value.antennaCount
+    })
+    const result = await setAntennaPermanentOutputPower({
+      antennaId: config.value.powerAntennaId,
+      powerDbm: config.value.permanentPowerDbm,
+      currentPowerLevels: currentPowerLevels.length ? currentPowerLevels : config.value.powerLevels,
+      antennaCount: config.value.antennaCount,
+      address: config.value.readerAddress,
+      sessionId: connectionSessionId
+    })
+    luodanStore.setConfig({
+      antennaCount: Math.min(Math.max(result.powerLevels.length, 1), 16),
+      powerLevels: result.powerLevels
+    })
+    appendLog(
+      `会话[${connectionSessionId}]永久功率写入成功: ${formatLogicalAntennaLabel(config.value.powerAntennaId)}=${config.value.permanentPowerDbm} dBm, 组=${result.groupIndex + 1}, TX=${result.frame}`
+    )
+    notify('positive', '永久功率写入成功')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`永久功率写入失败: ${messageText}`)
+    notify('negative', messageText)
+  } finally {
+    powerSubmitting.value = false
+  }
+}
+
+async function loadPermanentPower() {
+  try {
+    const connectionSessionId = requireSessionId(config.value.connectionSessionId)
+    powerReading.value = true
+    const powerLevels = await readPermanentOutputPower({
+      address: config.value.readerAddress,
+      sessionId: connectionSessionId,
+      antennaCount: config.value.antennaCount
+    })
+    if (powerLevels.length) {
+      luodanStore.setConfig({
+        antennaCount: Math.min(Math.max(powerLevels.length, 1), 16),
+        powerLevels,
+        permanentPowerDbm: powerLevels[config.value.powerAntennaId - 1] ?? config.value.permanentPowerDbm
+      })
+    }
+    appendLog(
+      `会话[${connectionSessionId}]读取永久功率成功: ${powerLevels.length ? formatPowerLevels(powerLevels) : '无数据'}`
+    )
+    notify('positive', '读取永久功率成功')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`读取永久功率失败: ${messageText}`)
+    notify('negative', messageText)
+  } finally {
+    powerReading.value = false
+  }
+}
+
+async function applyBeeperMode() {
+  try {
+    const connectionSessionId = requireSessionId(config.value.connectionSessionId)
+    beeperSubmitting.value = true
+    const frame = await setBeeperMode(config.value.beeperMode, {
+      address: config.value.readerAddress,
+      sessionId: connectionSessionId
+    })
+    appendLog(`会话[${connectionSessionId}]蜂鸣器设置成功: 模式=${config.value.beeperMode}, TX=${frame}`)
+    notify('positive', '蜂鸣器设置成功')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`蜂鸣器设置失败: ${messageText}`)
+    notify('negative', messageText)
+  } finally {
+    beeperSubmitting.value = false
+  }
+}
+
+async function applyFixedFrequency() {
+  try {
+    const connectionSessionId = requireSessionId(config.value.connectionSessionId)
+    frequencySubmitting.value = true
+    const frame = await setFixedFrequency(config.value.carrierFrequencyMHz, {
+      address: config.value.readerAddress,
+      sessionId: connectionSessionId
+    })
+    appendLog(`会话[${connectionSessionId}]设置定频成功: ${config.value.carrierFrequencyMHz} MHz, TX=${frame}`)
+    notify('positive', '定频设置成功')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`设置定频失败: ${messageText}`)
+    notify('negative', messageText)
+  } finally {
+    frequencySubmitting.value = false
+  }
+}
+
+async function applyHoppingFrequency() {
+  try {
+    const connectionSessionId = requireSessionId(config.value.connectionSessionId)
+    frequencySubmitting.value = true
+    const frame = await setHoppingFrequency({
+      address: config.value.readerAddress,
+      sessionId: connectionSessionId
+    })
+    appendLog(`会话[${connectionSessionId}]设置变频成功: CHN 913.5~928 MHz, TX=${frame}`)
+    notify('positive', '变频设置成功')
+  } catch (error) {
+    const messageText = resolveError(error)
+    appendLog(`设置变频失败: ${messageText}`)
+    notify('negative', messageText)
+  } finally {
+    frequencySubmitting.value = false
+  }
+}
+
+function closeBeeper() {
+  config.value.beeperMode = 0
+  void applyBeeperMode()
+}
+
 function clearTags() {
   tagRows.value = []
   latestTag.value = null
   chartPoints.value = []
   phaseBaselines.clear()
+  rssiTrendWindows.clear()
 }
 
 function clearLog() {
@@ -490,10 +728,10 @@ function buildChartOption(): DistanceChartOption {
           point.time,
           `EPC: ${point.epc}`,
           `天线: ${point.antennaId}`,
-          `频点: ${point.frequencyParameter}`,
-          `频率: ${formatFrequencyMHz(point.frequencyMHz)} MHz`,
-          `等效距离: ${point.distanceCm.toFixed(2)} cm`,
-          `相对变化: ${point.relativeDistanceCm.toFixed(2)} cm`
+          `RSSI: ${point.rssi}`,
+          `变化: ${point.movementText}`,
+          `RSSI变化: ${formatMovementDelta(point.movementDelta)}`,
+          `频率: ${formatFrequencyMHz(point.frequencyMHz)} MHz`
         ].join('<br/>')
       }
     },
@@ -507,7 +745,7 @@ function buildChartOption(): DistanceChartOption {
     },
     yAxis: {
       type: 'value',
-      name: 'cm',
+      name: 'RSSI',
       scale: true,
       splitLine: {
         lineStyle: {
@@ -517,27 +755,23 @@ function buildChartOption(): DistanceChartOption {
     },
     series: [
       {
-        name: '相位等效距离',
+        name: 'RSSI轨迹',
         type: 'line',
         smooth: true,
-        showSymbol: false,
-        data: visibleChartPoints.value.map((point) => point.distanceCm),
+        showSymbol: true,
+        symbolSize: 8,
+        data: visibleChartPoints.value.map((point) => ({
+          value: point.rssi,
+          itemStyle: {
+            color: point.movementTone === 'positive'
+              ? '#16a34a'
+              : point.movementTone === 'negative'
+                ? '#dc2626'
+                : '#64748b'
+          }
+        })),
         lineStyle: {
           width: 2
-        },
-        areaStyle: {
-          opacity: 0.08
-        }
-      },
-      {
-        name: '相对变化',
-        type: 'line',
-        smooth: true,
-        showSymbol: false,
-        data: visibleChartPoints.value.map((point) => point.relativeDistanceCm),
-        lineStyle: {
-          width: 2,
-          type: 'dashed'
         }
       }
     ]
@@ -695,11 +929,117 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
           <q-card-section class="panel-stack">
             <div class="param-grid">
               <q-input v-model.number="config.readerAddress" outlined type="number" min="0" max="255" label="读写器地址" />
+              <q-input v-model.number="config.antennaCount" outlined type="number" min="1" max="16" label="天线数" />
               <q-input v-model.number="config.inventorySession" outlined type="number" min="0" max="3" label="Session" />
               <q-input v-model.number="config.target" outlined type="number" min="0" max="1" label="Target" />
               <q-input v-model.number="config.sl" outlined type="number" min="0" max="3" label="SL" />
               <q-input v-model.number="config.repeat" outlined type="number" min="0" max="255" label="Repeat" />
               <q-input v-model.number="config.carrierFrequencyMHz" outlined type="number" min="1" label="兜底频率 MHz" />
+            </div>
+            <div class="info-panel">
+              <div class="info-panel__title">频率设置</div>
+              <div class="action-buttons">
+                <q-btn
+                  color="primary"
+                  no-caps
+                  unelevated
+                  :loading="frequencySubmitting"
+                  @click="applyFixedFrequency"
+                >
+                  改为定频 {{ config.carrierFrequencyMHz }} MHz
+                </q-btn>
+                <q-btn
+                  outline
+                  color="primary"
+                  no-caps
+                  :loading="frequencySubmitting"
+                  @click="applyHoppingFrequency"
+                >
+                  改为变频
+                </q-btn>
+              </div>
+              <div class="muted-text power-levels-text">
+                定频使用 0x78 自定义频谱，频点数量为 1；变频使用 CHN 默认频点 913.5~928 MHz。设置后建议清空标签再重新读取。
+              </div>
+            </div>
+            <div class="info-panel">
+              <div class="info-panel__title">永久天线功率</div>
+              <div class="param-grid power-param-grid">
+                <q-select
+                  v-model="config.powerAntennaId"
+                  outlined
+                  emit-value
+                  map-options
+                  :options="powerAntennaOptions"
+                  label="指定天线"
+                />
+                <q-input
+                  v-model.number="config.permanentPowerDbm"
+                  outlined
+                  type="number"
+                  min="0"
+                  max="33"
+                  suffix="dBm"
+                  label="功率"
+                />
+                <div class="action-buttons power-actions">
+                  <q-btn
+                    color="primary"
+                    no-caps
+                    unelevated
+                    :loading="powerSubmitting"
+                    @click="applyPermanentPower"
+                  >
+                    永久写入
+                  </q-btn>
+                  <q-btn
+                    outline
+                    color="primary"
+                    no-caps
+                    :loading="powerReading"
+                    @click="loadPermanentPower"
+                  >
+                    读取功率
+                  </q-btn>
+                </div>
+              </div>
+              <div class="muted-text power-levels-text">
+                当前保存：{{ formattedPowerLevels || '-' }}。16口设备按两组 1-8 自动切组；永久写入使用 0x76，成功后保存到读写器 Flash，断电不丢。
+              </div>
+            </div>
+            <div class="info-panel">
+              <div class="info-panel__title">蜂鸣器</div>
+              <div class="param-grid power-param-grid">
+                <q-select
+                  v-model="config.beeperMode"
+                  outlined
+                  emit-value
+                  map-options
+                  :options="BEEPER_MODE_OPTIONS"
+                  label="蜂鸣器模式"
+                />
+                <div class="action-buttons power-actions">
+                  <q-btn
+                    color="primary"
+                    no-caps
+                    unelevated
+                    :loading="beeperSubmitting"
+                    @click="applyBeeperMode"
+                  >
+                    保存蜂鸣器
+                  </q-btn>
+                  <q-btn
+                    outline
+                    color="primary"
+                    no-caps
+                    :loading="beeperSubmitting"
+                    @click="closeBeeper"
+                  >
+                    关闭蜂鸣器
+                  </q-btn>
+                </div>
+              </div>
+              <div class="muted-text power-levels-text">安静模式使用 0x7A 00，成功后保存到读写器 Flash。</div>
             </div>
             <div class="info-panel">
               <div class="info-panel__title">发送帧预览</div>
@@ -727,14 +1067,13 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
             <div v-if="latestTag" class="info-panel">
               <div class="info-panel__title">最近标签</div>
               <div class="info-list">
+                <div class="movement-result" :class="`movement-result--${latestTag.movementTone}`">
+                  {{ latestTag.movementText }}
+                </div>
                 <div class="info-row"><span>EPC</span><code>{{ latestTag.epc }}</code></div>
                 <div class="info-row"><span>天线</span><strong>{{ latestTag.antennaId }}</strong></div>
                 <div class="info-row"><span>RSSI</span><strong>{{ latestTag.rssi }}</strong></div>
-                <div class="info-row"><span>频点</span><strong>{{ latestTag.frequencyParameter }}</strong></div>
-                <div class="info-row"><span>频率</span><strong>{{ formatFrequencyMHz(latestTag.frequencyMHz) }} MHz</strong></div>
-                <div class="info-row"><span>Phase</span><strong>{{ latestTag.phaseRaw ?? '-' }}</strong></div>
-                <div class="info-row"><span>等效距离</span><strong>{{ formatDistanceCmWithUnit(latestTag.estimatedDistanceCm) }}</strong></div>
-                <div class="info-row"><span>相对变化</span><strong>{{ formatDistanceCmWithUnit(latestTag.relativeDistanceCm) }}</strong></div>
+                <div class="info-row"><span>变化</span><strong>{{ formatMovementDelta(latestTag.movementDelta) }}</strong></div>
               </div>
             </div>
 
@@ -762,31 +1101,29 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
               :pagination="{ rowsPerPage: 10 }"
               :columns="[
                 { name: 'epc', label: 'EPC', field: 'epc', align: 'left' },
+                { name: 'movementText', label: '变化', field: 'movementText', align: 'center' },
                 { name: 'antennaId', label: '天线', field: 'antennaId', align: 'center' },
                 { name: 'rssi', label: 'RSSI', field: 'rssi', align: 'center' },
-                { name: 'frequencyParameter', label: '频点', field: 'frequencyParameter', align: 'center' },
-                { name: 'frequencyMHz', label: '频率(MHz)', field: 'frequencyMHz', align: 'center' },
-                { name: 'phaseRaw', label: 'Phase', field: 'phaseRaw', align: 'center' },
-                { name: 'phaseDegrees', label: '相位角', field: 'phaseDegrees', align: 'center' },
-                { name: 'estimatedDistanceCm', label: '等效距离(cm)', field: 'estimatedDistanceCm', align: 'center' },
-                { name: 'relativeDistanceCm', label: '相对变化(cm)', field: 'relativeDistanceCm', align: 'center' },
+                { name: 'movementDelta', label: 'RSSI变化', field: 'movementDelta', align: 'center' },
                 { name: 'count', label: '次数', field: 'count', align: 'center' },
                 { name: 'lastSeenAt', label: '最近时间', field: 'lastSeenAt', align: 'center' }
               ]"
             >
-              <template #body-cell-frequencyMHz="props">
+              <template #body-cell-movementText="props">
                 <q-td :props="props">
-                  {{ formatFrequencyMHz(props.row.frequencyMHz) }}
+                  <q-chip
+                    square
+                    dense
+                    :color="props.row.movementTone === 'positive' ? 'positive' : props.row.movementTone === 'negative' ? 'negative' : 'grey'"
+                    text-color="white"
+                  >
+                    {{ props.row.movementText }}
+                  </q-chip>
                 </q-td>
               </template>
-              <template #body-cell-estimatedDistanceCm="props">
+              <template #body-cell-movementDelta="props">
                 <q-td :props="props">
-                  {{ formatDistanceCm(props.row.estimatedDistanceCm) }}
-                </q-td>
-              </template>
-              <template #body-cell-relativeDistanceCm="props">
-                <q-td :props="props">
-                  {{ formatDistanceCm(props.row.relativeDistanceCm) }}
+                  {{ formatMovementDelta(props.row.movementDelta) }}
                 </q-td>
               </template>
             </q-table>
@@ -878,6 +1215,14 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.power-actions {
+  align-items: center;
+}
+
+.power-levels-text {
+  margin-top: 10px;
 }
 
 .muted-text {

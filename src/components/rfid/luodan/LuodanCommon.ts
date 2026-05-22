@@ -19,7 +19,6 @@ export interface LuodanFrame {
 export interface LuodanPhaseValue {
   raw: number
   hex: string
-  degrees: number
 }
 
 export interface LuodanTagReadMessage {
@@ -66,8 +65,6 @@ const FRAME_HEAD = 'A0'
 const HEADER_BYTES = 2
 const CHECKSUM_BYTES = 1
 const MIN_FRAME_CHARS = 10
-const PHASE_FULL_SCALE = 4096
-const SPEED_OF_LIGHT_METERS_PER_SECOND = 299_792_458
 const ERROR_MESSAGES: Record<number, string> = {
   0x01: '命令执行失败',
   0x02: 'CRC 校验错误',
@@ -363,53 +360,10 @@ export function parseLuodanInventoryMessage(
         : {
           phase: {
             raw: phaseRaw,
-            hex: phaseHex,
-            degrees: roundTo((phaseRaw / PHASE_FULL_SCALE) * 360, 2)
+            hex: phaseHex
           }
         }),
       rawFrame: frame.rawFrame
     }
   }
-}
-
-export function estimatePhaseDistanceMeters(phaseRaw: number, frequencyMHz = 915) {
-  const parsedPhase = Number(phaseRaw)
-  const parsedFrequency = Number(frequencyMHz)
-  if (!Number.isFinite(parsedPhase) || !Number.isFinite(parsedFrequency) || parsedFrequency <= 0) {
-    return null
-  }
-
-  const normalizedPhase = ((parsedPhase % PHASE_FULL_SCALE) + PHASE_FULL_SCALE) % PHASE_FULL_SCALE
-  const wavelength = SPEED_OF_LIGHT_METERS_PER_SECOND / (parsedFrequency * 1_000_000)
-  return roundTo((normalizedPhase / PHASE_FULL_SCALE) * (wavelength / 2), 4)
-}
-
-export function estimatePhaseDistanceCm(phaseRaw: number, frequencyMHz = 915) {
-  const meters = estimatePhaseDistanceMeters(phaseRaw, frequencyMHz)
-  return meters === null ? null : roundTo(meters * 100, 2)
-}
-
-export function estimateRelativePhaseDistanceCm(
-  currentPhaseRaw: number,
-  baselinePhaseRaw: number,
-  frequencyMHz = 915
-) {
-  const parsedCurrentPhase = Number(currentPhaseRaw)
-  const parsedBaselinePhase = Number(baselinePhaseRaw)
-  const parsedFrequency = Number(frequencyMHz)
-  if (
-    !Number.isFinite(parsedCurrentPhase) ||
-    !Number.isFinite(parsedBaselinePhase) ||
-    !Number.isFinite(parsedFrequency) ||
-    parsedFrequency <= 0
-  ) {
-    return null
-  }
-
-  const rawDelta = parsedCurrentPhase - parsedBaselinePhase
-  const wrappedDelta = ((rawDelta + PHASE_FULL_SCALE / 2) % PHASE_FULL_SCALE + PHASE_FULL_SCALE) %
-    PHASE_FULL_SCALE -
-    PHASE_FULL_SCALE / 2
-  const wavelength = SPEED_OF_LIGHT_METERS_PER_SECOND / (parsedFrequency * 1_000_000)
-  return roundTo((wrappedDelta / PHASE_FULL_SCALE) * (wavelength / 2) * 100, 2)
 }

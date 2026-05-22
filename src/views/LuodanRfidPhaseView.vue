@@ -14,8 +14,6 @@ import {
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import {
-  estimatePhaseDistanceCm,
-  estimateRelativePhaseDistanceCm,
   normalizeHex,
   type LuodanInventoryMessage,
   type LuodanTagReadMessage
@@ -48,9 +46,6 @@ type TagRow = {
   frequencyMHz: number | null
   rssi: number
   phaseRaw: number | null
-  phaseDegrees: number | null
-  estimatedDistanceCm: number | null
-  relativeDistanceCm: number | null
   movementText: string
   movementTone: 'positive' | 'negative' | 'neutral'
   movementDelta: number | null
@@ -71,12 +66,7 @@ type ChartPoint = {
   movementDelta: number | null
 }
 
-type PhaseBaseline = {
-  phaseRaw: number
-  frequencyMHz: number
-}
-
-type DistanceChartOption = ComposeOption<
+type RssiChartOption = ComposeOption<
   GridComponentOption | LegendComponentOption | TooltipComponentOption | LineSeriesOption
 >
 
@@ -122,7 +112,7 @@ const currentMode = ref(snapshot.mode)
 const lastError = ref(snapshot.lastError ?? '')
 const inventoryStatus = ref('空闲')
 const latestTag = ref<TagRow | null>(null)
-const tagRows = ref<TagRow[]>([])
+const trackedTagEpc = ref<string | null>(null)
 const chartPoints = ref<ChartPoint[]>([])
 const chartFrequencyFilter = ref<'all' | 'latest'>('latest')
 const log = ref('')
@@ -138,7 +128,6 @@ let stopPhaseRead: null | (() => void) = null
 let nextRoundTimer: ReturnType<typeof setTimeout> | null = null
 let activeReadSessionId: number | null = null
 let chartInstance: ECharts | null = null
-const phaseBaselines = new Map<string, PhaseBaseline>()
 const rssiTrendWindows = new Map<string, number[]>()
 let disposeStatusListener = () => {
 }
@@ -304,20 +293,8 @@ function handleConnectionSessionChange(sessionId: number | null) {
   })
 }
 
-function formatDistanceCm(value: number | null) {
-  return value === null ? '-' : value.toFixed(2)
-}
-
-function formatDistanceCmWithUnit(value: number | null) {
-  return value === null ? '-' : `${formatDistanceCm(value)} cm`
-}
-
 function formatFrequencyMHz(value: number | null) {
   return value === null ? '-' : value.toFixed(2)
-}
-
-function createPhaseBaselineKey(tag: LuodanTagReadMessage) {
-  return `${tag.epc}-${tag.antennaId}-${tag.frequencyParameter}`
 }
 
 function createMovementKey(tag: LuodanTagReadMessage) {
@@ -383,16 +360,6 @@ function formatMovementDelta(value: number | null) {
 
 function createTagRow(tag: LuodanTagReadMessage): TagRow {
   const phaseRaw = tag.phase?.raw ?? null
-  const frequencyMHz = tag.frequencyMHz ?? config.value.carrierFrequencyMHz
-  const estimatedDistanceCm = phaseRaw === null
-    ? null
-    : estimatePhaseDistanceCm(phaseRaw, frequencyMHz)
-  const baselineKey = createPhaseBaselineKey(tag)
-  const baseline = phaseBaselines.get(baselineKey)
-  if (!baseline && phaseRaw !== null) {
-    phaseBaselines.set(baselineKey, { phaseRaw, frequencyMHz })
-  }
-  const effectiveBaseline = baseline ?? phaseBaselines.get(baselineKey)
   const movement = updateMovementTrend(tag)
 
   return {
@@ -404,12 +371,6 @@ function createTagRow(tag: LuodanTagReadMessage): TagRow {
     frequencyMHz: tag.frequencyMHz,
     rssi: tag.rssi.value,
     phaseRaw,
-    phaseDegrees: tag.phase?.degrees ?? null,
-    estimatedDistanceCm,
-    relativeDistanceCm:
-      phaseRaw === null || !effectiveBaseline
-        ? null
-        : estimateRelativePhaseDistanceCm(phaseRaw, effectiveBaseline.phaseRaw, effectiveBaseline.frequencyMHz),
     movementText: movement.movementText,
     movementTone: movement.movementTone,
     movementDelta: movement.movementDelta,
@@ -436,23 +397,22 @@ function appendChartPoint(row: TagRow) {
 }
 
 function upsertTag(tag: LuodanTagReadMessage) {
-  const nextRow = createTagRow(tag)
-  const index = tagRows.value.findIndex((row) => row.key === nextRow.key)
-
-  if (index === -1) {
-    tagRows.value = [nextRow, ...tagRows.value].slice(0, 50)
-    latestTag.value = nextRow
-    appendChartPoint(nextRow)
+  if (trackedTagEpc.value && tag.epc !== trackedTagEpc.value) {
     return
   }
 
-  const previous = tagRows.value[index]
-  const merged = {
-    ...nextRow,
-    count: previous.count + 1
+  const nextRow = createTagRow(tag)
+  if (!trackedTagEpc.value) {
+    trackedTagEpc.value = nextRow.epc
   }
-  tagRows.value.splice(index, 1)
-  tagRows.value.unshift(merged)
+
+  const merged = latestTag.value?.epc === nextRow.epc
+    ? {
+      ...nextRow,
+      count: latestTag.value.count + 1
+    }
+    : nextRow
+
   latestTag.value = merged
   appendChartPoint(merged)
 }
@@ -672,7 +632,7 @@ async function applyHoppingFrequency() {
       address: config.value.readerAddress,
       sessionId: connectionSessionId
     })
-    appendLog(`会话[${connectionSessionId}]设置变频成功: CHN 913.5~928 MHz, TX=${frame}`)
+    appendLog(`会话[${connectionSessionId}]设置变频成功: CHN 920.5~924.5 MHz, TX=${frame}`)
     notify('positive', '变频设置成功')
   } catch (error) {
     const messageText = resolveError(error)
@@ -689,10 +649,9 @@ function closeBeeper() {
 }
 
 function clearTags() {
-  tagRows.value = []
+  trackedTagEpc.value = null
   latestTag.value = null
   chartPoints.value = []
-  phaseBaselines.clear()
   rssiTrendWindows.clear()
 }
 
@@ -700,7 +659,9 @@ function clearLog() {
   log.value = ''
 }
 
-function buildChartOption(): DistanceChartOption {
+function buildChartOption(): RssiChartOption {
+  const points = visibleChartPoints.value
+
   return {
     animation: false,
     color: ['#2563eb', '#16a34a'],
@@ -738,7 +699,7 @@ function buildChartOption(): DistanceChartOption {
     xAxis: {
       type: 'category',
       boundaryGap: false,
-      data: visibleChartPoints.value.map((point) => point.time),
+      data: points.length ? points.map((point) => point.time) : [''],
       axisLabel: {
         hideOverlap: true
       }
@@ -746,6 +707,8 @@ function buildChartOption(): DistanceChartOption {
     yAxis: {
       type: 'value',
       name: 'RSSI',
+      min: 0,
+      max: 100,
       scale: true,
       splitLine: {
         lineStyle: {
@@ -760,7 +723,7 @@ function buildChartOption(): DistanceChartOption {
         smooth: true,
         showSymbol: true,
         symbolSize: 8,
-        data: visibleChartPoints.value.map((point) => ({
+        data: points.map((point) => ({
           value: point.rssi,
           itemStyle: {
             color: point.movementTone === 'positive'
@@ -959,7 +922,7 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
                 </q-btn>
               </div>
               <div class="muted-text power-levels-text">
-                定频使用 0x78 自定义频谱，频点数量为 1；变频使用 CHN 默认频点 913.5~928 MHz。设置后建议清空标签再重新读取。
+                定频使用 0x78 自定义频谱，频点数量为 1；变频使用 CHN 默认频点 920.5~924.5 MHz。设置后建议清空标签再重新读取。
               </div>
             </div>
             <div class="info-panel">
@@ -1045,7 +1008,7 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
               <div class="info-panel__title">发送帧预览</div>
               <code class="breakable-code">{{ previewFrame || '-' }}</code>
             </div>
-            <div class="muted-text">Phase=01 固定开启；优先按回调 FreqAnt 高 6 位映射的实际频点计算，兜底频率只在频点异常时使用。距离为半波长内相位等效值，未做现场标定。</div>
+            <div class="muted-text">Phase=01 固定开启；页面只展示读写器回调的原始 Phase、RSSI 和 FreqAnt 映射频点，不做相位距离换算。</div>
           </q-card-section>
         </q-card>
       </div>
@@ -1064,22 +1027,29 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
               <q-btn outline color="primary" no-caps @click="clearTags">清空标签</q-btn>
             </div>
 
-            <div v-if="latestTag" class="info-panel">
+            <div class="info-panel">
               <div class="info-panel__title">最近标签</div>
               <div class="info-list">
-                <div class="movement-result" :class="`movement-result--${latestTag.movementTone}`">
-                  {{ latestTag.movementText }}
+                <div
+                  class="movement-result"
+                  :class="`movement-result--${latestTag?.movementTone ?? 'neutral'}`"
+                >
+                  {{ latestTag?.movementText ?? '无数据' }}
                 </div>
-                <div class="info-row"><span>EPC</span><code>{{ latestTag.epc }}</code></div>
-                <div class="info-row"><span>天线</span><strong>{{ latestTag.antennaId }}</strong></div>
-                <div class="info-row"><span>RSSI</span><strong>{{ latestTag.rssi }}</strong></div>
-                <div class="info-row"><span>变化</span><strong>{{ formatMovementDelta(latestTag.movementDelta) }}</strong></div>
+                <div class="info-row"><span>EPC</span><code>{{ latestTag?.epc ?? '-' }}</code></div>
+                <div class="info-row"><span>天线</span><strong>{{ latestTag?.antennaId ?? '-' }}</strong></div>
+                <div class="info-row"><span>频率</span><strong>{{ latestTag?.frequencyMHz ? `${formatFrequencyMHz(latestTag.frequencyMHz)} MHz` : '-' }}</strong></div>
+                <div class="info-row"><span>Phase</span><strong>{{ latestTag?.phaseRaw ?? '-' }}</strong></div>
+                <div class="info-row"><span>RSSI</span><strong>{{ latestTag?.rssi ?? '-' }}</strong></div>
+                <div class="info-row"><span>变化</span><strong>{{ formatMovementDelta(latestTag?.movementDelta ?? null) }}</strong></div>
+                <div class="info-row"><span>次数</span><strong>{{ latestTag?.count ?? 0 }}</strong></div>
+                <div class="info-row"><span>最近时间</span><strong>{{ latestTag?.lastSeenAt ?? '-' }}</strong></div>
               </div>
             </div>
 
             <div class="info-panel">
               <div class="chart-title-row">
-                <div class="info-panel__title">相位等效距离趋势</div>
+                <div class="info-panel__title">RSSI 趋势</div>
                 <q-btn-toggle
                   v-model="chartFrequencyFilter"
                   dense
@@ -1089,53 +1059,17 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
                   :options="CHART_FILTER_OPTIONS"
                 />
               </div>
-              <div ref="chartEl" class="distance-chart" />
+              <div ref="chartEl" class="rssi-chart" />
             </div>
-
-            <q-table
-              flat
-              bordered
-              dense
-              row-key="key"
-              :rows="tagRows"
-              :pagination="{ rowsPerPage: 10 }"
-              :columns="[
-                { name: 'epc', label: 'EPC', field: 'epc', align: 'left' },
-                { name: 'movementText', label: '变化', field: 'movementText', align: 'center' },
-                { name: 'antennaId', label: '天线', field: 'antennaId', align: 'center' },
-                { name: 'rssi', label: 'RSSI', field: 'rssi', align: 'center' },
-                { name: 'movementDelta', label: 'RSSI变化', field: 'movementDelta', align: 'center' },
-                { name: 'count', label: '次数', field: 'count', align: 'center' },
-                { name: 'lastSeenAt', label: '最近时间', field: 'lastSeenAt', align: 'center' }
-              ]"
-            >
-              <template #body-cell-movementText="props">
-                <q-td :props="props">
-                  <q-chip
-                    square
-                    dense
-                    :color="props.row.movementTone === 'positive' ? 'positive' : props.row.movementTone === 'negative' ? 'negative' : 'grey'"
-                    text-color="white"
-                  >
-                    {{ props.row.movementText }}
-                  </q-chip>
-                </q-td>
-              </template>
-              <template #body-cell-movementDelta="props">
-                <q-td :props="props">
-                  {{ formatMovementDelta(props.row.movementDelta) }}
-                </q-td>
-              </template>
-            </q-table>
           </q-card-section>
         </q-card>
 
-        <q-card flat bordered class="panel-card">
+        <q-card flat bordered class="panel-card debug-card">
           <q-card-section>
             <div class="panel-title">原始 HEX 调试</div>
           </q-card-section>
           <q-separator />
-          <q-card-section class="panel-stack">
+          <q-card-section class="panel-stack debug-card__body">
             <q-input
               v-model="config.rawHex"
               outlined
@@ -1185,6 +1119,17 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
   background: var(--app-surface);
   border-color: var(--app-border);
   border-radius: 8px;
+}
+
+.debug-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.debug-card__body {
+  flex: 1;
+  min-height: 0;
 }
 
 .panel-title,
@@ -1297,7 +1242,7 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
   font-family: 'SFMono-Regular', 'Monaco', 'Consolas', monospace;
 }
 
-.distance-chart {
+.rssi-chart {
   height: 280px;
   min-height: 280px;
   width: 100%;
@@ -1308,7 +1253,7 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
   border: 1px solid var(--app-border);
   border-radius: 8px;
   color: var(--app-text-primary);
-  height: 260px;
+  height: 700px;
   overflow-y: auto;
   padding: 12px;
 }

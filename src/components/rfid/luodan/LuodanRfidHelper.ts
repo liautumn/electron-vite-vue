@@ -37,8 +37,8 @@ const EIGHT_PORT_POWER_COUNT = 8
 const MAX_LOGICAL_ANTENNA_COUNT = 16
 const FIXED_FREQUENCY_SPACE_500_KHZ = 0x32
 const DEFAULT_HOPPING_FREQUENCY_REGION = 0x03
-const DEFAULT_HOPPING_START_FREQ = 0x1e
-const DEFAULT_HOPPING_END_FREQ = 0x3b
+const DEFAULT_HOPPING_START_FREQ = 0x2c
+const DEFAULT_HOPPING_END_FREQ = 0x34
 
 function normalizeByte(value: unknown, fallback: number, label: string) {
   const parsed = Number(value)

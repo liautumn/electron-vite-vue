@@ -75,11 +75,6 @@ const CONNECTION_MODE_OPTIONS: Array<{ label: string, value: LuodanConnectionMod
   { label: 'Serial', value: 'serial' }
 ]
 
-const CHART_FILTER_OPTIONS: Array<{ label: string, value: 'all' | 'latest' }> = [
-  { label: '全部频点', value: 'all' },
-  { label: '当前频点', value: 'latest' }
-]
-
 const BEEPER_MODE_OPTIONS = [
   { label: '安静', value: 0 },
   { label: '盘存后响', value: 1 },
@@ -91,6 +86,7 @@ const NEXT_ROUND_DELAY_MS = 80
 const RSSI_TREND_WINDOW_SIZE = 8
 const RSSI_TREND_HALF_WINDOW = 4
 const RSSI_NEAR_FAR_THRESHOLD = 2
+const RSSI_AXIS_PADDING = 4
 
 use([LineChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -114,7 +110,6 @@ const inventoryStatus = ref('空闲')
 const latestTag = ref<TagRow | null>(null)
 const trackedTagEpc = ref<string | null>(null)
 const chartPoints = ref<ChartPoint[]>([])
-const chartFrequencyFilter = ref<'all' | 'latest'>('latest')
 const log = ref('')
 const isReading = ref(false)
 const logScroller = ref<HTMLElement | null>(null)
@@ -188,19 +183,6 @@ const previewFrame = computed(() => {
     return ''
   }
 })
-const visibleChartPoints = computed(() => {
-  if (chartFrequencyFilter.value !== 'latest') {
-    return chartPoints.value
-  }
-
-  const frequencyParameter = latestTag.value?.frequencyParameter
-  if (frequencyParameter === undefined) {
-    return chartPoints.value
-  }
-
-  return chartPoints.value.filter((point) => point.frequencyParameter === frequencyParameter)
-})
-
 function notify(type: 'positive' | 'negative', content: unknown) {
   Notify.create({
     type,
@@ -660,7 +642,11 @@ function clearLog() {
 }
 
 function buildChartOption(): RssiChartOption {
-  const points = visibleChartPoints.value
+  const points = chartPoints.value
+  const rssiValues = points.map((point) => point.rssi)
+  const rssiMin = rssiValues.length ? Math.min(...rssiValues) : 0
+  const rssiMax = rssiValues.length ? Math.max(...rssiValues) : 100
+  const rssiPadding = Math.max(RSSI_AXIS_PADDING, Math.ceil((rssiMax - rssiMin) * 0.12))
 
   return {
     animation: false,
@@ -680,7 +666,7 @@ function buildChartOption(): RssiChartOption {
       formatter: (params) => {
         const item = Array.isArray(params) ? params[0] : params
         const index = Number(item?.dataIndex ?? -1)
-        const points = visibleChartPoints.value
+        const points = chartPoints.value
         const point = points[index]
         if (!point) {
           return ''
@@ -707,8 +693,8 @@ function buildChartOption(): RssiChartOption {
     yAxis: {
       type: 'value',
       name: 'RSSI',
-      min: 0,
-      max: 100,
+      min: Math.floor(rssiMin - rssiPadding),
+      max: Math.ceil(rssiMax + rssiPadding),
       scale: true,
       splitLine: {
         lineStyle: {
@@ -827,7 +813,7 @@ onUnmounted(() => {
   disposeRawListener()
 })
 
-watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParameter], () => {
+watch(chartPoints, () => {
   renderChart()
 })
 </script>
@@ -1048,17 +1034,7 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
             </div>
 
             <div class="info-panel">
-              <div class="chart-title-row">
-                <div class="info-panel__title">RSSI 趋势</div>
-                <q-btn-toggle
-                  v-model="chartFrequencyFilter"
-                  dense
-                  no-caps
-                  unelevated
-                  toggle-color="primary"
-                  :options="CHART_FILTER_OPTIONS"
-                />
-              </div>
+              <div class="info-panel__title">RSSI 趋势</div>
               <div ref="chartEl" class="rssi-chart" />
             </div>
           </q-card-section>
@@ -1192,17 +1168,6 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
   margin-bottom: 10px;
 }
 
-.chart-title-row {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-}
-
-.chart-title-row .info-panel__title {
-  margin-bottom: 0;
-}
-
 .info-list {
   display: flex;
   flex-direction: column;
@@ -1252,7 +1217,6 @@ watch([chartPoints, chartFrequencyFilter, () => latestTag.value?.frequencyParame
   background: rgba(15, 23, 42, 0.03);
   border: 1px solid var(--app-border);
   border-radius: 8px;
-  color: var(--app-text-primary);
   height: 700px;
   overflow-y: auto;
   padding: 12px;

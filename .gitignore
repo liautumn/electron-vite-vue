@@ -32,3 +32,5 @@ yarn.lock
 /tsconfig.node.tsbuildinfo
 /.codex
 /squashfs-root/
+!/database/app.sqlite3-shm
+!/database/app.sqlite3-wal

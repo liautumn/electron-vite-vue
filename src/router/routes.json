@@ -30,22 +30,8 @@
       {
         "path": "",
         "name": "demos-redirect",
-        "redirect": "/demos/pinia-demo",
+        "redirect": "/demos/rs232-tcp-demo",
         "component": "RouterView"
-      },
-      {
-        "path": "pinia-demo",
-        "name": "pinia-demo",
-        "component": "PiniaDemoView",
-        "alias": "/pinia-demo",
-        "meta": {
-          "title": "Pinia 示例",
-          "requiresAuth": false,
-          "visible": true,
-          "enabled": true,
-          "permission": "app:demos:pinia",
-          "type": "menu"
-        }
       },
       {
         "path": "rs232-tcp-demo",

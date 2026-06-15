@@ -5,7 +5,6 @@ const DEFAULT_PERMISSIONS = [
     // 默认授予基础页面的权限，可根据业务登录后覆盖
     'app:home:view',
     'app:demos:view',
-    'app:demos:pinia',
     'app:demos:serialport',
     'app:demos:serialport:refresh',
     'app:demos:command-example',

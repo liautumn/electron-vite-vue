@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {computed, onMounted, ref} from 'vue'
-import {useRouter} from 'vue-router'
 import {useI18n} from 'vue-i18n'
 import {storeToRefs} from 'pinia'
 import {useLocaleStore} from '../stores/locale'
@@ -8,15 +7,10 @@ import logger, {createLogger} from '../utils/logger'
 
 defineOptions({ name: 'home' })
 
-const router = useRouter()
 const {t} = useI18n()
 const localeStore = useLocaleStore()
 const {locale} = storeToRefs(localeStore)
 const pageLog = createLogger('home-page')
-
-const goPiniaDemo = () => {
-  router.push({name: 'pinia-demo'})
-}
 
 const nextLocale = computed(() => (locale.value === 'zh' ? 'en' : 'zh'))
 const toggleLocale = () => {
@@ -129,28 +123,7 @@ onMounted(() => {
         <h1>{{ t('home.title') }}</h1>
         <p class="hero-text">{{ t('home.description') }}</p>
       </div>
-      <q-btn color="primary" no-caps unelevated @click="goPiniaDemo">
-        {{ t('home.apiButton') }}
-      </q-btn>
     </div>
-
-    <q-card flat bordered class="card">
-      <q-card-section class="card-section">
-        <p class="card-title">{{ t('home.apiTitle') }}</p>
-        <q-btn color="primary" no-caps unelevated @click="goPiniaDemo">
-          {{ t('home.apiButton') }}
-        </q-btn>
-      </q-card-section>
-    </q-card>
-
-    <q-card flat bordered class="card">
-      <q-card-section class="card-section">
-        <p class="card-title">{{ t('home.linkTitle') }}</p>
-        <router-link class="link" :to="{name: 'pinia-demo'}">
-          {{ t('home.linkLabel') }}
-        </router-link>
-      </q-card-section>
-    </q-card>
 
     <q-card flat bordered class="card">
       <q-card-section class="card-section">

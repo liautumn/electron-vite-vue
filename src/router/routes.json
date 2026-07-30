@@ -73,6 +73,19 @@
         }
       },
       {
+        "path": "sensevoice-demo",
+        "name": "sensevoice-demo",
+        "component": "SenseVoiceDemoView",
+        "alias": "/sensevoice-demo",
+        "meta": {
+          "title": "SenseVoice 语音识别",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:sensevoice",
+          "type": "menu"
+        }
+      },
+      {
         "path": "guoxin-rfid-demo",
         "name": "guoxin-rfid-demo",
         "component": "GuoxinRfidView",

@@ -4,6 +4,7 @@ import type { TcpApi } from "../shared/types/tcp";
 import {MqttMethods} from "../shared/types/mqtt";
 import {SqliteMethods} from "../shared/types/sqlite";
 import {JsonMethods} from "../shared/types/json";
+import type {SenseVoiceMethods} from './types/sensevoice'
 
 declare module '*.vue' {
     import type {DefineComponent} from 'vue'
@@ -21,5 +22,6 @@ declare global {
         mqtt: MqttMethods
         sqlite: SqliteMethods
         json: JsonMethods
+        senseVoice: SenseVoiceMethods
     }
 }

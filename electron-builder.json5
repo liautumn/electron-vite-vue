@@ -3,6 +3,9 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "1234567890",
   "asar": true,
+  "asarUnpack": [
+    "node_modules/sherpa-onnx-*/**/*"
+  ],
   "productName": "autumn",
   "directories": {
     "output": "release/${version}"
@@ -13,6 +16,9 @@
   ],
   "mac": {
     "icon": "public/icons/mac/icon.icns",
+    "extendInfo": {
+      "NSMicrophoneUsageDescription": "用于本地语音识别"
+    },
     "target": [
       "dmg"
     ],

@@ -11,6 +11,7 @@ const DEFAULT_PERMISSIONS = [
     'app:demos:rs232-tcp',
     'app:demos:mqtt',
     'app:demos:sqlite',
+    'app:demos:sensevoice',
     'app:demos:guoxin-rfid',
     'app:demos:luodan-rfid-phase',
     'app:demos:lock',

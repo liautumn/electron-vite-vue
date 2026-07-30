@@ -4,6 +4,7 @@ import {registerSerialRenderer} from './mod/serial'
 import {registerMqttRenderer} from './mod/mqtt'
 import {registerSqliteRenderer} from './mod/sqlite'
 import {registerJsonRenderer} from './mod/json'
+import {registerSenseVoiceRenderer} from './mod/sensevoice'
 
 // 注册 mod
 registerIpcRenderer()
@@ -12,6 +13,7 @@ registerSerialRenderer()
 registerMqttRenderer()
 registerSqliteRenderer()
 registerJsonRenderer()
+registerSenseVoiceRenderer()
 
 // ------------------------------------------------------------------
 // DOM Ready 工具函数

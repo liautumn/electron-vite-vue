@@ -19,6 +19,7 @@ import {registerTcp} from './mod/tcp'
 import {registerMqtt} from './mod/mqtt'
 import {registerSqlite} from './mod/sqlite'
 import {getJsonDirectory, registerJson} from './mod/json'
+import {registerSenseVoice} from './mod/sensevoice'
 import log, {getLogDirectory, getLogFilePath} from './utils/logger'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
@@ -124,6 +125,12 @@ async function createWindow() {
     })
     win = window
     window.removeMenu()
+    window.webContents.session.setPermissionCheckHandler((webContents, permission) =>
+        webContents === window.webContents && permission === 'media'
+    )
+    window.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        callback(webContents === window.webContents && permission === 'media')
+    })
     // 默认最大化窗口
     window.once('ready-to-show', () => {
         window.maximize()
@@ -140,6 +147,7 @@ async function createWindow() {
     registerMqtt(window)
     registerSqlite()
     registerJson()
+    registerSenseVoice(window)
 
     // =======================
     // 加载页面（开发 / 生产）

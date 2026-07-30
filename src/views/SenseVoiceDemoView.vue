@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed, onBeforeUnmount, onMounted, ref} from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useQuasar} from 'quasar'
 import type {
   SenseVoiceDownloadProgress,
@@ -36,8 +36,10 @@ const isStopping = ref(false)
 const lastInferenceMs = ref<number | null>(null)
 const lastAudioDurationMs = ref<number | null>(null)
 const sampleRate = ref<number | null>(null)
+const transcriptOutput = ref<HTMLElement | null>(null)
 let audioResources: AudioResources | null = null
 let flushResolver: (() => void) | null = null
+let followTranscript = true
 
 const isRecording = computed(() => status.value.state === 'recording')
 const isDownloading = computed(() => status.value.state === 'downloading')
@@ -71,6 +73,12 @@ const progressLabel = computed(() => {
   if (progress.stage === 'extract') return '正在解压模型'
   if (progress.stage === 'complete') return '模型下载完成'
   return `${formatBytes(progress.receivedBytes)} / ${formatBytes(progress.totalBytes)}`
+})
+
+watch(transcript, async () => {
+  await nextTick()
+  if (!followTranscript || !transcriptOutput.value) return
+  transcriptOutput.value.scrollTop = transcriptOutput.value.scrollHeight
 })
 
 const formatBytes = (bytes: number) => {
@@ -232,6 +240,7 @@ const toggleRecording = () => {
 
 const clearTranscript = async () => {
   errorMessage.value = ''
+  followTranscript = true
   committedSegments.value = []
   partialText.value = ''
   lastInferenceMs.value = null
@@ -241,6 +250,12 @@ const clearTranscript = async () => {
   } catch (error) {
     errorMessage.value = normalizeError(error)
   }
+}
+
+const handleTranscriptScroll = () => {
+  const output = transcriptOutput.value
+  if (!output) return
+  followTranscript = output.scrollHeight - output.scrollTop - output.clientHeight < 24
 }
 
 const handleResult = (result: SenseVoiceRecognitionResult) => {
@@ -411,16 +426,16 @@ onBeforeUnmount(() => {
             <q-tooltip>清空</q-tooltip>
           </q-btn>
         </div>
-        <q-input
-          :model-value="transcript"
-          type="textarea"
-          outlined
-          readonly
-          autogrow
-          input-class="transcript-text"
-          class="transcript-input"
-          placeholder="等待语音输入"
-        />
+        <div
+          ref="transcriptOutput"
+          class="transcript-output"
+          role="log"
+          aria-label="识别结果"
+          @scroll="handleTranscriptScroll"
+        >
+          <div v-if="transcript" class="transcript-text">{{ transcript }}</div>
+          <div v-else class="transcript-placeholder">等待语音输入</div>
+        </div>
         <div v-if="partialText" class="partial-indicator">
           <span /> 当前句
         </div>
@@ -431,10 +446,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .sensevoice-page {
-  align-content: start;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  min-height: calc(100vh - 128px);
+  min-height: calc(90vh - 128px);
+  min-height: calc(90dvh - 128px);
 }
 
 .page-heading,
@@ -545,6 +561,7 @@ h2 {
 
 .workspace-grid {
   display: grid;
+  flex: 1 1 360px;
   gap: 10px;
   grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
   min-height: 360px;
@@ -555,6 +572,7 @@ h2 {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: 6px;
+  min-height: 0;
   padding: 14px;
 }
 
@@ -635,25 +653,33 @@ h2 {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: hidden;
 }
 
 .transcript-heading {
   margin-bottom: 8px;
 }
 
-.transcript-input {
+.transcript-output {
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  scrollbar-gutter: stable;
 }
 
-.transcript-input :deep(.q-field__control),
-.transcript-input :deep(.q-field__native) {
-  min-height: 286px;
-}
-
-.transcript-input :deep(.transcript-text) {
+.transcript-text,
+.transcript-placeholder {
   font-size: 17px;
   line-height: 1.65;
-  resize: none;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.transcript-placeholder {
+  color: var(--app-text-secondary);
 }
 
 .partial-indicator {
@@ -679,8 +705,14 @@ h2 {
 }
 
 @media (max-width: 860px) {
+  .sensevoice-page {
+    min-height: auto;
+  }
+
   .workspace-grid {
+    flex-basis: auto;
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(320px, 50vh);
   }
 
   .record-control {

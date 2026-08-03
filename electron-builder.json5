@@ -12,10 +12,19 @@
   },
   "files": [
     "dist",
-    "dist-electron"
+    "dist-electron",
+    "!node_modules/@rolldown/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "config/sensevoice.json",
+      "to": "config/sensevoice.json"
+    }
   ],
   "mac": {
     "icon": "public/icons/mac/icon.icns",
+    "entitlements": "electron/resources/entitlements.mac.plist",
+    "entitlementsInherit": "electron/resources/entitlements.mac.plist",
     "extendInfo": {
       "NSMicrophoneUsageDescription": "用于本地语音识别"
     },

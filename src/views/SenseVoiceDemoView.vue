@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import {useQuasar} from 'quasar'
 import type {
-  SenseVoiceDownloadProgress,
   SenseVoiceRecognitionResult,
   SenseVoiceStatus,
 } from '../types/sensevoice'
@@ -17,14 +15,14 @@ type AudioResources = {
   sink: GainNode
 }
 
-const $q = useQuasar()
 const status = ref<SenseVoiceStatus>({
   state: 'missing',
   modelAvailable: false,
   engineReady: false,
-  modelDirectory: '',
+  configPath: '',
+  modelPath: '',
+  tokensPath: '',
 })
-const downloadProgress = ref<SenseVoiceDownloadProgress | null>(null)
 const inputDevices = ref<MediaDeviceInfo[]>([])
 const selectedDeviceId = ref<string | null>(null)
 const committedSegments = ref<string[]>([])
@@ -42,8 +40,9 @@ let flushResolver: (() => void) | null = null
 let followTranscript = true
 
 const isRecording = computed(() => status.value.state === 'recording')
-const isDownloading = computed(() => status.value.state === 'downloading')
-const isBusy = computed(() => isStarting.value || isStopping.value || isDownloading.value)
+const isBusy = computed(() =>
+  isStarting.value || isStopping.value || status.value.state === 'loading'
+)
 const transcript = computed(() => {
   const sections = committedSegments.value.slice()
   if (partialText.value) sections.push(partialText.value)
@@ -54,8 +53,7 @@ const deviceOptions = computed(() => inputDevices.value.map((device, index) => (
   value: device.deviceId,
 })))
 const statusLabel = computed(() => {
-  if (status.value.state === 'missing') return '模型未安装'
-  if (status.value.state === 'downloading') return '模型下载中'
+  if (status.value.state === 'missing') return '模型未配置'
   if (status.value.state === 'loading') return '引擎加载中'
   if (status.value.state === 'recording') return '识别中'
   if (status.value.state === 'error') return '异常'
@@ -64,15 +62,8 @@ const statusLabel = computed(() => {
 const statusColor = computed(() => {
   if (status.value.state === 'recording') return 'negative'
   if (status.value.state === 'error' || status.value.state === 'missing') return 'warning'
-  if (status.value.state === 'loading' || status.value.state === 'downloading') return 'primary'
+  if (status.value.state === 'loading') return 'primary'
   return 'positive'
-})
-const progressLabel = computed(() => {
-  const progress = downloadProgress.value
-  if (!progress) return ''
-  if (progress.stage === 'extract') return '正在解压模型'
-  if (progress.stage === 'complete') return '模型下载完成'
-  return `${formatBytes(progress.receivedBytes)} / ${formatBytes(progress.totalBytes)}`
 })
 
 watch(transcript, async () => {
@@ -81,13 +72,11 @@ watch(transcript, async () => {
   transcriptOutput.value.scrollTop = transcriptOutput.value.scrollHeight
 })
 
-const formatBytes = (bytes: number) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
 const normalizeError = (error: unknown) => {
   if (error instanceof DOMException && error.name === 'NotAllowedError') return '麦克风权限被拒绝'
+  if (error instanceof DOMException && error.name === 'NotFoundError') return '未检测到可用的麦克风'
+  if (error instanceof DOMException && error.name === 'NotReadableError') return '麦克风无法读取，可能正被其他应用占用'
+  if (error instanceof DOMException && error.name === 'OverconstrainedError') return '选择的麦克风当前不可用'
   if (error instanceof Error) return error.message
   return String(error)
 }
@@ -98,22 +87,6 @@ const refreshDevices = async () => {
   inputDevices.value = devices.filter(device => device.kind === 'audioinput')
   if (!selectedDeviceId.value && inputDevices.value.length) {
     selectedDeviceId.value = inputDevices.value[0].deviceId
-  }
-}
-
-const downloadModel = async () => {
-  errorMessage.value = ''
-  downloadProgress.value = {
-    stage: 'download',
-    receivedBytes: 0,
-    totalBytes: 0,
-    percent: 0,
-  }
-  try {
-    status.value = await window.senseVoice.downloadModel()
-    $q.notify({type: 'positive', message: 'SenseVoice 模型已就绪'})
-  } catch (error) {
-    errorMessage.value = normalizeError(error)
   }
 }
 
@@ -134,8 +107,9 @@ const releaseAudioResources = async () => {
 const startRecording = async () => {
   if (isBusy.value || isRecording.value) return
   if (!status.value.modelAvailable) {
-    await downloadModel()
-    if (!status.value.modelAvailable) return
+    errorMessage.value = status.value.message
+      ?? `请先在配置文件中指定模型路径：${status.value.configPath}`
+    return
   }
 
   isStarting.value = true
@@ -143,6 +117,16 @@ const startRecording = async () => {
   let pendingStream: MediaStream | null = null
   let pendingContext: AudioContext | null = null
   try {
+    const microphonePermission = await window.senseVoice.requestMicrophoneAccess()
+    if (microphonePermission === 'denied') {
+      errorMessage.value = '麦克风权限被拒绝，请在系统设置中允许后重启应用'
+      return
+    }
+    if (microphonePermission === 'restricted') {
+      errorMessage.value = '麦克风访问受到系统限制'
+      return
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: selectedDeviceId.value ? {exact: selectedDeviceId.value} : undefined,
@@ -276,9 +260,6 @@ onMounted(async () => {
     window.senseVoice.onStatus((nextStatus: SenseVoiceStatus) => {
       status.value = nextStatus
     }),
-    window.senseVoice.onDownloadProgress((progress: SenseVoiceDownloadProgress) => {
-      downloadProgress.value = progress
-    }),
     window.senseVoice.onResult(handleResult),
     window.senseVoice.onError((message: string) => {
       errorMessage.value = message
@@ -287,6 +268,9 @@ onMounted(async () => {
 
   try {
     status.value = await window.senseVoice.getStatus()
+    if (!status.value.modelAvailable && status.value.message) {
+      errorMessage.value = status.value.message
+    }
     await refreshDevices()
   } catch (error) {
     errorMessage.value = normalizeError(error)
@@ -305,7 +289,7 @@ onBeforeUnmount(() => {
     <header class="page-heading">
       <div>
         <h1>SenseVoice 本地语音识别</h1>
-        <div class="engine-line">SenseVoiceSmall int8 · sherpa-onnx · CPU</div>
+        <div class="engine-line">SenseVoice · sherpa-onnx · CPU</div>
       </div>
       <q-chip square dense :color="statusColor" text-color="white" :icon="isRecording ? 'graphic_eq' : 'memory'">
         {{ statusLabel }}
@@ -315,31 +299,17 @@ onBeforeUnmount(() => {
     <section class="model-bar" :class="{'model-bar--missing': !status.modelAvailable}">
       <div class="model-info">
         <div class="model-copy">
-          <div class="model-name">SenseVoice 中文多语种 int8</div>
-          <div class="model-path" :title="status.modelDirectory">{{ status.modelDirectory }}</div>
+          <div class="model-name">SenseVoice 模型</div>
+          <div class="model-path" :title="status.modelPath || status.configPath">
+            {{ status.modelPath || `配置文件：${status.configPath}` }}
+          </div>
         </div>
       </div>
-      <q-btn
-        v-if="!status.modelAvailable"
-        color="primary"
-        icon="download"
-        label="下载模型"
-        no-caps
-        unelevated
-        :loading="isDownloading"
-        @click="downloadModel"
+      <q-icon
+        :name="status.modelAvailable ? 'check_circle' : 'warning_amber'"
+        :color="status.modelAvailable ? 'positive' : 'warning'"
+        size="22px"
       />
-      <q-icon v-else name="check_circle" color="positive" size="22px" />
-      <div v-if="isDownloading || downloadProgress" class="download-progress">
-        <q-linear-progress
-          rounded
-          size="7px"
-          color="primary"
-          :indeterminate="!downloadProgress?.totalBytes"
-          :value="downloadProgress?.percent ?? 0"
-        />
-        <span>{{ progressLabel }}</span>
-      </div>
     </section>
 
     <q-banner v-if="errorMessage" rounded class="error-banner" inline-actions>
@@ -386,7 +356,7 @@ onBeforeUnmount(() => {
             :color="isRecording ? 'negative' : 'primary'"
             :icon="isRecording ? 'stop' : 'mic'"
             :loading="isStarting || isStopping"
-            :disable="isDownloading"
+            :disable="isBusy"
             :aria-label="isRecording ? '停止识别' : '开始识别'"
             @click="toggleRecording"
           >
@@ -540,18 +510,6 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.download-progress {
-  display: grid;
-  flex: 1 0 100%;
-  gap: 3px;
-}
-
-.download-progress span {
-  color: var(--app-text-secondary);
-  font-size: 11px;
-  text-align: right;
 }
 
 .error-banner {

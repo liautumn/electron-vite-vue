@@ -1,24 +1,18 @@
-import {app, BrowserWindow, ipcMain, net} from 'electron'
-import {spawn} from 'node:child_process'
+import {app, BrowserWindow, ipcMain, systemPreferences} from 'electron'
 import {createRequire} from 'node:module'
 import {availableParallelism} from 'node:os'
 import path from 'node:path'
-import {existsSync, promises as fs} from 'node:fs'
+import {existsSync, readFileSync} from 'node:fs'
 import type {
     SenseVoiceAudioChunk,
-    SenseVoiceDownloadProgress,
     SenseVoiceEngineState,
+    MicrophonePermissionStatus,
     SenseVoiceRecognitionResult,
     SenseVoiceStatus,
 } from '../../../shared/types/sensevoice'
 import {createLogger} from '../utils/logger'
+import {resolvePortablePath} from '../utils/portable-path'
 
-const MODEL_ARCHIVE_URL =
-    'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/' +
-    'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2'
-const MODEL_ARCHIVE_BYTES = 163_002_883
-const MODEL_FILE = 'model.int8.onnx'
-const TOKENS_FILE = 'tokens.txt'
 const TARGET_SAMPLE_RATE = 16_000
 const PARTIAL_INTERVAL_SAMPLES = TARGET_SAMPLE_RATE
 const SILENCE_TO_COMMIT_SAMPLES = Math.round(TARGET_SAMPLE_RATE * 0.9)
@@ -56,6 +50,18 @@ type DecodeRequest = {
     samples: Float32Array
 }
 
+type SenseVoiceConfig = {
+    modelPath?: unknown
+    tokensPath?: unknown
+}
+
+type ResolvedModelConfig = {
+    configPath: string
+    modelPath: string
+    tokensPath: string
+    error?: string
+}
+
 const require = createRequire(import.meta.url)
 const log = createLogger('sensevoice')
 
@@ -74,7 +80,7 @@ let samplesSinceDecode = 0
 let decodeQueue: DecodeRequest[] = []
 let decoding = false
 let drainResolvers: Array<() => void> = []
-let modelDownloadPromise: Promise<SenseVoiceStatus> | null = null
+let microphoneAccessRequested = false
 
 const loadSherpaOnnx = () => require('sherpa-onnx-node') as SherpaOnnxModule
 
@@ -83,46 +89,89 @@ const sendToRenderer = (channel: string, payload: unknown) => {
     mainWindow.webContents.send(channel, payload)
 }
 
-const modelFilesExist = (directory: string) =>
-    existsSync(path.join(directory, MODEL_FILE)) && existsSync(path.join(directory, TOKENS_FILE))
+const defaultConfigPath = () => path.join(
+    app.isPackaged ? process.resourcesPath : process.env.APP_ROOT ?? process.cwd(),
+    'config',
+    'sensevoice.json'
+)
 
-const userModelDirectory = () => path.join(app.getPath('userData'), 'models', 'sensevoice-int8')
-
-const modelCandidates = () => {
-    const candidates = [
-        process.env.SENSEVOICE_ONNX_MODEL_DIR,
-        userModelDirectory(),
-        app.isPackaged ? path.join(process.resourcesPath, 'sensevoice') : undefined,
-        !app.isPackaged && process.env.APP_ROOT
-            ? path.join(process.env.APP_ROOT, 'resources', 'sensevoice')
-            : undefined,
-    ]
-    return candidates.filter((candidate): candidate is string => Boolean(candidate))
+const getConfigPath = () => {
+    const configuredPath = process.env.SENSEVOICE_CONFIG_PATH?.trim()
+    return configuredPath ? path.resolve(configuredPath) : defaultConfigPath()
 }
 
-const resolveModelDirectory = () => modelCandidates().find(modelFilesExist)
+const resolveModelConfig = (): ResolvedModelConfig => {
+    const configPath = getConfigPath()
+    if (!existsSync(configPath)) {
+        return {
+            configPath,
+            modelPath: '',
+            tokensPath: '',
+            error: `SenseVoice 配置文件不存在：${configPath}`,
+        }
+    }
+
+    try {
+        const config = JSON.parse(readFileSync(configPath, 'utf8')) as SenseVoiceConfig
+        const directory = path.dirname(configPath)
+        const pathOptions = {
+            configDirectory: directory,
+            userDataDirectory: app.getPath('userData'),
+        }
+        const modelPath = resolvePortablePath(config.modelPath, pathOptions)
+        const tokensPath = resolvePortablePath(config.tokensPath, pathOptions)
+
+        if (!modelPath || !tokensPath) {
+            return {
+                configPath,
+                modelPath,
+                tokensPath,
+                error: 'SenseVoice 配置必须指定 modelPath 和 tokensPath',
+            }
+        }
+
+        const missingFiles = [modelPath, tokensPath].filter(file => !existsSync(file))
+        return {
+            configPath,
+            modelPath,
+            tokensPath,
+            ...(missingFiles.length
+                ? {error: `SenseVoice 文件不存在：${missingFiles.join('、')}`}
+                : {}),
+        }
+    } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
+        return {
+            configPath,
+            modelPath: '',
+            tokensPath: '',
+            error: `SenseVoice 配置读取失败：${detail}`,
+        }
+    }
+}
 
 const currentStatus = (
     state?: SenseVoiceEngineState,
     message?: string
 ): SenseVoiceStatus => {
-    const modelDirectory = resolveModelDirectory()
+    const modelConfig = resolveModelConfig()
+    const modelAvailable = !modelConfig.error
     const resolvedState = state ?? (
-        modelDownloadPromise
-            ? 'downloading'
-            : recording
-                ? 'recording'
-                : modelDirectory
-                    ? 'ready'
-                    : 'missing'
+        recording
+            ? 'recording'
+            : modelAvailable
+                ? 'ready'
+                : 'missing'
     )
 
     return {
         state: resolvedState,
-        modelAvailable: Boolean(modelDirectory),
+        modelAvailable,
         engineReady: Boolean(recognizer),
-        modelDirectory: modelDirectory ?? userModelDirectory(),
-        ...(message ? {message} : {}),
+        configPath: modelConfig.configPath,
+        modelPath: modelConfig.modelPath,
+        tokensPath: modelConfig.tokensPath,
+        ...(message || modelConfig.error ? {message: message ?? modelConfig.error} : {}),
     }
 }
 
@@ -139,117 +188,12 @@ const publishError = (error: unknown) => {
     publishStatus('error', message)
 }
 
-const publishDownloadProgress = (
-    stage: SenseVoiceDownloadProgress['stage'],
-    receivedBytes: number,
-    totalBytes: number
-) => {
-    const progress: SenseVoiceDownloadProgress = {
-        stage,
-        receivedBytes,
-        totalBytes,
-        percent: totalBytes > 0 ? Math.min(receivedBytes / totalBytes, 1) : 0,
-    }
-    sendToRenderer('sensevoice:download-progress', progress)
-}
-
-const runTar = (archive: string, destination: string) =>
-    new Promise<void>((resolve, reject) => {
-        const child = spawn('tar', [
-            '-xjf', archive,
-            '-C', destination,
-            '--strip-components=1',
-        ], {stdio: ['ignore', 'ignore', 'pipe']})
-        let stderr = ''
-        child.stderr.setEncoding('utf8')
-        child.stderr.on('data', chunk => {
-            stderr += chunk
-        })
-        child.once('error', reject)
-        child.once('close', code => {
-            if (code === 0) {
-                resolve()
-                return
-            }
-            reject(new Error(`模型解压失败（tar ${code}）：${stderr.trim()}`))
-        })
-    })
-
-const downloadArchive = async (destination: string) => {
-    const response = await net.fetch(MODEL_ARCHIVE_URL)
-    if (!response.ok || !response.body) {
-        throw new Error(`模型下载失败：HTTP ${response.status}`)
-    }
-
-    const totalBytes = Number(response.headers.get('content-length')) || MODEL_ARCHIVE_BYTES
-    const reader = response.body.getReader()
-    const output = await fs.open(destination, 'w')
-    let receivedBytes = 0
-
-    try {
-        while (true) {
-            const {done, value} = await reader.read()
-            if (done) break
-            await output.write(value)
-            receivedBytes += value.byteLength
-            publishDownloadProgress('download', receivedBytes, totalBytes)
-        }
-    } finally {
-        await output.close()
-    }
-}
-
-const performModelDownload = async () => {
-    const existing = resolveModelDirectory()
-    if (existing) return publishStatus('ready')
-
-    publishStatus('downloading', '正在下载 SenseVoice int8 模型')
-    const target = userModelDirectory()
-    const parent = path.dirname(target)
-    const nonce = `${process.pid}-${Date.now()}`
-    const archive = path.join(app.getPath('temp'), `sensevoice-${nonce}.tar.bz2`)
-    const staging = path.join(parent, `.sensevoice-int8-${nonce}`)
-
-    try {
-        await fs.mkdir(staging, {recursive: true})
-        await downloadArchive(archive)
-        publishDownloadProgress('extract', MODEL_ARCHIVE_BYTES, MODEL_ARCHIVE_BYTES)
-        await runTar(archive, staging)
-
-        if (!modelFilesExist(staging)) {
-            throw new Error('模型压缩包缺少 model.int8.onnx 或 tokens.txt')
-        }
-
-        await fs.mkdir(parent, {recursive: true})
-        await fs.rm(target, {recursive: true, force: true})
-        await fs.rename(staging, target)
-        publishDownloadProgress('complete', MODEL_ARCHIVE_BYTES, MODEL_ARCHIVE_BYTES)
-        log.info('SenseVoice model downloaded', {target})
-        return publishStatus('ready', '模型已就绪')
-    } catch (error) {
-        publishError(error)
-        throw error
-    } finally {
-        await fs.rm(archive, {force: true}).catch(() => undefined)
-        await fs.rm(staging, {recursive: true, force: true}).catch(() => undefined)
-    }
-}
-
-const downloadModel = () => {
-    if (!modelDownloadPromise) {
-        modelDownloadPromise = performModelDownload().finally(() => {
-            modelDownloadPromise = null
-        })
-    }
-    return modelDownloadPromise
-}
-
 const getRecognizer = async () => {
     if (recognizer) return recognizer
     if (recognizerPromise) return recognizerPromise
 
-    const modelDirectory = resolveModelDirectory()
-    if (!modelDirectory) throw new Error('SenseVoice 模型尚未下载')
+    const modelConfig = resolveModelConfig()
+    if (modelConfig.error) throw new Error(modelConfig.error)
 
     publishStatus('loading', '正在加载本地识别引擎')
     recognizerPromise = (async () => {
@@ -262,18 +206,22 @@ const getRecognizer = async () => {
             },
             modelConfig: {
                 senseVoice: {
-                    model: path.join(modelDirectory, MODEL_FILE),
+                    model: modelConfig.modelPath,
                     language: 'zh',
                     useInverseTextNormalization: 1,
                 },
-                tokens: path.join(modelDirectory, TOKENS_FILE),
+                tokens: modelConfig.tokensPath,
                 numThreads,
                 provider: 'cpu',
                 debug: 0,
             },
         })
         recognizer = engine
-        log.info('SenseVoice engine loaded', {modelDirectory, numThreads})
+        log.info('SenseVoice engine loaded', {
+            modelPath: modelConfig.modelPath,
+            tokensPath: modelConfig.tokensPath,
+            numThreads,
+        })
         publishStatus(recording ? 'recording' : 'ready')
         return engine
     })().catch(error => {
@@ -467,9 +415,10 @@ const stopRecording = async () => {
 }
 
 const clearRecognition = async () => {
+    const modelConfig = resolveModelConfig()
     const nextState: SenseVoiceEngineState = recording
         ? 'recording'
-        : resolveModelDirectory()
+        : !modelConfig.error
             ? 'ready'
             : 'missing'
     resetSession()
@@ -478,14 +427,61 @@ const clearRecognition = async () => {
     return publishStatus(nextState)
 }
 
+const requestMicrophoneAccess = async (): Promise<MicrophonePermissionStatus> => {
+    if (process.platform === 'darwin') {
+        const currentStatus = systemPreferences.getMediaAccessStatus('microphone')
+        if (currentStatus !== 'not-determined') return currentStatus
+
+        const granted = await systemPreferences.askForMediaAccess('microphone')
+        if (granted) return 'granted'
+
+        const updatedStatus = systemPreferences.getMediaAccessStatus('microphone')
+        return updatedStatus === 'not-determined' ? 'denied' : updatedStatus
+    }
+
+    if (process.platform === 'win32') {
+        return systemPreferences.getMediaAccessStatus('microphone')
+    }
+
+    // Linux AppImage/deb applications have no systemPreferences media status API.
+    // Chromium requests the actual device access through getUserMedia immediately after this call.
+    return 'unknown'
+}
+
 export function registerSenseVoice(window: BrowserWindow) {
     mainWindow = window
     if (registered) return
     registered = true
     log.info('SenseVoice IPC handlers registered')
 
+    const applicationSession = window.webContents.session
+    applicationSession.setPermissionCheckHandler((webContents, permission, _origin, details) =>
+        microphoneAccessRequested
+        && webContents === window.webContents
+        && permission === 'media'
+        && details.isMainFrame
+        && details.mediaType === 'audio'
+    )
+    applicationSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+        const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
+        const requestsAudioOnly = mediaTypes?.length === 1 && mediaTypes[0] === 'audio'
+        callback(
+            microphoneAccessRequested
+            && webContents === window.webContents
+            && permission === 'media'
+            && details.isMainFrame
+            && requestsAudioOnly
+        )
+    })
+
+    ipcMain.handle('sensevoice:request-microphone-access', async event => {
+        if (event.sender !== mainWindow?.webContents) return 'denied'
+        const status = await requestMicrophoneAccess()
+        microphoneAccessRequested = status !== 'denied' && status !== 'restricted'
+        log.info('Microphone access requested', {platform: process.platform, status})
+        return status
+    })
     ipcMain.handle('sensevoice:get-status', () => currentStatus())
-    ipcMain.handle('sensevoice:download-model', () => downloadModel())
     ipcMain.handle('sensevoice:start', (_event, sampleRate: number) => startRecording(sampleRate))
     ipcMain.handle('sensevoice:stop', () => stopRecording())
     ipcMain.handle('sensevoice:reset', () => clearRecognition())

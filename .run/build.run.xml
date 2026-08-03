@@ -5,7 +5,7 @@
     <scripts>
       <script value="build" />
     </scripts>
-    <node-interpreter value="project" />
+    <node-interpreter value="docker://linux64-node:latest/node" />
     <envs />
     <EXTENSION ID="NodeDockerRunConfigurationExtension">
       <option name="envVars">
@@ -38,6 +38,9 @@
     </EXTENSION>
     <EXTENSION ID="com.intellij.javascript.debugger.execution.StartBrowserRunConfigurationExtension">
       <browser with-js-debugger="true" />
+    </EXTENSION>
+    <EXTENSION ID="com.intellij.lang.javascript.buildTools.npm.rc.StartBrowserRunConfigurationExtension">
+      <browser name="a6a89cf0-e19d-4c4b-9bf6-ac6a63b95c9d" />
     </EXTENSION>
     <method v="2" />
   </configuration>

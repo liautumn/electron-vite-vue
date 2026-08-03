@@ -63,6 +63,35 @@ VITE_DEV_PORT=5173 npm run dev
 | `npm run build:test` | 使用测试模式构建并打包 |
 | `npm run preview` | 预览前端构建结果 |
 
+## SenseVoice 模型配置
+
+应用不会下载语音识别模型。请在 `config/sensevoice.json` 中自行指定模型和词表文件：
+
+```json
+{
+  "modelPath": "userData://models/sensevoice/model.onnx",
+  "tokensPath": "userData://models/sensevoice/tokens.txt"
+}
+```
+
+软件安装包不包含约 894 MB 的模型。模型和词表应作为独立部署包安装到 Electron 用户数据目录的 `models/sensevoice` 子目录：
+
+- Windows：`%APPDATA%/autumn/models/sensevoice`
+- macOS：`~/Library/Application Support/autumn/models/sensevoice`
+- Linux：`${XDG_CONFIG_HOME:-~/.config}/autumn/models/sensevoice`
+
+`userData://` 会由应用解析为当前平台的用户数据目录，因此同一份配置可以用于 Windows、Linux 和 macOS。模型部署包中必须同时包含 `model.onnx` 和与其配套的 `tokens.txt`。软件升级不会覆盖或重复分发这些文件，当前 NSIS 配置卸载软件时也不会删除用户数据。
+
+配置仍兼容绝对路径以及相对于 `sensevoice.json` 的普通相对路径。需要使用其他配置文件时，在启动应用前设置 `SENSEVOICE_CONFIG_PATH`：
+
+```sh
+SENSEVOICE_CONFIG_PATH=/absolute/path/to/sensevoice.json npm run dev
+```
+
+修改模型配置后请重启应用。ONNX 模型必须是与当前 `sherpa-onnx` SenseVoice 加载器兼容的版本，并与 `tokens.txt` 配套。
+
+录音只会在用户点击开始识别后申请。macOS 使用系统麦克风授权并在应用签名中声明音频输入权限；Windows 检查系统的桌面应用麦克风隐私状态；Linux 通过 Electron 媒体权限和 `getUserMedia` 请求音频设备。AppImage 和 deb 本身没有额外的麦克风权限清单。
+
 ## 目录结构
 
 ```text

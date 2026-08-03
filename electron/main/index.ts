@@ -125,12 +125,6 @@ async function createWindow() {
     })
     win = window
     window.removeMenu()
-    window.webContents.session.setPermissionCheckHandler((webContents, permission) =>
-        webContents === window.webContents && permission === 'media'
-    )
-    window.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
-        callback(webContents === window.webContents && permission === 'media')
-    })
     // 默认最大化窗口
     window.once('ready-to-show', () => {
         window.maximize()

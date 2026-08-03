@@ -1,0 +1,4 @@
+{
+  "modelPath": "userData://models/sensevoice/model.onnx",
+  "tokensPath": "userData://models/sensevoice/tokens.txt"
+}

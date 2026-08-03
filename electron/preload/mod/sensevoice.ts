@@ -1,7 +1,6 @@
 import {contextBridge, ipcRenderer} from 'electron'
 import type {
     SenseVoiceAudioChunk,
-    SenseVoiceDownloadProgress,
     SenseVoiceMethods,
     SenseVoiceRecognitionResult,
     SenseVoiceStatus,
@@ -15,16 +14,14 @@ const subscribe = <T>(channel: string, callback: (payload: T) => void) => {
 
 export function registerSenseVoiceRenderer() {
     contextBridge.exposeInMainWorld('senseVoice', {
+        requestMicrophoneAccess: () => ipcRenderer.invoke('sensevoice:request-microphone-access'),
         getStatus: () => ipcRenderer.invoke('sensevoice:get-status'),
-        downloadModel: () => ipcRenderer.invoke('sensevoice:download-model'),
         start: (sampleRate: number) => ipcRenderer.invoke('sensevoice:start', sampleRate),
         pushAudio: (chunk: SenseVoiceAudioChunk) => ipcRenderer.send('sensevoice:audio', chunk),
         stop: () => ipcRenderer.invoke('sensevoice:stop'),
         reset: () => ipcRenderer.invoke('sensevoice:reset'),
         onStatus: (callback: (status: SenseVoiceStatus) => void) =>
             subscribe('sensevoice:status', callback),
-        onDownloadProgress: (callback: (progress: SenseVoiceDownloadProgress) => void) =>
-            subscribe('sensevoice:download-progress', callback),
         onResult: (callback: (result: SenseVoiceRecognitionResult) => void) =>
             subscribe('sensevoice:result', callback),
         onError: (callback: (message: string) => void) =>

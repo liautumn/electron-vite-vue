@@ -140,8 +140,8 @@ SENSEVOICE_CONFIG_PATH=/absolute/path/to/sensevoice.json npm run dev
 
 打包环境下：
 
-- 日志写入应用资源目录下的 `logs`
-- SQLite 和 JSON 数据写入日志目录同级的数据目录
+- 日志写入 Electron `userData/logs`
+- SQLite 和 JSON 数据分别写入 `userData/database` 和 `userData/json`
 
 SQLite 使用 `WAL` 模式，运行过程中可能出现 `app.sqlite3-wal` 和 `app.sqlite3-shm` 文件，这是正常现象。
 

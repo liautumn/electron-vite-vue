@@ -5,6 +5,9 @@ import {MqttMethods} from "../shared/types/mqtt";
 import {SqliteMethods} from "../shared/types/sqlite";
 import {JsonMethods} from "../shared/types/json";
 import type {SenseVoiceMethods} from './types/sensevoice'
+import type {CameraMethods} from './types/camera'
+import type {ImageFilesMethods} from './types/image-files'
+import type {Yolo26Methods} from './types/yolo26'
 
 declare module '*.vue' {
     import type {DefineComponent} from 'vue'
@@ -23,5 +26,8 @@ declare global {
         sqlite: SqliteMethods
         json: JsonMethods
         senseVoice: SenseVoiceMethods
+        camera: CameraMethods
+        imageFiles: ImageFilesMethods
+        yolo26: Yolo26Methods
     }
 }

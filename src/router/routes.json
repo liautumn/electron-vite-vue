@@ -136,6 +136,19 @@
           "permission": "app:demos:led",
           "type": "menu"
         }
+      },
+      {
+        "path": "yolo26-demo",
+        "name": "yolo26-demo",
+        "component": "Yolo26DemoView",
+        "alias": "/yolo26-demo",
+        "meta": {
+          "title": "YOLO26 ONNX 测试",
+          "visible": true,
+          "enabled": true,
+          "permission": "app:demos:yolo26",
+          "type": "menu"
+        }
       }
     ]
   },

@@ -5,6 +5,9 @@ import {registerMqttRenderer} from './mod/mqtt'
 import {registerSqliteRenderer} from './mod/sqlite'
 import {registerJsonRenderer} from './mod/json'
 import {registerSenseVoiceRenderer} from './mod/sensevoice'
+import {registerCameraRenderer} from './mod/camera'
+import {registerImageFilesRenderer} from './mod/image-files'
+import {registerYolo26Renderer} from './mod/yolo26'
 
 // 注册 mod
 registerIpcRenderer()
@@ -14,6 +17,9 @@ registerMqttRenderer()
 registerSqliteRenderer()
 registerJsonRenderer()
 registerSenseVoiceRenderer()
+registerCameraRenderer()
+registerImageFilesRenderer()
+registerYolo26Renderer()
 
 // ------------------------------------------------------------------
 // DOM Ready 工具函数

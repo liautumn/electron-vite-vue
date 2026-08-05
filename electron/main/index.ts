@@ -1,5 +1,5 @@
 // 从 electron 中导入核心模块
-import {app, BrowserWindow, shell, ipcMain, Menu} from 'electron'
+import {app, BrowserWindow, shell, ipcMain, screen} from 'electron'
 
 // Node.js 的 ESM 模式下，用来创建 require
 import {createRequire} from 'node:module'
@@ -20,7 +20,11 @@ import {registerMqtt} from './mod/mqtt'
 import {registerSqlite} from './mod/sqlite'
 import {getJsonDirectory, registerJson} from './mod/json'
 import {registerSenseVoice} from './mod/sensevoice'
+import {registerCamera} from './mod/camera'
+import {registerImageFiles} from './mod/image-files'
+import {disposeYolo26, registerYolo26} from './mod/yolo26'
 import log, {getLogDirectory, getLogFilePath} from './utils/logger'
+import {registerMediaAccess} from './utils/media-access'
 
 app.commandLine.appendSwitch('remote-debugging-port', '9229')
 
@@ -136,12 +140,16 @@ async function createWindow() {
     // }
 
     // 注册 mod
+    registerMediaAccess(window)
+    registerCamera(window)
+    registerImageFiles(window)
     registerSerial(window)
     registerTcp(window)
     registerMqtt(window)
     registerSqlite()
     registerJson()
     registerSenseVoice(window)
+    registerYolo26(window)
 
     // =======================
     // 加载页面（开发 / 生产）
@@ -197,6 +205,46 @@ app.whenReady()
     .catch(error => {
         log.error('Failed to create the main window', error)
     })
+
+let shutdownStarted = false
+let shutdownCompleted = false
+const SHUTDOWN_TIMEOUT_MS = 5000
+
+const disposeWithTimeout = () => new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+        () => reject(new Error(`Resource disposal timed out after ${SHUTDOWN_TIMEOUT_MS} ms`)),
+        SHUTDOWN_TIMEOUT_MS
+    )
+    void disposeYolo26().then(
+        () => {
+            clearTimeout(timeout)
+            resolve()
+        },
+        error => {
+            clearTimeout(timeout)
+            reject(error)
+        }
+    )
+})
+
+app.on('before-quit', event => {
+    if (shutdownCompleted) return
+
+    event.preventDefault()
+    if (shutdownStarted) return
+    shutdownStarted = true
+    log.info('Application shutdown started')
+
+    void disposeWithTimeout()
+        .catch(error => {
+            log.error('Application resource disposal failed', error)
+        })
+        .finally(() => {
+            shutdownCompleted = true
+            log.info('Application shutdown completed')
+            app.quit()
+        })
+})
 
 // 所有窗口关闭时触发
 app.on('window-all-closed', () => {

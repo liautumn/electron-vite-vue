@@ -4,7 +4,10 @@
   "appId": "1234567890",
   "asar": true,
   "asarUnpack": [
-    "node_modules/sherpa-onnx-*/**/*"
+    "node_modules/sherpa-onnx-*/**/*",
+    "node_modules/onnxruntime-node/**/*",
+    "node_modules/@img/**/*",
+    "node_modules/sharp/**/*"
   ],
   "productName": "autumn",
   "directories": {
@@ -19,6 +22,14 @@
     {
       "from": "config/sensevoice.json",
       "to": "config/sensevoice.json"
+    },
+    {
+      "from": "config/yolo26.json",
+      "to": "config/yolo26.json"
+    },
+    {
+      "from": "models/yolo26n.onnx",
+      "to": "models/yolo26n.onnx"
     }
   ],
   "mac": {
@@ -26,7 +37,8 @@
     "entitlements": "electron/resources/entitlements.mac.plist",
     "entitlementsInherit": "electron/resources/entitlements.mac.plist",
     "extendInfo": {
-      "NSMicrophoneUsageDescription": "用于本地语音识别"
+      "NSMicrophoneUsageDescription": "用于本地语音识别",
+      "NSCameraUsageDescription": "用于本地目标识别"
     },
     "target": [
       "dmg"

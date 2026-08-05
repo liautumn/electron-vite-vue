@@ -1,4 +1,4 @@
-import {app, BrowserWindow, ipcMain, systemPreferences} from 'electron'
+import {app, BrowserWindow, ipcMain} from 'electron'
 import {createRequire} from 'node:module'
 import {availableParallelism} from 'node:os'
 import path from 'node:path'
@@ -11,6 +11,7 @@ import type {
     SenseVoiceStatus,
 } from '../../../shared/types/sensevoice'
 import {createLogger} from '../utils/logger'
+import {requestMediaAccess} from '../utils/media-access'
 import {resolvePortablePath} from '../utils/portable-path'
 
 const TARGET_SAMPLE_RATE = 16_000
@@ -80,7 +81,6 @@ let samplesSinceDecode = 0
 let decodeQueue: DecodeRequest[] = []
 let decoding = false
 let drainResolvers: Array<() => void> = []
-let microphoneAccessRequested = false
 
 const loadSherpaOnnx = () => require('sherpa-onnx-node') as SherpaOnnxModule
 
@@ -427,57 +427,15 @@ const clearRecognition = async () => {
     return publishStatus(nextState)
 }
 
-const requestMicrophoneAccess = async (): Promise<MicrophonePermissionStatus> => {
-    if (process.platform === 'darwin') {
-        const currentStatus = systemPreferences.getMediaAccessStatus('microphone')
-        if (currentStatus !== 'not-determined') return currentStatus
-
-        const granted = await systemPreferences.askForMediaAccess('microphone')
-        if (granted) return 'granted'
-
-        const updatedStatus = systemPreferences.getMediaAccessStatus('microphone')
-        return updatedStatus === 'not-determined' ? 'denied' : updatedStatus
-    }
-
-    if (process.platform === 'win32') {
-        return systemPreferences.getMediaAccessStatus('microphone')
-    }
-
-    // Linux AppImage/deb applications have no systemPreferences media status API.
-    // Chromium requests the actual device access through getUserMedia immediately after this call.
-    return 'unknown'
-}
-
 export function registerSenseVoice(window: BrowserWindow) {
     mainWindow = window
     if (registered) return
     registered = true
     log.info('SenseVoice IPC handlers registered')
 
-    const applicationSession = window.webContents.session
-    applicationSession.setPermissionCheckHandler((webContents, permission, _origin, details) =>
-        microphoneAccessRequested
-        && webContents === window.webContents
-        && permission === 'media'
-        && details.isMainFrame
-        && details.mediaType === 'audio'
-    )
-    applicationSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-        const mediaTypes = 'mediaTypes' in details ? details.mediaTypes : undefined
-        const requestsAudioOnly = mediaTypes?.length === 1 && mediaTypes[0] === 'audio'
-        callback(
-            microphoneAccessRequested
-            && webContents === window.webContents
-            && permission === 'media'
-            && details.isMainFrame
-            && requestsAudioOnly
-        )
-    })
-
     ipcMain.handle('sensevoice:request-microphone-access', async event => {
         if (event.sender !== mainWindow?.webContents) return 'denied'
-        const status = await requestMicrophoneAccess()
-        microphoneAccessRequested = status !== 'denied' && status !== 'restricted'
+        const status: MicrophonePermissionStatus = await requestMediaAccess('microphone')
         log.info('Microphone access requested', {platform: process.platform, status})
         return status
     })

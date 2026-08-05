@@ -16,6 +16,7 @@ const DEFAULT_PERMISSIONS = [
     'app:demos:luodan-rfid-phase',
     'app:demos:lock',
     'app:demos:led',
+    'app:demos:yolo26',
 ] as const
 
 const mergeDefaultPermissions = (list: string[] | undefined) => {

@@ -149,7 +149,7 @@ async function createWindow() {
     registerSqlite()
     registerJson()
     registerSenseVoice(window)
-    registerYolo26(window)
+    await registerYolo26(window)
 
     // =======================
     // 加载页面（开发 / 生产）

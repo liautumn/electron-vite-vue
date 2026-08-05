@@ -144,10 +144,25 @@ const getSession = async () => {
     if (sessionPromise) return sessionPromise
 
     const modelConfig = resolveModelConfig()
-    if (modelConfig.error) throw new Error(modelConfig.error)
+    if (modelConfig.error) {
+        engineState = 'error'
+        engineMessage = modelConfig.error
+        log.error('Failed to initialize YOLO26', {
+            configPath: modelConfig.configPath,
+            modelPath: modelConfig.modelPath,
+            error: modelConfig.error,
+        })
+        throw new Error(modelConfig.error)
+    }
 
     engineState = 'loading'
     engineMessage = ''
+    const startedAt = performance.now()
+    log.info('YOLO26 initialization started', {
+        configPath: modelConfig.configPath,
+        modelPath: modelConfig.modelPath,
+        provider: PROVIDER,
+    })
     sessionPromise = ort.InferenceSession.create(modelConfig.modelPath, {
         executionProviders: ['cpu'],
         graphOptimizationLevel: 'all',
@@ -172,6 +187,7 @@ const getSession = async () => {
                     modelPath: modelConfig.modelPath,
                     inputShape: input.shape,
                     outputShape: output.shape,
+                    durationMs: Number((performance.now() - startedAt).toFixed(1)),
                 })
                 return createdSession
             } catch (error) {
@@ -387,7 +403,7 @@ const stressTest = async (): Promise<Yolo26StressResult> => {
     }
 }
 
-export function registerYolo26(window: BrowserWindow) {
+export async function registerYolo26(window: BrowserWindow) {
     mainWindow = window
     if (!registered) {
         registered = true
@@ -417,6 +433,11 @@ export function registerYolo26(window: BrowserWindow) {
         })
     }
 
+    try {
+        await getSession()
+    } catch {
+        // Initialization failures are logged and exposed through yolo26:get-status.
+    }
 }
 
 export function disposeYolo26() {

@@ -5,7 +5,7 @@
     <scripts>
       <script value="build" />
     </scripts>
-    <node-interpreter value="docker://linux64-node:latest/node" />
+    <node-interpreter value="docker://node24-linux64:latest/node" />
     <envs />
     <EXTENSION ID="NodeDockerRunConfigurationExtension">
       <option name="envVars">

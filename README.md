@@ -232,6 +232,15 @@ VITE_DEV_PORT=5173 npm run dev
 - 当前 `sqlite.execute` 属于示例级通用接口。如果要做正式业务，建议改成主进程领域接口，避免渲染进程传任意 SQL。
 - 当前应用在主进程里配置了远程调试端口。发布正式版本前，建议只在开发环境开启。
 
+## 图标一键生成
+```bash
+# 全局安装
+npm install -g electron-icon-builder
+
+# 使用
+electron-icon-builder --input=public/logo.png --output=public/icons
+```
+
 ## 来源
 
 项目基于 `electron-vite-vue` 模板继续扩展。

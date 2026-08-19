@@ -108,6 +108,11 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html')
 async function createWindow() {
     log.info('Creating main window')
 
+    const windowIcon =
+        process.platform === 'win32'
+            ? 'icons/win/icon.ico'
+            : 'icons/png/512x512.png'
+
     const window = new BrowserWindow({
         // 窗口标题
         title: 'Main window',
@@ -118,7 +123,7 @@ async function createWindow() {
         // 隐藏原生菜单栏
         autoHideMenuBar: true,
         // 应用图标
-        icon: path.join(process.env.VITE_PUBLIC, 'icons/win/icon.ico'),
+        icon: path.join(process.env.VITE_PUBLIC, windowIcon),
         // Web 相关配置
         webPreferences: {
             // 预加载脚本（安全桥）

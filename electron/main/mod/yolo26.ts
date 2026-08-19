@@ -16,6 +16,7 @@ import type {
     Yolo26StressResult,
 } from '../../../shared/types/yolo26'
 import {createLogger} from '../utils/logger'
+import {getModelConfigPath, readModelConfigSection} from '../utils/model-config'
 import {resolvePortablePath} from '../utils/portable-path'
 import {
     getOpenCv,
@@ -46,6 +47,10 @@ type ResolvedModelConfig = {
     error?: string
 }
 
+type NamesFile = {
+    names?: unknown
+}
+
 let mainWindow: BrowserWindow | null = null
 let registered = false
 let session: ort.InferenceSession | null = null
@@ -57,19 +62,44 @@ let inferenceQueue: Promise<void> = Promise.resolve()
 let shuttingDown = false
 let disposePromise: Promise<void> | null = null
 
-const defaultConfigPath = () => path.join(
-    app.isPackaged ? process.resourcesPath : process.env.APP_ROOT ?? process.cwd(),
-    'config',
-    'yolo26.json'
-)
+const isValidNames = (value: unknown): value is string[] =>
+    Array.isArray(value)
+    && value.length > 0
+    && value.every(name => typeof name === 'string' && name.trim().length > 0)
 
-const getConfigPath = () => {
-    const configuredPath = process.env.YOLO26_CONFIG_PATH?.trim()
-    return configuredPath ? path.resolve(configuredPath) : defaultConfigPath()
+const resolveNames = (
+    value: unknown,
+    pathOptions: Parameters<typeof resolvePortablePath>[1]
+): {names: string[], error?: string} => {
+    if (isValidNames(value)) return {names: value}
+
+    const namesPath = resolvePortablePath(value, pathOptions)
+    if (!namesPath) {
+        return {names: [], error: 'YOLO26 配置必须指定 names 类别文件'}
+    }
+    if (!existsSync(namesPath)) {
+        return {names: [], error: `YOLO26 类别文件不存在：${namesPath}`}
+    }
+
+    let namesFile: unknown
+    try {
+        namesFile = JSON.parse(readFileSync(namesPath, 'utf8'))
+    } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error)
+        return {names: [], error: `YOLO26 类别文件读取失败：${detail}`}
+    }
+
+    const names = Array.isArray(namesFile)
+        ? namesFile
+        : (namesFile as NamesFile | null)?.names
+    if (!isValidNames(names)) {
+        return {names: [], error: 'YOLO26 类别文件必须提供非空字符串数组 names'}
+    }
+    return {names}
 }
 
 const resolveModelConfig = (): ResolvedModelConfig => {
-    const configPath = getConfigPath()
+    const configPath = getModelConfigPath('YOLO26_CONFIG_PATH')
     if (!existsSync(configPath)) {
         return {
             configPath,
@@ -80,11 +110,12 @@ const resolveModelConfig = (): ResolvedModelConfig => {
     }
 
     try {
-        const config = JSON.parse(readFileSync(configPath, 'utf8')) as Yolo26Config
-        const modelPath = resolvePortablePath(config.modelPath, {
+        const config = readModelConfigSection<Yolo26Config>(configPath, 'yolo26')
+        const pathOptions = {
             configDirectory: path.dirname(configPath),
             userDataDirectory: app.getPath('userData'),
-        })
+        }
+        const modelPath = resolvePortablePath(config.modelPath, pathOptions)
         if (!modelPath) {
             return {
                 configPath,
@@ -93,18 +124,19 @@ const resolveModelConfig = (): ResolvedModelConfig => {
                 error: 'YOLO26 配置必须指定 modelPath',
             }
         }
-        if (!Array.isArray(config.names) || !config.names.length || config.names.some(name => typeof name !== 'string')) {
+        const resolvedNames = resolveNames(config.names, pathOptions)
+        if (resolvedNames.error) {
             return {
                 configPath,
                 modelPath,
                 names: [],
-                error: 'YOLO26 配置必须提供非空字符串数组 names',
+                error: resolvedNames.error,
             }
         }
         return {
             configPath,
             modelPath,
-            names: config.names,
+            names: resolvedNames.names,
             ...(!existsSync(modelPath) ? {error: `YOLO26 模型不存在：${modelPath}`} : {}),
         }
     } catch (error) {

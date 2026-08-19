@@ -2,7 +2,7 @@ import {app, BrowserWindow, ipcMain} from 'electron'
 import {createRequire} from 'node:module'
 import {availableParallelism} from 'node:os'
 import path from 'node:path'
-import {existsSync, readFileSync} from 'node:fs'
+import {existsSync} from 'node:fs'
 import type {
     SenseVoiceAudioChunk,
     SenseVoiceEngineState,
@@ -12,6 +12,7 @@ import type {
 } from '../../../shared/types/sensevoice'
 import {createLogger} from '../utils/logger'
 import {requestMediaAccess} from '../utils/media-access'
+import {getModelConfigPath, readModelConfigSection} from '../utils/model-config'
 import {resolvePortablePath} from '../utils/portable-path'
 
 const TARGET_SAMPLE_RATE = 16_000
@@ -89,19 +90,8 @@ const sendToRenderer = (channel: string, payload: unknown) => {
     mainWindow.webContents.send(channel, payload)
 }
 
-const defaultConfigPath = () => path.join(
-    app.isPackaged ? process.resourcesPath : process.env.APP_ROOT ?? process.cwd(),
-    'config',
-    'sensevoice.json'
-)
-
-const getConfigPath = () => {
-    const configuredPath = process.env.SENSEVOICE_CONFIG_PATH?.trim()
-    return configuredPath ? path.resolve(configuredPath) : defaultConfigPath()
-}
-
 const resolveModelConfig = (): ResolvedModelConfig => {
-    const configPath = getConfigPath()
+    const configPath = getModelConfigPath('SENSEVOICE_CONFIG_PATH')
     if (!existsSync(configPath)) {
         return {
             configPath,
@@ -112,7 +102,7 @@ const resolveModelConfig = (): ResolvedModelConfig => {
     }
 
     try {
-        const config = JSON.parse(readFileSync(configPath, 'utf8')) as SenseVoiceConfig
+        const config = readModelConfigSection<SenseVoiceConfig>(configPath, 'sensevoice')
         const directory = path.dirname(configPath)
         const pathOptions = {
             configDirectory: directory,

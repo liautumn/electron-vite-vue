@@ -63,30 +63,40 @@ VITE_DEV_PORT=5173 npm run dev
 | `npm run build:test` | 使用测试模式构建并打包 |
 | `npm run preview` | 预览前端构建结果 |
 
-## SenseVoice 模型配置
+## 模型配置
 
-应用不会下载语音识别模型。请在 `config/sensevoice.json` 中自行指定模型和词表文件：
+应用不会下载模型。SenseVoice 和 YOLO26 共用 `config/models.json`：
 
 ```json
 {
-  "modelPath": "userData://models/sensevoice/model.onnx",
-  "tokensPath": "userData://models/sensevoice/tokens.txt"
+  "sensevoice": {
+    "modelPath": "userData://models/sensevoice/model.onnx",
+    "tokensPath": "userData://models/sensevoice/tokens.txt"
+  },
+  "yolo26": {
+    "modelPath": "userData://models/yolo26/model.onnx",
+    "names": "userData://models/yolo26/model.json"
+  }
 }
 ```
 
-软件安装包不包含约 894 MB 的模型。模型和词表应作为独立部署包安装到 Electron 用户数据目录的 `models/sensevoice` 子目录：
+软件安装包不包含模型。SenseVoice 模型和词表应作为独立部署包安装到 Electron 用户数据目录的 `models/sensevoice` 子目录：
 
-- Windows：`%APPDATA%/autumn/models/sensevoice`
-- macOS：`~/Library/Application Support/autumn/models/sensevoice`
-- Linux：`${XDG_CONFIG_HOME:-~/.config}/autumn/models/sensevoice`
+- Windows：`%APPDATA%/electron-vue-vite/models/sensevoice`
+- macOS：`~/Library/Application Support/electron-vue-vite/models/sensevoice`
+- Linux：`${XDG_CONFIG_HOME:-~/.config}/electron-vue-vite/models/sensevoice`
 
-`userData://` 会由应用解析为当前平台的用户数据目录，因此同一份配置可以用于 Windows、Linux 和 macOS。模型部署包中必须同时包含 `model.onnx` 和与其配套的 `tokens.txt`。软件升级不会覆盖或重复分发这些文件，当前 NSIS 配置卸载软件时也不会删除用户数据。
+YOLO26 的 `model.onnx` 和 `model.json` 则安装到同一用户数据目录的 `models/yolo26` 子目录。`model.json` 必须包含与模型类别索引顺序一致的非空 `names` 字符串数组。
 
-配置仍兼容绝对路径以及相对于 `sensevoice.json` 的普通相对路径。需要使用其他配置文件时，在启动应用前设置 `SENSEVOICE_CONFIG_PATH`：
+`userData://` 会由应用解析为当前平台的用户数据目录，因此同一份配置可以用于 Windows、Linux 和 macOS。软件升级不会覆盖或重复分发这些文件，当前 NSIS 配置卸载软件时也不会删除用户数据。
+
+配置仍兼容绝对路径以及相对于 `models.json` 的普通相对路径。需要使用其他配置文件时，在启动应用前设置 `MODELS_CONFIG_PATH`：
 
 ```sh
-SENSEVOICE_CONFIG_PATH=/absolute/path/to/sensevoice.json npm run dev
+MODELS_CONFIG_PATH=/absolute/path/to/models.json npm run dev
 ```
+
+原有的 `SENSEVOICE_CONFIG_PATH` 和 `YOLO26_CONFIG_PATH` 仍可分别覆盖对应模块，并兼容旧的单模块扁平 JSON 配置。
 
 修改模型配置后请重启应用。ONNX 模型必须是与当前 `sherpa-onnx` SenseVoice 加载器兼容的版本，并与 `tokens.txt` 配套。
 

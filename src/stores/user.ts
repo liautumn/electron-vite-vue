@@ -13,7 +13,6 @@ const DEFAULT_PERMISSIONS = [
     'app:demos:sqlite',
     'app:demos:sensevoice',
     'app:demos:guoxin-rfid',
-    'app:demos:luodan-rfid-phase',
     'app:demos:lock',
     'app:demos:led',
     'app:demos:yolo26',

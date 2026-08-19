@@ -3,7 +3,9 @@
     <package-json value="$PROJECT_DIR$/package.json" />
     <command value="install" />
     <node-interpreter value="docker://node24-linux64:latest/node" />
-    <envs />
+    <envs>
+      <env name="ONNXRUNTIME_NODE_INSTALL" value="skip" />
+    </envs>
     <EXTENSION ID="NodeDockerRunConfigurationExtension">
       <option name="envVars">
         <list />

@@ -1,4 +1,0 @@
-{
-  "modelPath": "/Users/autumn/IdeaProjects/electron-vite-vue/models/best.onnx",
-  "names": ["Paper", "Rock", "Scissors"]
-}

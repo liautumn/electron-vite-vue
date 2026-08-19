@@ -9,7 +9,7 @@
     "node_modules/@img/**/*",
     "node_modules/sharp/**/*"
   ],
-  "productName": "autumn",
+  "productName": "electron-vue-vite",
   "directories": {
     "output": "release/${version}"
   },
@@ -20,16 +20,8 @@
   ],
   "extraResources": [
     {
-      "from": "config/sensevoice.json",
-      "to": "config/sensevoice.json"
-    },
-    {
-      "from": "config/yolo26.json",
-      "to": "config/yolo26.json"
-    },
-    {
-      "from": "models/yolo26n.onnx",
-      "to": "models/yolo26n.onnx"
+      "from": "config/models.json",
+      "to": "config/models.json"
     }
   ],
   "mac": {

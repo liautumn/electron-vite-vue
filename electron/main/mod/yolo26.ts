@@ -2,8 +2,7 @@ import {app, BrowserWindow, ipcMain} from 'electron'
 import {existsSync, readFileSync} from 'node:fs'
 import path from 'node:path'
 import {performance} from 'node:perf_hooks'
-import * as ort from 'onnxruntime-node'
-import sharp from 'sharp'
+import type * as ort from 'onnxruntime-node'
 import type {RgbaImage} from '../../../shared/types/image'
 import type {
     Yolo26Detection,
@@ -19,7 +18,6 @@ import {createLogger} from '../utils/logger'
 import {getModelConfigPath, readModelConfigSection} from '../utils/model-config'
 import {resolvePortablePath} from '../utils/portable-path'
 import {
-    getOpenCv,
     preprocessYolo26,
     type Yolo26PixelImage,
     type Yolo26PreprocessedImage,
@@ -60,7 +58,14 @@ let engineState: Yolo26EngineState = 'idle'
 let engineMessage = ''
 let inferenceQueue: Promise<void> = Promise.resolve()
 let shuttingDown = false
-let disposePromise: Promise<void> | null = null
+let engineActive = false
+let lifecycleQueue: Promise<void> = Promise.resolve()
+
+const enqueueLifecycle = <Result>(operation: () => Promise<Result>) => {
+    const queued = lifecycleQueue.then(operation, operation)
+    lifecycleQueue = queued.then(() => undefined, () => undefined)
+    return queued
+}
 
 const isValidNames = (value: unknown): value is string[] =>
     Array.isArray(value)
@@ -171,6 +176,7 @@ const currentStatus = (): Yolo26Status => {
 }
 
 const getSession = async () => {
+    if (!engineActive) throw new Error('YOLO26 页面未激活')
     if (shuttingDown) throw new Error('YOLO26 正在销毁')
     if (session) return session
     if (sessionPromise) return sessionPromise
@@ -195,10 +201,11 @@ const getSession = async () => {
         modelPath: modelConfig.modelPath,
         provider: PROVIDER,
     })
-    sessionPromise = ort.InferenceSession.create(modelConfig.modelPath, {
-        executionProviders: ['cpu'],
-        graphOptimizationLevel: 'all',
-    })
+    sessionPromise = import('onnxruntime-node')
+        .then(ortRuntime => ortRuntime.InferenceSession.create(modelConfig.modelPath, {
+            executionProviders: ['cpu'],
+            graphOptimizationLevel: 'all',
+        }))
         .then(async createdSession => {
             try {
                 const input = createdSession.inputMetadata[0]
@@ -247,6 +254,7 @@ const decodeImage = async (source: Uint8Array | undefined): Promise<Yolo26PixelI
         throw new Error('无效的编码图片数据')
     }
 
+    const {default: sharp} = await import('sharp')
     const encoded = Buffer.from(source.buffer, source.byteOffset, source.byteLength)
     const {data, info} = await sharp(encoded, {failOn: 'error', limitInputPixels: MAX_IMAGE_PIXELS})
         .rotate()
@@ -435,18 +443,68 @@ const stressTest = async (): Promise<Yolo26StressResult> => {
     }
 }
 
-export async function registerYolo26(window: BrowserWindow) {
+const initializeYolo26 = () => enqueueLifecycle(async () => {
+    engineActive = true
+    shuttingDown = false
+    try {
+        await getSession()
+    } catch {
+        // Initialization failures are reflected in the returned status.
+    }
+    return currentStatus()
+})
+
+const releaseYolo26Engine = () => {
+    engineActive = false
+    shuttingDown = true
+
+    return enqueueLifecycle(async () => {
+        const startedAt = performance.now()
+        log.info('YOLO26 engine disposal started', {
+            state: engineState,
+            sessionReady: Boolean(session),
+        })
+
+        try {
+            try {
+                await sessionPromise
+            } catch {
+                // Initialization failures are already reflected in engine state.
+            }
+            await inferenceQueue
+
+            const activeSession = session
+            session = null
+            sessionPromise = null
+            if (activeSession) await activeSession.release()
+
+            activeNames = []
+            engineState = 'idle'
+            engineMessage = ''
+            log.info('YOLO26 engine disposal completed', {
+                durationMs: Number((performance.now() - startedAt).toFixed(1)),
+                sessionReleased: Boolean(activeSession),
+            })
+        } finally {
+            shuttingDown = false
+        }
+    })
+}
+
+export function registerYolo26(window: BrowserWindow) {
     mainWindow = window
     if (!registered) {
         registered = true
-        const modelConfig = resolveModelConfig()
-        log.info('YOLO26 IPC handlers registered', {
-            configPath: modelConfig.configPath,
-            modelPath: modelConfig.modelPath,
-            classCount: modelConfig.names.length,
-            error: modelConfig.error,
-        })
+        log.info('YOLO26 IPC handlers registered')
 
+        ipcMain.handle('yolo26:initialize', event => {
+            if (event.sender !== mainWindow?.webContents) throw new Error('无权初始化 YOLO26')
+            return initializeYolo26()
+        })
+        ipcMain.handle('yolo26:dispose', event => {
+            if (event.sender !== mainWindow?.webContents) throw new Error('无权销毁 YOLO26')
+            return releaseYolo26Engine()
+        })
         ipcMain.handle('yolo26:get-status', event => {
             if (event.sender !== mainWindow?.webContents) throw new Error('无权读取 YOLO26 状态')
             return currentStatus()
@@ -464,64 +522,9 @@ export async function registerYolo26(window: BrowserWindow) {
             return stressTest()
         })
     }
-
-    try {
-        await getSession()
-    } catch {
-        // Initialization failures are logged and exposed through yolo26:get-status.
-    }
 }
 
-export function disposeYolo26() {
-    if (disposePromise) return disposePromise
-
-    shuttingDown = true
-    const startedAt = performance.now()
-    log.info('YOLO26 disposal started', {
-        state: engineState,
-        sessionReady: Boolean(session),
-    })
-
-    disposePromise = (async () => {
-        try {
-            try {
-                await sessionPromise
-            } catch {
-                // Initialization failures are already logged and do not prevent cleanup.
-            }
-            await inferenceQueue
-
-            const activeSession = session
-            session = null
-            sessionPromise = null
-            if (activeSession) await activeSession.release()
-
-            activeNames = []
-            engineState = 'idle'
-            engineMessage = ''
-            mainWindow = null
-            for (const channel of [
-                'yolo26:get-status',
-                'yolo26:infer-image',
-                'yolo26:infer-frame',
-                'yolo26:stress-test',
-            ]) {
-                ipcMain.removeHandler(channel)
-            }
-            registered = false
-
-            log.info('YOLO26 disposal completed', {
-                durationMs: Number((performance.now() - startedAt).toFixed(1)),
-                sessionReleased: Boolean(activeSession),
-            })
-        } catch (error) {
-            log.error('YOLO26 disposal failed', {
-                durationMs: Number((performance.now() - startedAt).toFixed(1)),
-                error: error instanceof Error ? error.message : String(error),
-            })
-            throw error
-        }
-    })()
-
-    return disposePromise
+export async function disposeYolo26() {
+    await releaseYolo26Engine()
+    mainWindow = null
 }

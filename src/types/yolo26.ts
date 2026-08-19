@@ -57,6 +57,8 @@ export interface Yolo26StressResult {
 }
 
 export interface Yolo26Methods {
+  initialize(): Promise<Yolo26Status>
+  dispose(): Promise<void>
   getStatus(): Promise<Yolo26Status>
   inferImage(request: Yolo26ImageRequest): Promise<Yolo26InferenceResult>
   inferFrame(request: Yolo26FrameRequest): Promise<Yolo26FrameInferenceResult>

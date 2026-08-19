@@ -82,6 +82,15 @@ let samplesSinceDecode = 0
 let decodeQueue: DecodeRequest[] = []
 let decoding = false
 let drainResolvers: Array<() => void> = []
+let engineActive = false
+let engineGeneration = 0
+let lifecycleQueue: Promise<void> = Promise.resolve()
+
+const enqueueLifecycle = <Result>(operation: () => Promise<Result>) => {
+    const queued = lifecycleQueue.then(operation, operation)
+    lifecycleQueue = queued.then(() => undefined, () => undefined)
+    return queued
+}
 
 const loadSherpaOnnx = () => require('sherpa-onnx-node') as SherpaOnnxModule
 
@@ -179,6 +188,7 @@ const publishError = (error: unknown) => {
 }
 
 const getRecognizer = async () => {
+    if (!engineActive) throw new Error('SenseVoice 页面未激活')
     if (recognizer) return recognizer
     if (recognizerPromise) return recognizerPromise
 
@@ -372,7 +382,12 @@ const startRecording = async (inputSampleRate: number) => {
         throw new Error(`不支持的麦克风采样率：${inputSampleRate}`)
     }
 
+    if (!engineActive) throw new Error('SenseVoice 页面未激活')
+    const activeGeneration = engineGeneration
     await getRecognizer()
+    if (!engineActive || activeGeneration !== engineGeneration) {
+        throw new Error('SenseVoice 页面已离开')
+    }
     const sherpaOnnx = loadSherpaOnnx()
     resetSession()
     resampler = inputSampleRate === TARGET_SAMPLE_RATE
@@ -417,12 +432,69 @@ const clearRecognition = async () => {
     return publishStatus(nextState)
 }
 
+const initializeSenseVoice = () => enqueueLifecycle(async () => {
+    engineActive = true
+    engineGeneration += 1
+
+    const modelConfig = resolveModelConfig()
+    if (modelConfig.error) return currentStatus('missing')
+
+    try {
+        await getRecognizer()
+        return currentStatus('ready')
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return currentStatus('error', message)
+    }
+})
+
+const releaseSenseVoiceEngine = () => {
+    engineActive = false
+    engineGeneration += 1
+    recording = false
+    resampler = null
+    resetSession()
+
+    return enqueueLifecycle(async () => {
+        log.info('SenseVoice engine disposal started', {
+            recognizerReady: Boolean(recognizer),
+            decoding,
+        })
+
+        try {
+            try {
+                await recognizerPromise
+            } catch {
+                // Initialization errors do not prevent lifecycle cleanup.
+            }
+            await waitForDecodeDrain()
+
+            recognizer = null
+            recognizerPromise = null
+            resampler = null
+            resetSession()
+            log.info('SenseVoice engine disposal completed')
+        } catch (error) {
+            log.error('SenseVoice engine disposal failed', error)
+            throw error
+        }
+    })
+}
+
 export function registerSenseVoice(window: BrowserWindow) {
     mainWindow = window
     if (registered) return
     registered = true
     log.info('SenseVoice IPC handlers registered')
 
+    ipcMain.handle('sensevoice:initialize', event => {
+        if (event.sender !== mainWindow?.webContents) throw new Error('无权初始化 SenseVoice')
+        return initializeSenseVoice()
+    })
+    ipcMain.handle('sensevoice:dispose', event => {
+        if (event.sender !== mainWindow?.webContents) throw new Error('无权销毁 SenseVoice')
+        return releaseSenseVoiceEngine()
+    })
     ipcMain.handle('sensevoice:request-microphone-access', async event => {
         if (event.sender !== mainWindow?.webContents) return 'denied'
         const status: MicrophonePermissionStatus = await requestMediaAccess('microphone')
@@ -437,4 +509,8 @@ export function registerSenseVoice(window: BrowserWindow) {
         if (event.sender !== mainWindow?.webContents) return
         acceptAudio(chunk)
     })
+}
+
+export function disposeSenseVoice() {
+    return releaseSenseVoiceEngine()
 }

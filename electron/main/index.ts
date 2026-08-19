@@ -19,7 +19,7 @@ import {registerTcp} from './mod/tcp'
 import {registerMqtt} from './mod/mqtt'
 import {registerSqlite} from './mod/sqlite'
 import {getJsonDirectory, registerJson} from './mod/json'
-import {registerSenseVoice} from './mod/sensevoice'
+import {disposeSenseVoice, registerSenseVoice} from './mod/sensevoice'
 import {registerCamera} from './mod/camera'
 import {registerImageFiles} from './mod/image-files'
 import {disposeYolo26, registerYolo26} from './mod/yolo26'
@@ -154,7 +154,7 @@ async function createWindow() {
     registerSqlite()
     registerJson()
     registerSenseVoice(window)
-    await registerYolo26(window)
+    registerYolo26(window)
 
     // =======================
     // 加载页面（开发 / 生产）
@@ -220,7 +220,10 @@ const disposeWithTimeout = () => new Promise<void>((resolve, reject) => {
         () => reject(new Error(`Resource disposal timed out after ${SHUTDOWN_TIMEOUT_MS} ms`)),
         SHUTDOWN_TIMEOUT_MS
     )
-    void disposeYolo26().then(
+    void Promise.all([
+        disposeSenseVoice(),
+        disposeYolo26(),
+    ]).then(
         () => {
             clearTimeout(timeout)
             resolve()

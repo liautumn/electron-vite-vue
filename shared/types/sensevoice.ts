@@ -37,6 +37,8 @@ export interface SenseVoiceRecognitionResult {
 }
 
 export interface SenseVoiceMethods {
+    initialize(): Promise<SenseVoiceStatus>
+    dispose(): Promise<void>
     requestMicrophoneAccess(): Promise<MicrophonePermissionStatus>
     getStatus(): Promise<SenseVoiceStatus>
     start(sampleRate: number): Promise<SenseVoiceStatus>

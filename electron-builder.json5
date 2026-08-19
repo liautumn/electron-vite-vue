@@ -9,7 +9,7 @@
     "node_modules/@img/**/*",
     "node_modules/sharp/**/*"
   ],
-  "productName": "electron-vue-vite",
+  "productName": "Autumn Electron",
   "directories": {
     "output": "release/${version}"
   },
@@ -60,7 +60,7 @@
     "target": [
       "AppImage",
       "deb",
-      "rpm"
+//      "rpm"
     ],
     "artifactName": "${productName}-Linux-${version}.${ext}"
   }

@@ -38,6 +38,8 @@ const transcriptOutput = ref<HTMLElement | null>(null)
 let audioResources: AudioResources | null = null
 let flushResolver: (() => void) | null = null
 let followTranscript = true
+let pageActive = false
+let audioLifecycleGeneration = 0
 
 const isRecording = computed(() => status.value.state === 'recording')
 const isBusy = computed(() =>
@@ -114,10 +116,13 @@ const startRecording = async () => {
 
   isStarting.value = true
   errorMessage.value = ''
+  const generation = ++audioLifecycleGeneration
+  const isCurrentLifecycle = () => pageActive && generation === audioLifecycleGeneration
   let pendingStream: MediaStream | null = null
   let pendingContext: AudioContext | null = null
   try {
     const microphonePermission = await window.senseVoice.requestMicrophoneAccess()
+    if (!isCurrentLifecycle()) return
     if (microphonePermission === 'denied') {
       errorMessage.value = '麦克风权限被拒绝，请在系统设置中允许后重启应用'
       return
@@ -138,7 +143,17 @@ const startRecording = async () => {
       video: false,
     })
     pendingStream = stream
+    if (!isCurrentLifecycle()) {
+      stream.getTracks().forEach(track => track.stop())
+      pendingStream = null
+      return
+    }
     await refreshDevices()
+    if (!isCurrentLifecycle()) {
+      stream.getTracks().forEach(track => track.stop())
+      pendingStream = null
+      return
+    }
 
     const context = new AudioContext({latencyHint: 'interactive'})
     pendingContext = context
@@ -146,6 +161,13 @@ const startRecording = async () => {
       new URL('audio-worklets/sensevoice-pcm.js', window.location.href).toString()
     )
     await context.resume()
+    if (!isCurrentLifecycle()) {
+      stream.getTracks().forEach(track => track.stop())
+      pendingStream = null
+      await context.close().catch(() => undefined)
+      pendingContext = null
+      return
+    }
 
     const source = context.createMediaStreamSource(stream)
     const processor = new AudioWorkletNode(context, 'sensevoice-pcm')
@@ -160,7 +182,7 @@ const startRecording = async () => {
         flushResolver?.()
         flushResolver = null
       }
-      if (event.data.samples?.length) {
+      if (isCurrentLifecycle() && event.data.samples?.length) {
         audioLevel.value = Math.min(Math.max((event.data.rms ?? 0) * 8, 0), 1)
         window.senseVoice.pushAudio({
           sampleRate: context.sampleRate,
@@ -171,6 +193,10 @@ const startRecording = async () => {
 
     audioResources = {stream, context, source, processor, sink}
     status.value = await window.senseVoice.start(context.sampleRate)
+    if (!isCurrentLifecycle()) {
+      await releaseAudioResources()
+      return
+    }
     sampleRate.value = context.sampleRate
     source.connect(processor)
     processor.connect(sink)
@@ -256,6 +282,7 @@ const handleResult = (result: SenseVoiceRecognitionResult) => {
 const disposers: Array<() => void> = []
 
 onMounted(async () => {
+  pageActive = true
   disposers.push(
     window.senseVoice.onStatus((nextStatus: SenseVoiceStatus) => {
       status.value = nextStatus
@@ -267,20 +294,27 @@ onMounted(async () => {
   )
 
   try {
-    status.value = await window.senseVoice.getStatus()
+    const nextStatus = await window.senseVoice.initialize()
+    if (!pageActive) return
+    status.value = nextStatus
     if (!status.value.modelAvailable && status.value.message) {
       errorMessage.value = status.value.message
     }
     await refreshDevices()
   } catch (error) {
-    errorMessage.value = normalizeError(error)
+    if (pageActive) errorMessage.value = normalizeError(error)
   }
 })
 
 onBeforeUnmount(() => {
+  pageActive = false
+  audioLifecycleGeneration += 1
   disposers.forEach(dispose => dispose())
-  if (isRecording.value) void stopRecording()
-  else void releaseAudioResources()
+  void releaseAudioResources()
+    .then(() => window.senseVoice.dispose())
+    .catch(error => {
+      console.error('Failed to dispose SenseVoice', error)
+    })
 })
 </script>
 

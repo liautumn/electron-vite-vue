@@ -1,7 +1,6 @@
 import {BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent} from 'electron'
 import {readdir, readFile, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import sharp from 'sharp'
 import type {
     ImageFileContent,
     ImageFileEntry,
@@ -78,6 +77,7 @@ const readSelected = async (imagePath: string): Promise<ImageFileContent> => {
     }
 
     const encoded = await readFile(resolvedPath)
+    const {default: sharp} = await import('sharp')
     const {data: preview, info} = await sharp(encoded, {
         failOn: 'error',
         limitInputPixels: MAX_IMAGE_PIXELS,

@@ -7,6 +7,8 @@ import type {
 
 export function registerYolo26Renderer() {
     contextBridge.exposeInMainWorld('yolo26', {
+        initialize: () => ipcRenderer.invoke('yolo26:initialize'),
+        dispose: () => ipcRenderer.invoke('yolo26:dispose'),
         getStatus: () => ipcRenderer.invoke('yolo26:get-status'),
         inferImage: (request: Yolo26ImageRequest) => ipcRenderer.invoke('yolo26:infer-image', request),
         inferFrame: (request: Yolo26FrameRequest) => ipcRenderer.invoke('yolo26:infer-frame', request),

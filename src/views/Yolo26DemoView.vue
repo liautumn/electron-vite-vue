@@ -63,6 +63,7 @@ let nextCameraFrameId = 0
 let activeFrameInference: Promise<Yolo26FrameInferenceResult> | null = null
 let pendingAnimationFrame: number | null = null
 let resolveAnimationFrame: ((active: boolean) => void) | null = null
+let pageActive = false
 const previewOpen = computed({
   get: () => Boolean(previewResult.value),
   set: (open: boolean) => {
@@ -418,12 +419,23 @@ watch(cameraState, (state, previousState) => {
   if (!activeFrameInference) cameraInferencePending.value = false
 })
 
-onMounted(() => {
-  void refreshStatus()
+onMounted(async () => {
+  pageActive = true
+  try {
+    const status = await window.yolo26.initialize()
+    if (pageActive) engineStatus.value = status
+  } catch (error) {
+    if (pageActive) $q.notify({type: 'negative', message: toErrorMessage(error)})
+  }
 })
 
 onBeforeUnmount(() => {
+  pageActive = false
+  requestStop()
   stopCamera()
+  void window.yolo26.dispose().catch(error => {
+    console.error('Failed to dispose YOLO26', error)
+  })
 })
 </script>
 

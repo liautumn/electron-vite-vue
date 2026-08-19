@@ -1,4 +1,4 @@
-import * as ort from 'onnxruntime-node'
+import type * as ort from 'onnxruntime-node'
 
 export type Yolo26PixelImage = {
     pixels: Uint8Array
@@ -16,7 +16,7 @@ export type Yolo26PreprocessedImage = {
     tensor: ort.Tensor
 }
 
-type OpenCvRuntime = typeof import('@techstark/opencv-js').default & {
+type OpenCvRuntime = typeof import('@techstark/opencv-js') & {
     onRuntimeInitialized?: () => void
 }
 
@@ -26,7 +26,9 @@ export const getOpenCv = () => {
     if (openCvPromise) return openCvPromise
 
     openCvPromise = import('@techstark/opencv-js')
-        .then(({default: cvModule}) => cvModule as OpenCvRuntime | PromiseLike<OpenCvRuntime>)
+        .then(imported => (
+            'default' in imported ? imported.default : imported
+        ) as OpenCvRuntime | PromiseLike<OpenCvRuntime>)
         .then(runtime => Promise.resolve(runtime))
         .then(runtime => {
             if (runtime.Mat) return runtime
@@ -49,7 +51,10 @@ export async function preprocessYolo26(
         throw new Error('图片像素数据长度与尺寸不匹配')
     }
 
-    const cv = await getOpenCv()
+    const [cv, ortRuntime] = await Promise.all([
+        getOpenCv(),
+        import('onnxruntime-node'),
+    ])
     const gain = Math.min(inputHeight / image.height, inputWidth / image.width)
     const resizedWidth = Math.round(image.width * gain)
     const resizedHeight = Math.round(image.height * gain)
@@ -103,7 +108,7 @@ export async function preprocessYolo26(
             gain,
             padX,
             padY,
-            tensor: new ort.Tensor('float32', tensorData, [1, 3, inputHeight, inputWidth]),
+            tensor: new ortRuntime.Tensor('float32', tensorData, [1, 3, inputHeight, inputWidth]),
         }
     } finally {
         blob?.delete()

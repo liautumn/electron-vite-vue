@@ -1,4 +1,4 @@
-import type {Yolo26Detection, Yolo26InferenceResult} from '../types/yolo26'
+import type {Yolo26Detection, Yolo26InferenceResult} from '../../shared/types/yolo26'
 
 export const YOLO26_DETECTION_COLORS = [
     '#3b82f6',

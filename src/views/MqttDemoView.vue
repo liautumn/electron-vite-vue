@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed, onMounted, onUnmounted, ref} from 'vue'
 import type { IpcRendererEvent } from 'electron'
-import type {MqttMessageEvent, MqttQoS, MqttSubscriptionGrant} from '../types/mqtt'
+import type {MqttMessageEvent, MqttQoS, MqttSubscriptionGrant} from '../../shared/types/mqtt'
 
 type SelectOption<T = string | number | boolean> = {
     label: string

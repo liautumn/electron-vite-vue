@@ -9,6 +9,9 @@ export interface Yolo26Status {
     modelPath: string
     engineReady: boolean
     provider: string
+    gpuAvailable: boolean
+    gpuEnabled: boolean
+    gpuProvider: string | null
     inputSize: number
     classCount: number
     message?: string
@@ -60,6 +63,7 @@ export interface Yolo26Methods {
     initialize(): Promise<Yolo26Status>
     dispose(): Promise<void>
     getStatus(): Promise<Yolo26Status>
+    setGpuEnabled(enabled: boolean): Promise<Yolo26Status>
     inferImage(request: Yolo26ImageRequest): Promise<Yolo26InferenceResult>
     inferFrame(request: Yolo26FrameRequest): Promise<Yolo26FrameInferenceResult>
     stressTest(): Promise<Yolo26StressResult>

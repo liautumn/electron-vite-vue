@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron'
 import Database from 'better-sqlite3'
 import { existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
-import { createLogger, getLogDirectory } from '../utils/logger'
+import { createLogger } from '../utils/logger'
 import type {
   SqliteBindValue,
   SqliteExecuteRequest,
@@ -19,16 +19,8 @@ let sqliteRegistered = false
 let beforeQuitHookRegistered = false
 let sqlite: Database.Database | null = null
 
-const resolvePackagedDatabaseDirectory = () =>
-  path.join(path.dirname(getLogDirectory()), DB_DIRECTORY)
-
-const resolveDatabaseDirectory = () => {
-  if (app.isPackaged) {
-    return resolvePackagedDatabaseDirectory()
-  }
-
-  return path.join(process.cwd(), DB_DIRECTORY)
-}
+const resolveDatabaseDirectory = () =>
+  path.join(app.getPath('userData'), DB_DIRECTORY)
 
 const resolveDatabasePath = () =>
   path.join(resolveDatabaseDirectory(), DB_FILENAME)

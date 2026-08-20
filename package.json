@@ -19,7 +19,7 @@
     "build": "vite build && electron-builder",
     "build:test": "vite build --mode test && electron-builder",
     "rebuild:native": "electron-builder install-app-deps",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },
   "devDependencies": {
     "@quasar/vite-plugin": "^1.11.0",

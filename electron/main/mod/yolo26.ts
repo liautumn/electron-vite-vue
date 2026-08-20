@@ -29,9 +29,33 @@ const STRESS_ITERATIONS = 20
 const MAX_IMAGE_PIXELS = 25_000_000
 const MAX_FRAME_PIXELS = 1920 * 1080
 const MAX_ENCODED_IMAGE_BYTES = 32 * 1024 * 1024
-const PROVIDER = 'CPUExecutionProvider'
+const CPU_PROVIDER = 'CPUExecutionProvider'
+const COREML_CREATE_MLPROGRAM = 0x010
+const COREML_USE_CPU_AND_GPU = 0x020
 
 const log = createLogger('yolo26')
+
+type ExecutionTarget = 'cpu' | 'gpu'
+
+type GpuProvider = {
+    backend: 'coreml' | 'dml' | 'cuda'
+    displayName: string
+}
+
+const resolveGpuProvider = (): GpuProvider | null => {
+    if (process.platform === 'darwin') {
+        return {backend: 'coreml', displayName: 'CoreMLExecutionProvider'}
+    }
+    if (process.platform === 'win32') {
+        return {backend: 'dml', displayName: 'DmlExecutionProvider'}
+    }
+    if (process.platform === 'linux' && process.arch === 'x64') {
+        return {backend: 'cuda', displayName: 'CUDAExecutionProvider'}
+    }
+    return null
+}
+
+const gpuProvider = resolveGpuProvider()
 
 type Yolo26Config = {
     modelPath?: unknown
@@ -60,11 +84,68 @@ let inferenceQueue: Promise<void> = Promise.resolve()
 let shuttingDown = false
 let engineActive = false
 let lifecycleQueue: Promise<void> = Promise.resolve()
+let executionTarget: ExecutionTarget = 'cpu'
+let runtimePromise: Promise<typeof import('onnxruntime-node')> | null = null
 
 const enqueueLifecycle = <Result>(operation: () => Promise<Result>) => {
     const queued = lifecycleQueue.then(operation, operation)
     lifecycleQueue = queued.then(() => undefined, () => undefined)
     return queued
+}
+
+const loadRuntime = () => {
+    runtimePromise ??= import('onnxruntime-node')
+    return runtimePromise
+}
+
+const isGpuAvailable = async () => {
+    if (!gpuProvider) return false
+    try {
+        const ortRuntime = await loadRuntime()
+        return ortRuntime.listSupportedBackends()
+            .some(backend => backend.name === gpuProvider.backend)
+    } catch {
+        return false
+    }
+}
+
+const activeProviderName = () =>
+    executionTarget === 'gpu' && gpuProvider
+        ? gpuProvider.displayName
+        : CPU_PROVIDER
+
+const createSessionOptions = (): ort.InferenceSession.SessionOptions => {
+    const baseOptions: ort.InferenceSession.SessionOptions = {
+        graphOptimizationLevel: 'all',
+    }
+    if (executionTarget !== 'gpu' || !gpuProvider) {
+        return {...baseOptions, executionProviders: ['cpu']}
+    }
+
+    if (gpuProvider.backend === 'coreml') {
+        return {
+            ...baseOptions,
+            executionProviders: [
+                {
+                    name: 'coreml',
+                    coreMlFlags: COREML_CREATE_MLPROGRAM | COREML_USE_CPU_AND_GPU,
+                },
+                'cpu',
+            ],
+        }
+    }
+    if (gpuProvider.backend === 'dml') {
+        return {
+            ...baseOptions,
+            executionProviders: [{name: 'dml', deviceId: 0}, 'cpu'],
+            enableMemPattern: false,
+            executionMode: 'sequential',
+        }
+    }
+    return {
+        ...baseOptions,
+        executionProviders: [{name: 'cuda', deviceId: 0}, 'cpu'],
+    }
 }
 
 const isValidNames = (value: unknown): value is string[] =>
@@ -155,16 +236,20 @@ const resolveModelConfig = (): ResolvedModelConfig => {
     }
 }
 
-const currentStatus = (): Yolo26Status => {
+const currentStatus = async (): Promise<Yolo26Status> => {
     const modelConfig = resolveModelConfig()
     const modelAvailable = !modelConfig.error
+    const gpuAvailable = await isGpuAvailable()
     return {
         state: modelAvailable ? engineState : 'missing',
         modelAvailable,
         configPath: modelConfig.configPath,
         modelPath: modelConfig.modelPath,
         engineReady: Boolean(session),
-        provider: PROVIDER,
+        provider: activeProviderName(),
+        gpuAvailable,
+        gpuEnabled: executionTarget === 'gpu',
+        gpuProvider: gpuProvider?.displayName ?? null,
         inputSize: INPUT_SIZE,
         classCount: modelConfig.names.length,
         ...(modelConfig.error
@@ -196,16 +281,19 @@ const getSession = async () => {
     engineState = 'loading'
     engineMessage = ''
     const startedAt = performance.now()
+    const provider = activeProviderName()
     log.info('YOLO26 initialization started', {
         configPath: modelConfig.configPath,
         modelPath: modelConfig.modelPath,
-        provider: PROVIDER,
+        provider,
     })
-    sessionPromise = import('onnxruntime-node')
-        .then(ortRuntime => ortRuntime.InferenceSession.create(modelConfig.modelPath, {
-            executionProviders: ['cpu'],
-            graphOptimizationLevel: 'all',
-        }))
+    sessionPromise = loadRuntime()
+        .then(async ortRuntime => {
+            if (executionTarget === 'gpu' && !await isGpuAvailable()) {
+                throw new Error(`当前 ONNX Runtime 不支持 ${gpuProvider?.displayName ?? 'GPU provider'}`)
+            }
+            return ortRuntime.InferenceSession.create(modelConfig.modelPath, createSessionOptions())
+        })
         .then(async createdSession => {
             try {
                 const input = createdSession.inputMetadata[0]
@@ -226,6 +314,7 @@ const getSession = async () => {
                     modelPath: modelConfig.modelPath,
                     inputShape: input.shape,
                     outputShape: output.shape,
+                    provider,
                     durationMs: Number((performance.now() - startedAt).toFixed(1)),
                 })
                 return createdSession
@@ -454,6 +543,69 @@ const initializeYolo26 = () => enqueueLifecycle(async () => {
     return currentStatus()
 })
 
+const releaseActiveSession = async () => {
+    try {
+        await sessionPromise
+    } catch {
+        // Session initialization errors are already reflected in engine state.
+    }
+    await inferenceQueue
+
+    const activeSession = session
+    session = null
+    sessionPromise = null
+    if (activeSession) await activeSession.release()
+    activeNames = []
+    return Boolean(activeSession)
+}
+
+const setGpuEnabled = (enabled: boolean) => enqueueLifecycle(async () => {
+    if (typeof enabled !== 'boolean') throw new Error('GPU 推理开关参数无效')
+    if (!engineActive) throw new Error('YOLO26 页面未激活')
+
+    const nextTarget: ExecutionTarget = enabled ? 'gpu' : 'cpu'
+    if (nextTarget === executionTarget && session) return currentStatus()
+    if (enabled && !await isGpuAvailable()) {
+        throw new Error(`当前系统的 ONNX Runtime 不支持 ${gpuProvider?.displayName ?? 'GPU 推理'}`)
+    }
+
+    shuttingDown = true
+    try {
+        await releaseActiveSession()
+        executionTarget = nextTarget
+        engineState = 'idle'
+        engineMessage = ''
+    } finally {
+        shuttingDown = false
+    }
+
+    try {
+        await getSession()
+    } catch (error) {
+        if (!enabled) throw error
+
+        const gpuError = error instanceof Error ? error.message : String(error)
+        shuttingDown = true
+        try {
+            await releaseActiveSession()
+            executionTarget = 'cpu'
+            engineState = 'idle'
+            engineMessage = ''
+        } finally {
+            shuttingDown = false
+        }
+
+        try {
+            await getSession()
+        } catch (fallbackError) {
+            log.error('Failed to restore YOLO26 CPU session', fallbackError)
+        }
+        throw new Error(`GPU 推理开启失败，已恢复 CPU：${gpuError}`)
+    }
+
+    return currentStatus()
+})
+
 const releaseYolo26Engine = () => {
     engineActive = false
     shuttingDown = true
@@ -466,24 +618,12 @@ const releaseYolo26Engine = () => {
         })
 
         try {
-            try {
-                await sessionPromise
-            } catch {
-                // Initialization failures are already reflected in engine state.
-            }
-            await inferenceQueue
-
-            const activeSession = session
-            session = null
-            sessionPromise = null
-            if (activeSession) await activeSession.release()
-
-            activeNames = []
+            const sessionReleased = await releaseActiveSession()
             engineState = 'idle'
             engineMessage = ''
             log.info('YOLO26 engine disposal completed', {
                 durationMs: Number((performance.now() - startedAt).toFixed(1)),
-                sessionReleased: Boolean(activeSession),
+                sessionReleased,
             })
         } finally {
             shuttingDown = false
@@ -508,6 +648,10 @@ export function registerYolo26(window: BrowserWindow) {
         ipcMain.handle('yolo26:get-status', event => {
             if (event.sender !== mainWindow?.webContents) throw new Error('无权读取 YOLO26 状态')
             return currentStatus()
+        })
+        ipcMain.handle('yolo26:set-gpu-enabled', (event, enabled: boolean) => {
+            if (event.sender !== mainWindow?.webContents) throw new Error('无权切换 YOLO26 推理设备')
+            return setGpuEnabled(enabled)
         })
         ipcMain.handle('yolo26:infer-image', (event, request: Yolo26ImageRequest) => {
             if (event.sender !== mainWindow?.webContents) throw new Error('无权执行 YOLO26 推理')

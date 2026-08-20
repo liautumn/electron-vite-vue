@@ -1,6 +1,6 @@
 import {computed, onMounted, onScopeDispose, readonly, ref, shallowRef} from 'vue'
-import type {CameraMethods, CameraPermissionStatus} from '../types/camera'
-import type {RgbaImage} from '../types/image'
+import type {CameraMethods, CameraPermissionStatus} from '../../shared/types/camera'
+import type {RgbaImage} from '../../shared/types/image'
 
 export type CameraState = 'idle' | 'starting' | 'running' | 'error'
 

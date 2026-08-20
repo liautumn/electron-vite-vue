@@ -1,7 +1,7 @@
 import { app, ipcMain } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { createLogger, getLogDirectory } from '../utils/logger'
+import { createLogger } from '../utils/logger'
 import type { JsonReadRequest, JsonWriteRequest } from '../../../shared/types/json'
 
 const JSON_DIRECTORY = 'json'
@@ -11,7 +11,7 @@ const log = createLogger('json')
 let jsonRegistered = false
 
 const resolvePackagedJsonDirectory = () =>
-  path.join(path.dirname(getLogDirectory()), JSON_DIRECTORY)
+  path.join(app.getPath('userData'), JSON_DIRECTORY)
 
 const resolveJsonDirectory = () => {
   if (app.isPackaged) {

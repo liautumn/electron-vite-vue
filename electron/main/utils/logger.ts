@@ -10,15 +10,7 @@ const formatLogDate = (date: Date) => {
     return `${year}-${month}-${day}`
 }
 
-const resolvePackagedLogDirectory = () => path.join(app.getPath('userData'), 'logs')
-
-const resolveLogDirectory = () => {
-    if (app.isPackaged) {
-        return resolvePackagedLogDirectory()
-    }
-
-    return path.join(process.cwd(), 'logs')
-}
+const resolveLogDirectory = () => path.join(app.getPath('userData'), 'logs')
 
 const resolveLogFilePath = (date = new Date()) =>
     path.join(resolveLogDirectory(), `${formatLogDate(date)}.log`)

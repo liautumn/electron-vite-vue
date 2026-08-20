@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import {useQuasar} from 'quasar'
-import type {ImageFileEntry, ImageSelectionMode} from '../types/image-files'
+import type {ImageFileEntry, ImageSelectionMode} from '../../shared/types/image-files'
 import type {
   Yolo26FrameInferenceResult,
   Yolo26InferenceResult,
   Yolo26Status,
   Yolo26StressResult,
-} from '../types/yolo26'
+} from '../../shared/types/yolo26'
 import {useCamera} from '../composables/useCamera'
 import {detectionColor, renderYolo26Result} from '../utils/yolo26-result'
 
@@ -35,6 +35,8 @@ const selecting = ref(false)
 const running = ref(false)
 const downloading = ref(false)
 const stressTesting = ref(false)
+const gpuSwitching = ref(false)
+const gpuEnabled = ref(false)
 const stopRequested = ref(false)
 const selectedPath = ref<string | null>(null)
 const previewResult = ref<PresentedInferenceResult | null>(null)
@@ -83,6 +85,26 @@ const cameraIsBusy = computed(() =>
   cameraIsStarting.value
   || cameraInferencePending.value
 )
+const gpuControlDisabled = computed(() =>
+  gpuSwitching.value
+  || running.value
+  || stressTesting.value
+  || cameraIsRunning.value
+  || cameraIsBusy.value
+  || (!gpuEnabled.value && (
+    !engineStatus.value?.modelAvailable
+    || !engineStatus.value.gpuAvailable
+  ))
+)
+const providerLabel = computed(() =>
+  engineStatus.value?.provider.replace('ExecutionProvider', '') || 'CPU'
+)
+const gpuTooltip = computed(() => {
+  if (engineStatus.value?.gpuAvailable) {
+    return `GPU provider：${engineStatus.value.gpuProvider}`
+  }
+  return '当前系统的 ONNX Runtime 不支持 GPU 推理'
+})
 const cameraError = computed(() => cameraSourceError.value || recognitionError.value)
 const cameraDeviceOptions = computed(() => cameraDevices.value.map((device, index) => ({
   label: device.label || `摄像头 ${index + 1}`,
@@ -143,11 +165,34 @@ const statusTone = computed(() => {
 
 const toErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
 
+const applyEngineStatus = (status: Yolo26Status) => {
+  engineStatus.value = status
+  gpuEnabled.value = status.gpuEnabled
+}
+
 const refreshStatus = async () => {
   try {
-    engineStatus.value = await window.yolo26.getStatus()
+    applyEngineStatus(await window.yolo26.getStatus())
   } catch (error) {
     $q.notify({type: 'negative', message: toErrorMessage(error)})
+  }
+}
+
+const changeGpuEnabled = async (enabled: boolean) => {
+  gpuSwitching.value = true
+  try {
+    const status = await window.yolo26.setGpuEnabled(enabled)
+    if (!pageActive) return
+    applyEngineStatus(status)
+    stressResult.value = null
+    $q.notify({type: 'positive', message: `已切换为 ${providerLabel.value} 推理`})
+  } catch (error) {
+    if (pageActive) {
+      await refreshStatus()
+      $q.notify({type: 'negative', message: toErrorMessage(error)})
+    }
+  } finally {
+    gpuSwitching.value = false
   }
 }
 
@@ -423,7 +468,7 @@ onMounted(async () => {
   pageActive = true
   try {
     const status = await window.yolo26.initialize()
-    if (pageActive) engineStatus.value = status
+    if (pageActive) applyEngineStatus(status)
   } catch (error) {
     if (pageActive) $q.notify({type: 'negative', message: toErrorMessage(error)})
   }
@@ -444,7 +489,7 @@ onBeforeUnmount(() => {
     <header class="page-heading">
       <div>
         <h1>YOLO26 ONNX 测试</h1>
-        <p>ONNX Runtime Node · OpenCV.js · YOLO26 · CPU</p>
+        <p>ONNX Runtime Node · OpenCV.js · YOLO26 · {{ providerLabel }}</p>
       </div>
       <q-btn flat round dense icon="refresh" aria-label="刷新模型状态" @click="refreshStatus">
         <q-tooltip>刷新模型状态</q-tooltip>
@@ -462,10 +507,25 @@ onBeforeUnmount(() => {
           <span>{{ statusLabel }}</span>
           <span>{{ engineStatus?.inputSize ?? 640 }} × {{ engineStatus?.inputSize ?? 640 }}</span>
           <span>{{ engineStatus?.classCount ?? 0 }} 类</span>
+          <span>{{ providerLabel }} 推理</span>
         </div>
         <div class="model-path" :title="engineStatus?.modelPath">{{ engineStatus?.modelPath || '—' }}</div>
         <div v-if="engineStatus?.message" class="model-message">{{ engineStatus.message }}</div>
       </div>
+      <q-toggle
+        :model-value="gpuEnabled"
+        class="gpu-toggle"
+        color="secondary"
+        checked-icon="bolt"
+        unchecked-icon="memory"
+        label="GPU 推理"
+        left-label
+        :disable="gpuControlDisabled"
+        :loading="gpuSwitching"
+        @update:model-value="changeGpuEnabled"
+      >
+        <q-tooltip>{{ gpuTooltip }}</q-tooltip>
+      </q-toggle>
     </section>
 
     <section class="control-bar">
@@ -538,7 +598,7 @@ onBeforeUnmount(() => {
           icon="play_arrow"
           label="开始识别"
           :loading="cameraState === 'starting'"
-          :disable="running || stressTesting || cameraInferencePending || !engineStatus?.modelAvailable"
+          :disable="running || stressTesting || gpuSwitching || cameraInferencePending || !engineStatus?.modelAvailable"
           @click="startCamera"
         />
         <q-btn
@@ -566,7 +626,7 @@ onBeforeUnmount(() => {
           no-caps
           icon="play_arrow"
           label="开始推理"
-          :disable="stressTesting || !pendingCount || !engineStatus?.modelAvailable"
+          :disable="stressTesting || gpuSwitching || !pendingCount || !engineStatus?.modelAvailable"
           @click="runQueue()"
         />
         <q-btn
@@ -577,7 +637,7 @@ onBeforeUnmount(() => {
           icon="speed"
           label="压力测试"
           :loading="stressTesting"
-          :disable="!engineStatus?.engineReady"
+          :disable="gpuSwitching || !engineStatus?.engineReady"
           @click="runStressTest"
         />
         <q-btn
@@ -1013,6 +1073,11 @@ h2 {
 .model-copy {
   min-width: 0;
   width: 100%;
+}
+
+.gpu-toggle {
+  flex: 0 0 auto;
+  min-width: 118px;
 }
 
 .model-summary {

@@ -1,4 +1,4 @@
-# 设备调试桌面应用
+# Electron Vite Vue3 案例
 
 这是一个基于 `Electron`、`Vue 3`、`Vite` 和 `Quasar` 的桌面应用项目，用于验证和调试本地设备通信、协议解析、数据库读写和常见桌面端能力。
 
@@ -13,6 +13,7 @@
 - 国芯 `RFID` 测试：读写标签、功率配置、基带参数配置和原始帧发送。
 - 锁控板测试：普通锁、电磁锁、微动开关等指令和反馈解析。
 - `LED` 指示灯控制：单灯、全灯和自定义十六进制指令发送。
+- `YOLO26 ONNX` 示例：支持图片、摄像头、CPU/GPU 推理和压力测试。
 - 基础应用能力：路由菜单、权限过滤、主题切换、国际化、日志记录。
 
 ## 技术栈
@@ -61,7 +62,6 @@ VITE_DEV_PORT=5173 npm run dev
 | `npm run rebuild:native` | 按 `Electron` 版本重建原生依赖 |
 | `npm run build` | 构建并打包正式安装包 |
 | `npm run build:test` | 使用测试模式构建并打包 |
-| `npm run preview` | 预览前端构建结果 |
 
 ## 模型配置
 
@@ -87,6 +87,8 @@ VITE_DEV_PORT=5173 npm run dev
 - Linux：`${XDG_CONFIG_HOME:-~/.config}/electron-vue-vite/models/sensevoice`
 
 YOLO26 的 `model.onnx` 和 `model.json` 则安装到同一用户数据目录的 `models/yolo26` 子目录。`model.json` 必须包含与模型类别索引顺序一致的非空 `names` 字符串数组。
+
+YOLO26 页面可切换 CPU/GPU 推理。GPU provider 按当前系统选择：macOS 使用 `CoreML`，Windows 使用 `DirectML`，Linux x64 使用 `CUDA`；运行时不支持对应 provider 时，GPU 开关会禁用。
 
 `userData://` 会由应用解析为当前平台的用户数据目录，因此同一份配置可以用于 Windows、Linux 和 macOS。软件升级不会覆盖或重复分发这些文件，当前 NSIS 配置卸载软件时也不会删除用户数据。
 
@@ -122,8 +124,6 @@ MODELS_CONFIG_PATH=/absolute/path/to/models.json npm run dev
 │   └── views                页面
 ├── public                   静态资源和应用图标
 ├── json                     开发环境 JSON 数据目录
-├── database                 开发环境 SQLite 数据目录
-├── logs                     开发环境日志目录
 ├── electron-builder.json5   打包配置
 ├── vite.config.ts           Vite 和 Electron 构建配置
 └── package.json             项目脚本和依赖
@@ -144,14 +144,17 @@ MODELS_CONFIG_PATH=/absolute/path/to/models.json npm run dev
 
 开发环境下：
 
-- 日志写入 `logs`
-- SQLite 数据库写入 `database/app.sqlite3`
 - JSON 数据写入 `json`
 
 打包环境下：
 
-- 日志写入 Electron `userData/logs`
-- SQLite 和 JSON 数据分别写入 `userData/database` 和 `userData/json`
+- JSON 数据写入 `userData/json`
+
+所有环境下，日志和 SQLite 数据库均写入当前操作系统的 Electron
+`userData` 目录：
+
+- 日志：`userData/logs`
+- SQLite：`userData/database/app.sqlite3`
 
 SQLite 使用 `WAL` 模式，运行过程中可能出现 `app.sqlite3-wal` 和 `app.sqlite3-shm` 文件，这是正常现象。
 

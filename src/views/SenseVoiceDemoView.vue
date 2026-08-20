@@ -3,7 +3,7 @@ import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import type {
   SenseVoiceRecognitionResult,
   SenseVoiceStatus,
-} from '../types/sensevoice'
+} from '../../shared/types/sensevoice'
 
 defineOptions({name: 'sensevoice-demo'})
 

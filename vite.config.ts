@@ -58,8 +58,7 @@ export default defineConfig(({command, mode}) => {
         ],
         /** 👇 关键：从 env 读取端口 */
         server: {
-            host: '::',
-            // host: env.VITE_DEV_HOST || '0.0.0.0',
+            host: env.VITE_DEV_HOST || '0.0.0.0',
             port: Number(env.VITE_DEV_PORT) || 80,
         },
         clearScreen: false,

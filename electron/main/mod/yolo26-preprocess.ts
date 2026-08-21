@@ -1,5 +1,3 @@
-import type * as ort from 'onnxruntime-node'
-
 export type Yolo26PixelImage = {
     pixels: Uint8Array
     width: number
@@ -13,7 +11,7 @@ export type Yolo26PreprocessedImage = {
     gain: number
     padX: number
     padY: number
-    tensor: ort.Tensor
+    data: Float32Array
 }
 
 type OpenCvRuntime = typeof import('@techstark/opencv-js') & {
@@ -22,7 +20,7 @@ type OpenCvRuntime = typeof import('@techstark/opencv-js') & {
 
 let openCvPromise: Promise<OpenCvRuntime> | null = null
 
-export const getOpenCv = () => {
+const getOpenCv = () => {
     if (openCvPromise) return openCvPromise
 
     openCvPromise = import('@techstark/opencv-js')
@@ -51,10 +49,7 @@ export async function preprocessYolo26(
         throw new Error('图片像素数据长度与尺寸不匹配')
     }
 
-    const [cv, ortRuntime] = await Promise.all([
-        getOpenCv(),
-        import('onnxruntime-node'),
-    ])
+    const cv = await getOpenCv()
     const gain = Math.min(inputHeight / image.height, inputWidth / image.width)
     const resizedWidth = Math.round(image.width * gain)
     const resizedHeight = Math.round(image.height * gain)
@@ -68,19 +63,15 @@ export async function preprocessYolo26(
         image.width,
         image.channels === 4 ? cv.CV_8UC4 : cv.CV_8UC3
     )
-    const rgb = new cv.Mat()
+    const rgb = image.channels === 4 ? new cv.Mat() : null
     const resized = new cv.Mat()
     const padded = new cv.Mat()
     let blob: InstanceType<typeof cv.Mat> | null = null
 
     try {
         source.data.set(image.pixels)
-        if (image.channels === 4) {
-            cv.cvtColor(source, rgb, cv.COLOR_RGBA2RGB)
-        } else {
-            source.copyTo(rgb)
-        }
-        cv.resize(rgb, resized, new cv.Size(resizedWidth, resizedHeight), 0, 0, cv.INTER_LINEAR)
+        if (rgb) cv.cvtColor(source, rgb, cv.COLOR_RGBA2RGB)
+        cv.resize(rgb ?? source, resized, new cv.Size(resizedWidth, resizedHeight), 0, 0, cv.INTER_LINEAR)
         cv.copyMakeBorder(
             resized,
             padded,
@@ -108,13 +99,13 @@ export async function preprocessYolo26(
             gain,
             padX,
             padY,
-            tensor: new ortRuntime.Tensor('float32', tensorData, [1, 3, inputHeight, inputWidth]),
+            data: tensorData,
         }
     } finally {
         blob?.delete()
         padded.delete()
         resized.delete()
-        rgb.delete()
+        rgb?.delete()
         source.delete()
     }
 }

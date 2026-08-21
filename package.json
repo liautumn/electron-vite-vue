@@ -52,14 +52,6 @@
     "sharp": "^0.35.3",
     "sherpa-onnx-node": "^1.13.4"
   },
-  "optionalDependencies": {
-    "@rolldown/binding-darwin-arm64": "1.0.0-rc.16",
-    "@rolldown/binding-darwin-x64": "1.0.0-rc.16",
-    "@rolldown/binding-linux-arm64-gnu": "1.0.0-rc.16",
-    "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.16",
-    "@rolldown/binding-linux-x64-musl": "1.0.0-rc.16",
-    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.16"
-  },
   "allowScripts": {
     "electron@41.3.0": true,
     "onnxruntime-node@1.27.0": true

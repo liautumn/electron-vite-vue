@@ -3,7 +3,6 @@ import {registerTcpRenderer} from './mod/tcp'
 import {registerSerialRenderer} from './mod/serial'
 import {registerMqttRenderer} from './mod/mqtt'
 import {registerSqliteRenderer} from './mod/sqlite'
-import {registerJsonRenderer} from './mod/json'
 import {registerSenseVoiceRenderer} from './mod/sensevoice'
 import {registerCameraRenderer} from './mod/camera'
 import {registerImageFilesRenderer} from './mod/image-files'
@@ -15,7 +14,6 @@ registerTcpRenderer()
 registerSerialRenderer()
 registerMqttRenderer()
 registerSqliteRenderer()
-registerJsonRenderer()
 registerSenseVoiceRenderer()
 registerCameraRenderer()
 registerImageFilesRenderer()

@@ -3,7 +3,6 @@ import type { SerialApi } from "../shared/types/serial";
 import type { TcpApi } from "../shared/types/tcp";
 import {MqttMethods} from "../shared/types/mqtt";
 import {SqliteMethods} from "../shared/types/sqlite";
-import {JsonMethods} from "../shared/types/json";
 import type {SenseVoiceMethods} from '../shared/types/sensevoice'
 import type {CameraMethods} from '../shared/types/camera'
 import type {ImageFilesMethods} from '../shared/types/image-files'
@@ -24,7 +23,6 @@ declare global {
         tcp: TcpApi
         mqtt: MqttMethods
         sqlite: SqliteMethods
-        json: JsonMethods
         senseVoice: SenseVoiceMethods
         camera: CameraMethods
         imageFiles: ImageFilesMethods

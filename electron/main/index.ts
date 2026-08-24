@@ -18,7 +18,6 @@ import {registerSerial} from './mod/serial'
 import {registerTcp} from './mod/tcp'
 import {registerMqtt} from './mod/mqtt'
 import {registerSqlite} from './mod/sqlite'
-import {getJsonDirectory, registerJson} from './mod/json'
 import {disposeSenseVoice, registerSenseVoice} from './mod/sensevoice'
 import {registerCamera} from './mod/camera'
 import {registerImageFiles} from './mod/image-files'
@@ -72,7 +71,6 @@ log.info('Main process bootstrapped', {
     isPackaged: app.isPackaged,
     logDirectory: getLogDirectory(),
     logFile: getLogFilePath(),
-    jsonDirectory: getJsonDirectory(),
 })
 
 // =======================
@@ -154,7 +152,6 @@ async function createWindow() {
     registerTcp(window)
     registerMqtt(window)
     registerSqlite()
-    registerJson()
     registerSenseVoice(window)
     registerYolo26(window)
 

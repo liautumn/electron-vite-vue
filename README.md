@@ -123,7 +123,6 @@ MODELS_CONFIG_PATH=/absolute/path/to/models.json npm run dev
 │   ├── styles               全局样式
 │   └── views                页面
 ├── public                   静态资源和应用图标
-├── json                     开发环境 JSON 数据目录
 ├── electron-builder.json5   打包配置
 ├── vite.config.ts           Vite 和 Electron 构建配置
 └── package.json             项目脚本和依赖
@@ -141,14 +140,6 @@ MODELS_CONFIG_PATH=/absolute/path/to/models.json npm run dev
 当前主窗口启用了 `contextIsolation`，并关闭了渲染进程的 `nodeIntegration`。如果继续产品化，建议保持这个方向，把系统能力继续收敛在主进程。
 
 ## 数据和日志
-
-开发环境下：
-
-- JSON 数据写入 `json`
-
-打包环境下：
-
-- JSON 数据写入 `userData/json`
 
 所有环境下，日志和 SQLite 数据库均写入当前操作系统的 Electron
 `userData` 目录：

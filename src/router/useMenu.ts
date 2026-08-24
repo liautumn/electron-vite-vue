@@ -1,7 +1,7 @@
 import {computed} from 'vue' // 计算属性
 import {useRoute, useRouter} from 'vue-router' // 路由实例与当前路由
 import {useUserStore} from '../stores/user' // 权限数据
-import routesConfig from './routes.json' // JSON 路由表
+import {routes} from './routes' // 静态路由表
 
 type UiMenuItem = {
     key: string
@@ -12,7 +12,7 @@ type UiMenuItem = {
     children?: UiMenuItem[]
 }
 
-// JSON 路由类型（仅保留菜单/权限相关字段）
+// 路由类型（仅保留菜单/权限相关字段）
 type NavRoute = {
     path: string // 路径
     name?: string // 路由名
@@ -101,7 +101,7 @@ export const useMenu = () => {
     const route = useRoute() // 当前路由
     const userStore = useUserStore() // 权限 store
 
-    const items = computed<UiMenuItem[]>(() => toMenuItems(routesConfig as NavRoute[], '', userStore)) // 动态菜单
+    const items = computed<UiMenuItem[]>(() => toMenuItems(routes as NavRoute[], '', userStore))
 
     const selectedKey = computed(() => route.matched.at(-1)?.path ?? route.path)
     const activeRootKey = computed(() => route.matched.find(record => record.path !== '')?.path ?? route.path)

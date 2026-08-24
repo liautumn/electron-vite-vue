@@ -62,9 +62,11 @@ export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
 // VITE_PUBLIC：
 // 开发模式 -> public 目录
 // 生产模式 -> dist 目录
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
+export const VITE_PUBLIC = VITE_DEV_SERVER_URL
     ? path.join(process.env.APP_ROOT, 'public')
     : RENDERER_DIST
+
+process.env.VITE_PUBLIC = VITE_PUBLIC
 
 log.info('Main process bootstrapped', {
     isPackaged: app.isPackaged,
@@ -123,7 +125,7 @@ async function createWindow() {
         // 隐藏原生菜单栏
         autoHideMenuBar: true,
         // 应用图标
-        icon: path.join(process.env.VITE_PUBLIC, windowIcon),
+        icon: path.join(VITE_PUBLIC, windowIcon),
         // Web 相关配置
         webPreferences: {
             // 预加载脚本（安全桥）

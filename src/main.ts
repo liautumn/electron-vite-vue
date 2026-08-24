@@ -1,7 +1,8 @@
 import {createApp} from 'vue'
 import {createPinia} from 'pinia'
 import piniaPersist from 'pinia-plugin-persistedstate'
-import {Notify, Quasar} from 'quasar'
+import ElementPlus from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
@@ -10,8 +11,8 @@ import {useThemeStore} from './stores/theme'
 import {useUserStore} from './stores/user'
 import permissionDirective from './directives/permission'
 import log from './utils/logger'
-import '@quasar/extras/material-icons/material-icons.css'
-import 'quasar/src/css/index.sass'
+import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import './styles/theme.css'
 
 // import './demos/ipc'
@@ -39,17 +40,8 @@ useLocaleStore(pinia)
 // 启动时刷新一遍默认权限，避免旧的持久化权限把新菜单过滤掉
 useUserStore(pinia).refreshPermissions()
 
-// 挂载 Quasar UI
-app.use(Quasar, {
-    plugins: {
-        Notify,
-    },
-    config: {
-        notify: {
-            position: 'top',
-        },
-    },
-})
+// 挂载 Element Plus UI
+app.use(ElementPlus, {locale: zhCn})
 
 // 指令：权限控制（v-permission）
 app.directive('permission', permissionDirective)

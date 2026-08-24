@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {computed, onMounted, reactive, ref} from 'vue'
-import {type QTableColumn, useQuasar} from 'quasar'
+import {ElMessage} from 'element-plus'
 import {
   createDemoUser,
   deleteDemoUser,
@@ -11,8 +11,6 @@ import {
 import type {DemoUser} from '../entities/demo-user'
 
 defineOptions({name: 'sqlite-demo'})
-
-const $q = useQuasar()
 
 const loading = ref(false)
 const users = ref<DemoUser[]>([])
@@ -29,31 +27,15 @@ const pagination = ref({
   rowsNumber: 0,
 })
 
-const columns: QTableColumn<DemoUser>[] = [
-  {name: 'id', label: 'ID', field: 'id', align: 'left', sortable: true},
-  {name: 'name', label: '姓名', field: 'name', align: 'left'},
-  {name: 'age', label: '年龄', field: 'age', align: 'left'},
-  {name: 'email', label: '邮箱', field: 'email', align: 'left'},
-  {name: 'createdAt', label: '创建时间', field: 'createdAt', align: 'left'},
-  {name: 'updatedAt', label: '更新时间', field: 'updatedAt', align: 'left'},
-  {name: 'actions', label: '操作', field: () => '', align: 'left'},
-]
-
 const isEditMode = computed(() => Number.isInteger(form.id))
 
 const showError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
-  $q.notify({
-    type: 'negative',
-    message,
-  })
+  ElMessage.error(message)
 }
 
 const showSuccess = (message: string) => {
-  $q.notify({
-    type: 'positive',
-    message,
-  })
+  ElMessage.success(message)
 }
 
 const resetForm = () => {
@@ -121,18 +103,14 @@ const handleResetSearch = async () => {
   await loadUsers()
 }
 
-const handleTableRequest = async (payload: {
-  pagination: {
-    page: number
-    rowsPerPage: number
-    rowsNumber?: number
-  }
-}) => {
-  pagination.value = {
-    page: payload.pagination.page,
-    rowsPerPage: payload.pagination.rowsPerPage,
-    rowsNumber: payload.pagination.rowsNumber ?? pagination.value.rowsNumber,
-  }
+const handlePageChange = async (page: number) => {
+  pagination.value.page = page
+  await loadUsers()
+}
+
+const handlePageSizeChange = async (pageSize: number) => {
+  pagination.value.page = 1
+  pagination.value.rowsPerPage = pageSize
   await loadUsers()
 }
 
@@ -208,109 +186,94 @@ onMounted(async () => {
 
 <template>
   <div class="page">
-    <q-card flat bordered class="panel">
-      <q-card-section class="panel-section">
+    <el-card shadow="never" class="panel">
+      <div class="panel-section">
         <div class="header">
           <div>
             <p class="title">SQLite CRUD Demo</p>
             <p class="tip">业务层写 SQL，主进程仅提供 execute SQL 接口</p>
           </div>
-          <q-btn color="primary" no-caps unelevated @click="loadUsers">刷新列表</q-btn>
+          <el-button type="primary" @click="loadUsers">刷新列表</el-button>
         </div>
 
         <div class="search-row">
-          <q-input
+          <el-input
             v-model="keyword"
-            outlined
-            dense
             clearable
-            label="搜索"
             placeholder="按姓名/邮箱搜索"
             @keyup.enter="handleSearch"
           />
-          <q-btn color="primary" no-caps unelevated @click="handleSearch">搜索</q-btn>
-          <q-btn outline color="primary" no-caps @click="handleResetSearch">清空</q-btn>
+          <el-button type="primary" @click="handleSearch">搜索</el-button>
+          <el-button type="primary" plain @click="handleResetSearch">清空</el-button>
         </div>
 
         <div class="form-grid">
-          <q-input
+          <el-input
             v-model="form.name"
-            outlined
-            dense
-            label="姓名"
             placeholder="请输入姓名"
           />
-          <q-input
-            v-model.number="form.age"
-            outlined
-            dense
-            label="年龄"
-            type="number"
-            min="0"
-            placeholder="请输入年龄"
-          />
-          <q-input
+          <el-input-number v-model="form.age" :min="0" placeholder="请输入年龄" controls-position="right" />
+          <el-input
             v-model="form.email"
-            outlined
-            dense
-            label="邮箱"
             placeholder="请输入邮箱"
           />
         </div>
 
         <div class="actions">
-          <q-btn color="primary" no-caps unelevated @click="handleCreate">新增</q-btn>
-          <q-btn
-            color="secondary"
-            no-caps
-            unelevated
-            :disable="!isEditMode"
+          <el-button type="primary" @click="handleCreate">新增</el-button>
+          <el-button
+            type="success"
+            :disabled="!isEditMode"
             @click="handleUpdate"
           >
             保存更新
-          </q-btn>
-          <q-btn outline color="primary" no-caps @click="resetForm">重置</q-btn>
+          </el-button>
+          <el-button type="primary" plain @click="resetForm">重置</el-button>
         </div>
 
-        <q-table
-          flat
-          bordered
-          :rows="users"
-          :columns="columns"
-          row-key="id"
-          v-model:pagination="pagination"
-          :loading="loading"
-          :rows-per-page-options="[5, 10, 20, 50]"
-          @request="handleTableRequest"
-          class="table"
-        >
-          <template #body-cell-actions="props">
-            <q-td :props="props">
+        <el-table v-loading="loading" :data="users" border stripe class="table">
+          <el-table-column prop="id" label="ID" width="80" sortable />
+          <el-table-column prop="name" label="姓名" min-width="120" />
+          <el-table-column prop="age" label="年龄" width="80" />
+          <el-table-column prop="email" label="邮箱" min-width="180" />
+          <el-table-column prop="createdAt" label="创建时间" min-width="180" />
+          <el-table-column prop="updatedAt" label="更新时间" min-width="180" />
+          <el-table-column label="操作" width="140" fixed="right">
+            <template #default="props">
               <div class="row-actions">
-                <q-btn
+                <el-button
                   size="sm"
-                  color="primary"
-                  no-caps
-                  flat
+                  type="primary"
+                  link
                   @click="handleEdit(props.row.id)"
                 >
                   编辑
-                </q-btn>
-                <q-btn
+                </el-button>
+                <el-popconfirm title="确定删除这条数据吗？" @confirm="handleDelete(props.row)">
+                  <template #reference><el-button
                   size="sm"
-                  color="negative"
-                  no-caps
-                  flat
-                  @click="handleDelete(props.row)"
+                  type="danger"
+                  link
                 >
                   删除
-                </q-btn>
+                  </el-button></template>
+                </el-popconfirm>
               </div>
-            </q-td>
-          </template>
-        </q-table>
-      </q-card-section>
-    </q-card>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.rowsPerPage"
+          :page-sizes="[5, 10, 20, 50]"
+          :total="pagination.rowsNumber"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="handlePageChange"
+          @size-change="handlePageSizeChange"
+        />
+      </div>
+    </el-card>
   </div>
 </template>
 
@@ -322,7 +285,7 @@ onMounted(async () => {
 .panel {
   background: var(--app-surface);
   border-color: var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-base);
   margin: 0 auto;
   max-width: 1100px;
 }

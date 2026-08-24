@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { Notify } from 'quasar'
+import { ElMessage } from 'element-plus'
 import { ledSingleDevice } from '../components/led/LedDevice'
 import {
   buildShowAllLedsCommand,
@@ -92,12 +92,7 @@ let disposeStatusListener = () => {}
 let disposeDataListener = () => {}
 
 const notify = (type: 'positive' | 'negative', content: unknown) => {
-  Notify.create({
-    type,
-    message: String(content ?? ''),
-    position: 'top',
-    timeout: 2200
-  })
+  ElMessage[type === 'positive' ? 'success' : 'error'](String(content ?? ''))
 }
 
 function normalizeHex(input: string) {
@@ -415,161 +410,119 @@ onUnmounted(() => {
 <template>
   <div class="container">
     <div class="page-stack">
-      <q-card flat bordered class="panel-card">
-        <q-card-section class="panel-title-row">
+      <el-card shadow="never" class="panel-card">
+        <div class="panel-title-row">
           <div class="panel-title">会话与模块参数</div>
-          <q-chip square dense :color="connected ? 'positive' : 'negative'" text-color="white">
+          <el-tag :type="connected ? 'success' : 'danger'" effect="dark">
             {{ connected ? '已连接' : '未连接' }}
-          </q-chip>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
+          </el-tag>
+        </div>
+        <el-divider />
+        <div class="panel-stack">
           <div class="form-grid">
-            <q-select
+            <el-select
               :model-value="selectedConnectionProfile?.sessionId ?? null"
-              outlined
-              emit-value
-              map-options
-              :options="connectionSessionOptions"
-              label="连接会话 ID"
               placeholder="选择串口 sessionId"
               @update:model-value="handleSessionChange"
-            />
-            <q-input
-              v-model.number="moduleId"
-              outlined
-              type="number"
-              min="0"
-              max="255"
-              step="1"
-              label="模块地址 (0-255)"
-            />
+            >
+              <el-option v-for="option in connectionSessionOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+            <el-input-number v-model="moduleId" :min="0" :max="255" :step="1" controls-position="right" />
           </div>
           <div class="muted-text">{{ connectionSessionHint }}</div>
           <div class="muted-text">LED 页面仅支持串口会话，连接参数请在“设备连接管理”里维护。</div>
           <div v-if="lastError" class="error-text">
             最近错误：{{ lastError }}
           </div>
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section>
+      <el-card shadow="never" class="panel-card">
+        <div>
           <div class="panel-title">单灯控制（06 指令）</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
+        </div>
+        <el-divider />
+        <div class="panel-stack">
           <div class="form-grid">
-            <q-input
-              v-model.number="singleAddress"
-              outlined
-              type="number"
-              min="1"
-              max="255"
-              step="1"
-              label="灯地址 (1-255)"
-            />
-            <q-select
-              v-model="singleMode"
-              outlined
-              emit-value
-              map-options
-              label="显示模式"
-              :options="modeOptions"
-            />
-            <q-select
-              v-model="singleColor"
-              outlined
-              emit-value
-              map-options
-              label="颜色"
-              :options="colorOptions"
-            />
+            <el-input-number v-model="singleAddress" :min="1" :max="255" :step="1" controls-position="right" />
+            <el-select v-model="singleMode" placeholder="显示模式">
+              <el-option v-for="option in modeOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+            <el-select v-model="singleColor" placeholder="颜色">
+              <el-option v-for="option in colorOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
           </div>
           <div class="action-buttons">
-            <q-btn color="primary" no-caps unelevated @click="handleShowSingleLed">发送单灯命令</q-btn>
-            <q-btn outline color="primary" no-caps @click="handleTurnOffSingleLed">关闭单灯</q-btn>
+            <el-button type="primary" @click="handleShowSingleLed">发送单灯命令</el-button>
+            <el-button type="primary" plain @click="handleTurnOffSingleLed">关闭单灯</el-button>
           </div>
           <div class="muted-text">
             预览：{{ singleCommandPreview }}
           </div>
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section>
+      <el-card shadow="never" class="panel-card">
+        <div>
           <div class="panel-title">全灯统一控制（05 指令）</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
+        </div>
+        <el-divider />
+        <div class="panel-stack">
           <div class="form-grid">
-            <q-select
-              v-model="allMode"
-              outlined
-              emit-value
-              map-options
-              label="显示模式"
-              :options="modeOptions"
-            />
-            <q-select
-              v-model="allColor"
-              outlined
-              emit-value
-              map-options
-              label="颜色"
-              :options="colorOptions"
-            />
+            <el-select v-model="allMode" placeholder="显示模式">
+              <el-option v-for="option in modeOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+            <el-select v-model="allColor" placeholder="颜色">
+              <el-option v-for="option in colorOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
           </div>
           <div class="action-buttons">
-            <q-btn color="primary" no-caps unelevated @click="handleShowAllLeds">发送全灯命令</q-btn>
-            <q-btn outline color="primary" no-caps @click="handleTurnOffAllLeds">关闭全灯</q-btn>
+            <el-button type="primary" @click="handleShowAllLeds">发送全灯命令</el-button>
+            <el-button type="primary" plain @click="handleTurnOffAllLeds">关闭全灯</el-button>
           </div>
           <div class="muted-text">
             预览：{{ allCommandPreview }}
           </div>
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section>
+      <el-card shadow="never" class="panel-card">
+        <div>
           <div class="panel-title">自定义 HEX</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
+        </div>
+        <el-divider />
+        <div class="panel-stack">
           <div class="muted-text">
             可直接发送原始 Modbus HEX，例如：`01 06 00 01 00 01 19 CA`
           </div>
           <div class="serial-port-row">
-            <q-input
+            <el-input
               v-model="rawHex"
-              outlined
               class="field-grow"
-              label="命令 HEX"
               placeholder="输入偶数位 HEX，支持空格"
             />
-            <q-btn color="primary" no-caps unelevated @click="handleSendRawHex">发送自定义 HEX</q-btn>
+            <el-button type="primary" @click="handleSendRawHex">发送自定义 HEX</el-button>
           </div>
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section class="panel-title-row">
+      <el-card shadow="never" class="panel-card">
+        <div class="panel-title-row">
           <div class="panel-title">通讯日志</div>
-          <q-btn color="negative" no-caps unelevated @click="clearLog">清空日志</q-btn>
-        </q-card-section>
-        <q-separator />
-        <q-card-section>
-          <q-input
+          <el-button type="danger" @click="clearLog">清空日志</el-button>
+        </div>
+        <el-divider />
+        <div>
+          <el-input
             :model-value="log"
-            outlined
             readonly
             type="textarea"
-            rows="14"
+            :rows="14"
             class="log-textarea"
             placeholder="收发日志会显示在这里"
           />
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
     </div>
   </div>
 </template>
@@ -588,7 +541,16 @@ onUnmounted(() => {
 .panel-card {
   background: var(--app-surface);
   border-color: var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-base);
+}
+
+.panel-card :deep(.el-divider--horizontal) {
+  margin: 12px 0 16px;
+}
+
+.form-grid :deep(.el-input-number),
+.form-grid :deep(.el-select) {
+  width: 100%;
 }
 
 .panel-title-row,

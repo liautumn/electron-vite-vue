@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import {watch} from 'vue'
 import { storeToRefs } from 'pinia'
-import { Dark } from 'quasar'
+import {Monitor, Moon, Sunny} from '@element-plus/icons-vue'
 import { useThemeStore, type ThemePreference } from './stores/theme'
 import { useMenu } from './router/useMenu'
 import DeviceConnectionsControl from './components/DeviceConnectionsControl.vue'
@@ -18,152 +18,236 @@ const themeOptions: { label: string; value: ThemePreference }[] = [
 watch(
   resolvedTheme,
   (theme) => {
-    Dark.set(theme === 'dark')
+    document.documentElement.classList.toggle('dark', theme === 'dark')
   },
   { immediate: true }
 )
 
 const { items, selectedKey, activeRootKey, navigate } = useMenu()
-const isRootActive = (key: string) => activeRootKey.value === key
-const isSelected = (key: string) => selectedKey.value === key
+const handleMenuSelect = (key: string) => {
+  const root = items.value.find((item) => item.key === key)
+  const child = items.value.flatMap((item) => item.children ?? []).find((item) => item.key === key)
+  const target = root ?? child
+  if (target) navigate(target)
+}
 </script>
 
 <template>
-  <q-layout view="hHh lpR fFf" class="app-layout">
-    <q-header class="app-header">
-      <q-toolbar class="app-toolbar">
-        <div class="nav-group">
-          <template v-for="item in items" :key="item.key">
-            <q-btn
-              v-if="!item.children?.length"
-              flat
-              no-caps
-              class="nav-btn"
-              :class="{ 'nav-btn--active': isRootActive(item.key) }"
-              :color="isRootActive(item.key) ? 'primary' : 'grey-7'"
-              :disable="item.disabled"
-              :label="item.label"
-              @click="navigate(item)"
-            />
-
-            <q-btn-dropdown
-              v-else
-              flat
-              auto-close
-              no-caps
-              class="nav-btn"
-              :class="{ 'nav-btn--active': isRootActive(item.key) }"
-              :color="isRootActive(item.key) ? 'primary' : 'grey-7'"
-              :disable="item.disabled"
-              :label="item.label"
-            >
-              <q-list dense class="nav-menu">
-                <q-item
-                  v-for="child in item.children"
-                  :key="child.key"
-                  clickable
-                  :active="isSelected(child.key)"
-                  :disable="child.disabled"
-                  active-class="nav-item--active"
-                  @click="navigate(child)"
-                >
-                  <q-item-section>{{ child.label }}</q-item-section>
-                </q-item>
-              </q-list>
-            </q-btn-dropdown>
-          </template>
+  <el-container class="app-layout">
+    <el-aside class="app-sidebar" width="220px">
+      <div class="app-brand">
+        <div class="app-brand__mark">EV</div>
+        <div>
+          <strong>Electron Vite</strong>
+          <span>Device Console</span>
         </div>
-
-        <q-space />
-
-        <DeviceConnectionsControl />
-
-        <q-btn-toggle
-          v-model="preference"
-          class="theme-toggle"
-          no-caps
-          rounded
-          unelevated
-          toggle-color="primary"
-          :options="themeOptions"
-        />
-      </q-toolbar>
-    </q-header>
-
-    <q-page-container class="app-page-container">
-      <div class="app-content">
-        <router-view />
       </div>
-    </q-page-container>
+      <el-scrollbar class="sidebar-scrollbar">
+        <el-menu
+          :default-active="selectedKey"
+          class="app-menu"
+          @select="handleMenuSelect"
+        >
+          <template v-for="item in items" :key="item.key">
+            <el-menu-item v-if="!item.children?.length" :index="item.key" :disabled="item.disabled">
+              {{ item.label }}
+            </el-menu-item>
+            <el-sub-menu v-else :index="item.key" :disabled="item.disabled">
+              <template #title>{{ item.label }}</template>
+              <el-menu-item
+                v-for="child in item.children"
+                :key="child.key"
+                :index="child.key"
+                :disabled="child.disabled"
+              >
+                {{ child.label }}
+              </el-menu-item>
+            </el-sub-menu>
+          </template>
+        </el-menu>
+      </el-scrollbar>
+    </el-aside>
 
-    <q-footer class="app-footer">
-      <div class="app-footer__inner">electron-vite-vue demo ©2026 Created by autumn</div>
-    </q-footer>
-  </q-layout>
+    <el-container class="app-workspace">
+      <el-header class="app-header">
+        <div class="app-toolbar">
+          <div class="page-context">
+            <span class="page-context__label">当前模块</span>
+            <strong>{{ items.find((item) => item.key === activeRootKey)?.label ?? '工作台' }}</strong>
+          </div>
+        <div class="toolbar-actions">
+          <DeviceConnectionsControl />
+          <el-segmented v-model="preference" :options="themeOptions" class="theme-toggle">
+            <template #default="{item}">
+              <div class="theme-option">
+                <el-icon>
+                  <Monitor v-if="item.value === 'system'" />
+                  <Sunny v-else-if="item.value === 'light'" />
+                  <Moon v-else />
+                </el-icon>
+                <span>{{ item.label }}</span>
+              </div>
+            </template>
+          </el-segmented>
+        </div>
+      </div>
+      </el-header>
+
+      <el-main class="app-page-container">
+        <div class="app-content">
+          <router-view />
+        </div>
+      </el-main>
+
+      <el-footer class="app-footer">
+        <div class="app-footer__inner">electron-vite-vue demo ©2026 Created by autumn</div>
+      </el-footer>
+    </el-container>
+  </el-container>
 </template>
 
 <style scoped>
 .app-layout {
+  height: 100vh;
   min-height: 100vh;
+  background: var(--el-bg-color-page);
+}
+
+.app-sidebar {
+  background: var(--el-bg-color);
+  border-right: 1px solid var(--el-border-color-light);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--el-transition-duration);
+}
+
+.app-brand {
+  align-items: center;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  flex: none;
+  gap: 12px;
+  height: 68px;
+  padding: 0 18px;
+}
+
+.app-brand__mark {
+  align-items: center;
+  background: var(--el-color-primary);
+  border-radius: var(--el-border-radius-base);
+  color: white;
+  display: flex;
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.app-brand strong,
+.app-brand span {
+  display: block;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.app-brand strong {
+  font-size: 15px;
+}
+
+.app-brand span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.sidebar-scrollbar {
+  flex: 1;
+  min-height: 0;
+}
+
+.app-workspace {
+  min-width: 0;
 }
 
 .app-header {
-  background: color-mix(in srgb, var(--app-header) 92%, transparent);
+  height: auto;
+  background: color-mix(in srgb, var(--el-bg-color) 92%, transparent);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--app-border);
-  color: var(--text-color);
-}
-
-.app-toolbar {
-  gap: 16px;
-  min-height: 68px;
+  border-bottom: 1px solid var(--el-border-color-light);
+  color: var(--el-text-color-primary);
   padding: 0 20px;
 }
 
-.nav-group {
+.app-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  min-height: 68px;
+  justify-content: space-between;
+}
+
+.app-menu {
+  background: transparent;
+  border-right: 0;
+  padding: 10px 8px;
+}
+
+.app-menu :deep(.el-menu-item),
+.app-menu :deep(.el-sub-menu__title) {
+  height: auto;
+  line-height: 1.4;
+  min-height: 48px;
+  white-space: normal;
+}
+
+.page-context {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.page-context__label {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.nav-btn {
-  border-radius: 999px;
-  font-weight: 500;
-  min-height: 38px;
-  padding: 0 8px;
-}
-
-.nav-btn--active {
-  background: color-mix(in srgb, var(--app-surface) 70%, var(--bg-color));
-}
-
-.nav-menu {
-  min-width: 180px;
+  flex: none;
+  gap: 12px;
 }
 
 .theme-toggle {
-  background: color-mix(in srgb, var(--app-surface) 82%, transparent);
-  border: 1px solid var(--app-border);
-  border-radius: 999px;
-  padding: 4px;
+  flex: none;
+}
+
+.theme-option {
+  align-items: center;
+  display: flex;
+  gap: 6px;
 }
 
 .app-page-container {
-  background: var(--bg-color);
+  background: var(--el-bg-color-page);
+  min-width: 0;
+  overflow: auto;
+  padding: 18px;
 }
 
 .app-content {
   margin: 0 auto;
   max-width: 1440px;
-  padding: 18px;
   width: 100%;
 }
 
 .app-footer {
-  background: var(--app-header);
-  border-top: 1px solid var(--app-border);
-  color: var(--app-text-secondary);
+  background: var(--el-bg-color);
+  border-top: 1px solid var(--el-border-color-light);
+  color: var(--el-text-color-secondary);
+  height: auto;
 }
 
 .app-footer__inner {
@@ -172,18 +256,31 @@ const isSelected = (key: string) => selectedKey.value === key
 }
 
 @media (max-width: 900px) {
+  .app-sidebar {
+    width: 220px !important;
+  }
+
+  .app-brand {
+    padding: 0 12px;
+  }
+
+  .app-brand__mark {
+    display: none;
+  }
+
   .app-toolbar {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
-    padding: 14px 16px;
+    padding: 8px 0 12px;
   }
 
-  .nav-group {
-    width: 100%;
+  .toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: space-between;
   }
 
-  .theme-toggle {
-    width: 100%;
+  .theme-option span {
+    display: none;
   }
 }
 </style>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
+import {CircleCheckFilled, Close, Cpu, Delete, Microphone, SwitchButton, WarningFilled} from '@element-plus/icons-vue'
 import type {
   SenseVoiceRecognitionResult,
   SenseVoiceStatus,
@@ -62,10 +63,10 @@ const statusLabel = computed(() => {
   return status.value.engineReady ? '引擎就绪' : '模型就绪'
 })
 const statusColor = computed(() => {
-  if (status.value.state === 'recording') return 'negative'
+  if (status.value.state === 'recording') return 'danger'
   if (status.value.state === 'error' || status.value.state === 'missing') return 'warning'
   if (status.value.state === 'loading') return 'primary'
-  return 'positive'
+  return 'success'
 })
 
 watch(transcript, async () => {
@@ -325,9 +326,10 @@ onBeforeUnmount(() => {
         <h1>SenseVoice 本地语音识别</h1>
         <div class="engine-line">SenseVoice · sherpa-onnx · CPU</div>
       </div>
-      <q-chip square dense :color="statusColor" text-color="white" :icon="isRecording ? 'graphic_eq' : 'memory'">
+      <el-tag :type="statusColor" effect="dark" size="large">
+        <el-icon><Microphone v-if="isRecording" /><Cpu v-else /></el-icon>
         {{ statusLabel }}
-      </q-chip>
+      </el-tag>
     </header>
 
     <section class="model-bar" :class="{'model-bar--missing': !status.modelAvailable}">
@@ -339,22 +341,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <q-icon
-        :name="status.modelAvailable ? 'check_circle' : 'warning_amber'"
-        :color="status.modelAvailable ? 'positive' : 'warning'"
-        size="22px"
-      />
+      <el-icon :color="status.modelAvailable ? 'var(--el-color-success)' : 'var(--el-color-warning)'" size="22">
+        <CircleCheckFilled v-if="status.modelAvailable" />
+        <WarningFilled v-else />
+      </el-icon>
     </section>
 
-    <q-banner v-if="errorMessage" rounded class="error-banner" inline-actions>
-      <template #avatar><q-icon name="error_outline" color="negative" /></template>
-      {{ errorMessage }}
-      <template #action>
-        <q-btn flat round dense icon="close" aria-label="关闭错误" @click="errorMessage = ''">
-          <q-tooltip>关闭</q-tooltip>
-        </q-btn>
-      </template>
-    </q-banner>
+    <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon class="error-banner" @close="errorMessage = ''" />
 
     <div class="workspace-grid">
       <section class="control-pane">
@@ -363,39 +356,32 @@ onBeforeUnmount(() => {
           <span>{{ sampleRate ? `${sampleRate / 1000} kHz` : '待机' }}</span>
         </div>
 
-        <q-select
+        <el-select
           v-model="selectedDeviceId"
-          outlined
-          dense
-          emit-value
-          map-options
-          :options="deviceOptions"
-          label="输入设备"
-          :disable="isRecording || isBusy"
+          placeholder="输入设备"
+          :disabled="isRecording || isBusy"
         >
-          <template #prepend><q-icon name="mic_external_on" /></template>
-        </q-select>
+          <template #prefix><el-icon><Microphone /></el-icon></template>
+          <el-option v-for="option in deviceOptions" :key="option.value" :label="option.label" :value="option.value" />
+        </el-select>
 
         <div class="level-wrap" aria-label="麦克风音量">
-          <div class="level-track">
-            <div class="level-value" :style="{transform: `scaleX(${audioLevel})`} " />
-          </div>
+          <el-progress :percentage="audioLevel * 100" :show-text="false" :stroke-width="8" />
         </div>
 
         <div class="record-control">
-          <q-btn
-            round
-            unelevated
-            size="24px"
-            :color="isRecording ? 'negative' : 'primary'"
-            :icon="isRecording ? 'stop' : 'mic'"
+          <el-tooltip :content="isRecording ? '停止识别' : '开始识别'" placement="top">
+          <el-button
+            circle
+            size="large"
+            :type="isRecording ? 'danger' : 'primary'"
+            :icon="isRecording ? SwitchButton : Microphone"
             :loading="isStarting || isStopping"
-            :disable="isBusy"
+            :disabled="isBusy"
             :aria-label="isRecording ? '停止识别' : '开始识别'"
             @click="toggleRecording"
-          >
-            <q-tooltip>{{ isRecording ? '停止识别' : '开始识别' }}</q-tooltip>
-          </q-btn>
+          />
+          </el-tooltip>
           <div class="record-state">{{ isRecording ? '正在聆听' : '准备录音' }}</div>
         </div>
 
@@ -418,17 +404,16 @@ onBeforeUnmount(() => {
       <section class="transcript-pane">
         <div class="section-heading transcript-heading">
           <h2>识别结果</h2>
-          <q-btn
-            flat
-            round
-            dense
-            icon="delete_outline"
+          <el-tooltip content="清空" placement="top">
+          <el-button
+            circle
+            text
+            :icon="Delete"
             aria-label="清空识别结果"
-            :disable="!transcript"
+            :disabled="!transcript"
             @click="clearTranscript"
-          >
-            <q-tooltip>清空</q-tooltip>
-          </q-btn>
+          />
+          </el-tooltip>
         </div>
         <div
           ref="transcriptOutput"
@@ -503,7 +488,7 @@ h2 {
 .model-bar {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
-  border-left: 3px solid var(--q-positive);
+  border-left: 3px solid var(--el-color-success);
   border-radius: 6px;
   flex-wrap: wrap;
   gap: 10px;
@@ -513,7 +498,7 @@ h2 {
 }
 
 .model-bar--missing {
-  border-left-color: var(--q-warning);
+  border-left-color: var(--el-color-warning);
 }
 
 .model-info {
@@ -547,8 +532,8 @@ h2 {
 }
 
 .error-banner {
-  background: color-mix(in srgb, var(--q-negative) 10%, var(--app-surface));
-  border: 1px solid color-mix(in srgb, var(--q-negative) 28%, transparent);
+  background: color-mix(in srgb, var(--el-color-danger) 10%, var(--app-surface));
+  border: 1px solid color-mix(in srgb, var(--el-color-danger) 28%, transparent);
 }
 
 .workspace-grid {
@@ -595,7 +580,7 @@ h2 {
 }
 
 .level-value {
-  background: var(--q-positive);
+  background: var(--el-color-success);
   height: 100%;
   transform-origin: left center;
   transition: transform 80ms linear;
@@ -686,7 +671,7 @@ h2 {
 
 .partial-indicator span {
   animation: pulse 1.2s ease-in-out infinite;
-  background: var(--q-negative);
+  background: var(--el-color-danger);
   border-radius: 50%;
   height: 7px;
   width: 7px;

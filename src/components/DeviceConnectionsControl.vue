@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import {computed, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
 import {storeToRefs} from 'pinia'
-import {Notify, type QTableColumn} from 'quasar'
-import DeviceSettingsButton from './DeviceSettingsButton.vue'
+import {ElMessage} from 'element-plus'
+import {Close, Connection, Delete, Edit, Refresh, Setting} from '@element-plus/icons-vue'
 import {
   DEFAULT_SERIAL_BAUD_RATE,
   DEFAULT_TCP_HOST,
@@ -66,7 +66,6 @@ const deviceSettingsVisible = ref(false)
 const editorVisible = ref(false)
 const editorMode = ref<EditorMode>('create')
 const editingProfileId = ref('')
-const tablePagination = {rowsPerPage: 10}
 
 const connectionForm = reactive({
   name: '',
@@ -77,16 +76,6 @@ const connectionForm = reactive({
   host: DEFAULT_TCP_HOST,
   port: DEFAULT_TCP_PORT as number | null
 })
-
-const columns: QTableColumn<ConnectionTableRow>[] = [
-  {name: 'status', label: '状态', field: 'connected', align: 'center'},
-  {name: 'name', label: '连接名称', field: 'name', align: 'center'},
-  {name: 'sessionId', label: 'Session ID', field: 'sessionId', align: 'center', sortable: true},
-  {name: 'mode', label: '连接方式', field: 'mode', align: 'center'},
-  {name: 'endpoint', label: '连接目标', field: 'endpoint', align: 'center'},
-  {name: 'lastError', label: '最近错误', field: 'lastError', align: 'center'},
-  {name: 'actions', label: '操作', field: 'id', align: 'center'}
-]
 
 const rows = computed<ConnectionTableRow[]>(() =>
     [...connectionProfiles.value]
@@ -189,12 +178,7 @@ const refreshSerialOptions = async () => {
       })
     })
   } catch (error) {
-    Notify.create({
-      type: 'negative',
-      message: `串口列表刷新失败: ${resolveError(error)}`,
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.error(`串口列表刷新失败: ${resolveError(error)}`)
   } finally {
     loadingSerialOptions.value = false
   }
@@ -219,19 +203,9 @@ const connectProfile = async (profile: DeviceConnectionProfile) => {
       })
     }
 
-    Notify.create({
-      type: 'positive',
-      message: `会话[${sessionId}]连接成功`,
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.success(`会话[${sessionId}]连接成功`)
   } catch (error) {
-    Notify.create({
-      type: 'negative',
-      message: `连接失败: ${resolveError(error)}`,
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.error(`连接失败: ${resolveError(error)}`)
   }
 }
 
@@ -246,20 +220,10 @@ const disconnectProfile = async (profile: DeviceConnectionProfile) => {
       await session.disconnect()
     }
 
-    Notify.create({
-      type: 'positive',
-      message: `会话[${sessionId}]已断开`,
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.success(`会话[${sessionId}]已断开`)
     return true
   } catch (error) {
-    Notify.create({
-      type: 'negative',
-      message: `断开失败: ${resolveError(error)}`,
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.error(`断开失败: ${resolveError(error)}`)
     return false
   }
 }
@@ -369,21 +333,11 @@ const submitEditor = () => {
       }
     }
 
-    Notify.create({
-      type: 'positive',
-      message: editorMode.value === 'create' ? '连接已新增' : '连接已更新',
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.success(editorMode.value === 'create' ? '连接已新增' : '连接已更新')
 
     closeEditor()
   } catch (error) {
-    Notify.create({
-      type: 'negative',
-      message: resolveError(error),
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.error(resolveError(error))
   }
 }
 
@@ -397,21 +351,11 @@ const handleRemove = async (profile: DeviceConnectionProfile) => {
 
   const removed = removeConnectionProfile(profile.id)
   if (!removed) {
-    Notify.create({
-      type: 'warning',
-      message: '连接不存在或已被删除',
-      position: 'top',
-      timeout: 2200
-    })
+    ElMessage.warning('连接不存在或已被删除')
     return
   }
 
-  Notify.create({
-    type: 'positive',
-    message: '连接已删除',
-    position: 'top',
-    timeout: 2200
-  })
+  ElMessage.success('连接已删除')
 }
 
 const statusDisposers = new Map<
@@ -518,15 +462,20 @@ onUnmounted(() => {
 
 <template>
   <div class="device-control">
-    <DeviceSettingsButton
-        :connected-serial-count="connectedSerialCount"
-        :connected-tcp-count="connectedTcpCount"
-        @click="deviceSettingsVisible = true"
-    />
+    <el-button type="primary" plain :icon="Setting" @click="deviceSettingsVisible = true">
+      设备连接 串口:{{ connectedSerialCount }} TCP:{{ connectedTcpCount }}
+    </el-button>
 
-    <q-dialog v-model="deviceSettingsVisible">
-      <q-card class="device-settings-card">
-        <q-card-section class="device-settings-header">
+    <el-dialog
+      v-model="deviceSettingsVisible"
+      append-to-body
+      width="min(1200px, 86vw)"
+      top="8vh"
+      class="device-settings-dialog"
+      :show-close="false"
+    >
+      <template #header>
+        <div class="device-settings-header">
           <div>
             <div class="device-settings-title">设备连接管理</div>
             <div class="device-settings-subtitle">
@@ -535,192 +484,115 @@ onUnmounted(() => {
           </div>
 
           <div class="device-settings-actions">
-            <q-btn
-                outline
-                color="primary"
-                no-caps
-                icon="refresh"
-                :loading="loadingSerialOptions"
-                @click="refreshSerialOptions"
+            <el-button
+              type="primary"
+              plain
+              :icon="Refresh"
+              :loading="loadingSerialOptions"
+              @click="refreshSerialOptions"
             >
               刷新串口
-            </q-btn>
-            <q-btn flat no-caps @click="deviceSettingsVisible = false">关闭</q-btn>
+            </el-button>
+            <el-button :icon="Close" @click="deviceSettingsVisible = false">关闭</el-button>
           </div>
-        </q-card-section>
+        </div>
+      </template>
 
-        <q-separator/>
+      <div class="device-settings-panel">
+        <div class="table-toolbar">
+          <div>
+            <div class="table-title">下层连接会话</div>
+            <div class="table-subtitle">一个 session 绑定一个串口或 TCP 连接</div>
+          </div>
+          <div class="table-toolbar-actions">
+            <el-button type="primary" :icon="Connection" @click="openCreateDialog('serial')">新增串口</el-button>
+            <el-button type="primary" :icon="Connection" @click="openCreateDialog('tcp')">新增 TCP</el-button>
+          </div>
+        </div>
 
-        <q-card-section class="device-settings-panel">
-          <q-table
-              flat
-              bordered
-              row-key="id"
-              :rows="rows"
-              :columns="columns"
-              :pagination="tablePagination"
-              class="device-table"
-          >
-            <template #top>
-              <div class="table-toolbar">
-                <div>
-                  <div class="table-title">下层连接会话</div>
-                  <div class="table-subtitle">一个 session 绑定一个串口或 TCP 连接</div>
-                </div>
-
-                <div class="table-toolbar-actions">
-                  <q-btn color="primary" icon="usb" no-caps unelevated @click="openCreateDialog('serial')">
-                    新增串口
-                  </q-btn>
-                  <q-btn color="primary" icon="lan" no-caps unelevated @click="openCreateDialog('tcp')">
-                    新增 TCP
-                  </q-btn>
-                </div>
+        <el-table :data="rows" border stripe height="calc(70vh - 150px)" class="device-table">
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="{row}">
+              <el-tag :type="row.connected ? 'success' : 'danger'" effect="dark">
+                {{ row.connected ? '已连接' : '未连接' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="name" label="连接名称" min-width="130" />
+          <el-table-column prop="sessionId" label="Session ID" width="110" sortable align="center" />
+          <el-table-column label="连接方式" width="100" align="center">
+            <template #default="{row}">{{ row.mode === 'serial' ? 'RS232' : 'TCP' }}</template>
+          </el-table-column>
+          <el-table-column prop="endpoint" label="连接目标" min-width="180" />
+          <el-table-column label="最近错误" min-width="180">
+            <template #default="{row}"><span class="cell-error">{{ row.lastError || '-' }}</span></template>
+          </el-table-column>
+          <el-table-column label="操作" width="250" fixed="right" align="center">
+            <template #default="{row}">
+              <div class="table-actions">
+                <el-tooltip content="编辑" placement="top">
+                  <el-button circle :icon="Edit" @click="openEditDialog(row.profile)" />
+                </el-tooltip>
+                <el-button type="primary" link @click="connectProfile(row.profile)">连接</el-button>
+                <el-button type="danger" link @click="disconnectProfile(row.profile)">断开</el-button>
+                <el-popconfirm title="确定删除这个连接吗？" @confirm="handleRemove(row.profile)">
+                  <template #reference>
+                    <el-button circle type="danger" plain :icon="Delete" />
+                  </template>
+                </el-popconfirm>
               </div>
             </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
 
-            <template #body-cell-status="{ row }">
-              <q-td>
-                <q-chip
-                    square
-                    dense
-                    :color="row.connected ? 'positive' : 'negative'"
-                    text-color="white"
-                >
-                  {{ row.connected ? '已连接' : '未连接' }}
-                </q-chip>
-              </q-td>
-            </template>
-
-            <template #body-cell-mode="{ row }">
-              <q-td>{{ row.mode === 'serial' ? 'RS232' : 'TCP' }}</q-td>
-            </template>
-
-            <template #body-cell-lastError="{ row }">
-              <q-td class="cell-error">
-                {{ row.lastError || '-' }}
-              </q-td>
-            </template>
-
-            <template #body-cell-actions="{ row }">
-              <q-td>
-                <div class="table-actions">
-                  <q-btn
-                      dense
-                      flat
-                      round
-                      color="primary"
-                      icon="edit"
-                      @click="openEditDialog(row.profile)"
-                  />
-                  <q-btn
-                      dense
-                      color="primary"
-                      flat
-                      no-caps
-                      @click="connectProfile(row.profile)"
-                  >
-                    连接
-                  </q-btn>
-                  <q-btn
-                      dense
-                      color="negative"
-                      flat
-                      no-caps
-                      @click="disconnectProfile(row.profile)"
-                  >
-                    断开
-                  </q-btn>
-                  <q-btn
-                      dense
-                      flat
-                      round
-                      color="negative"
-                      icon="delete"
-                      @click="handleRemove(row.profile)"
-                  />
-                </div>
-              </q-td>
-            </template>
-          </q-table>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <q-dialog v-model="editorVisible" persistent>
-      <q-card class="editor-card">
-        <q-card-section class="editor-header">
-          <div class="editor-title">{{ editorTitle }}</div>
-          <q-btn flat round dense icon="close" @click="closeEditor"/>
-        </q-card-section>
-
-        <q-separator/>
-
-        <q-card-section class="editor-body">
-          <q-banner v-if="isEditingConnectedProfile" dense rounded class="editor-banner">
-            当前连接已建立，需先断开后才能修改会话和连接参数。
-          </q-banner>
-
-          <div class="editor-grid">
-            <q-input v-model="connectionForm.name" outlined label="连接名称"/>
-            <q-input
-                v-model.number="connectionForm.sessionId"
-                outlined
-                type="number"
-                min="0"
-                label="Session ID"
-                :disable="isEditingConnectedProfile"
-            />
-
-            <template v-if="connectionForm.mode === 'serial'">
-              <q-select
-                  v-model="connectionForm.portPath"
-                  outlined
-                  emit-value
-                  map-options
-                  label="串口"
-                  :options="serialOptions"
-                  :disable="isEditingConnectedProfile"
-              />
-              <q-input
-                  v-model.number="connectionForm.baudRate"
-                  outlined
-                  type="number"
-                  min="300"
-                  step="300"
-                  label="波特率"
-                  :disable="isEditingConnectedProfile"
-              />
-            </template>
-
-            <template v-else>
-              <q-input
-                  v-model="connectionForm.host"
-                  outlined
-                  label="TCP 地址"
-                  :disable="isEditingConnectedProfile"
-              />
-              <q-input
-                  v-model.number="connectionForm.port"
-                  outlined
-                  type="number"
-                  min="1"
-                  max="65535"
-                  label="端口"
-                  :disable="isEditingConnectedProfile"
-              />
-            </template>
-          </div>
-        </q-card-section>
-
-        <q-separator/>
-
-        <q-card-actions align="right">
-          <q-btn flat no-caps @click="closeEditor">取消</q-btn>
-          <q-btn color="primary" no-caps unelevated @click="submitEditor">保存</q-btn>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <el-dialog
+      v-model="editorVisible"
+      append-to-body
+      :title="editorTitle"
+      width="min(720px, 90vw)"
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        v-if="isEditingConnectedProfile"
+        title="当前连接已建立，需先断开后才能修改会话和连接参数。"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="editor-banner"
+      />
+      <el-form label-position="top" class="editor-grid">
+        <el-form-item label="连接名称">
+          <el-input v-model="connectionForm.name" />
+        </el-form-item>
+        <el-form-item label="Session ID">
+          <el-input-number v-model="connectionForm.sessionId" :min="0" :disabled="isEditingConnectedProfile" controls-position="right" />
+        </el-form-item>
+        <template v-if="connectionForm.mode === 'serial'">
+          <el-form-item label="串口">
+            <el-select v-model="connectionForm.portPath" :disabled="isEditingConnectedProfile" filterable>
+              <el-option v-for="option in serialOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="波特率">
+            <el-input-number v-model="connectionForm.baudRate" :min="300" :step="300" :disabled="isEditingConnectedProfile" controls-position="right" />
+          </el-form-item>
+        </template>
+        <template v-else>
+          <el-form-item label="TCP 地址">
+            <el-input v-model="connectionForm.host" :disabled="isEditingConnectedProfile" />
+          </el-form-item>
+          <el-form-item label="端口">
+            <el-input-number v-model="connectionForm.port" :min="1" :max="65535" :disabled="isEditingConnectedProfile" controls-position="right" />
+          </el-form-item>
+        </template>
+      </el-form>
+      <template #footer>
+        <el-button @click="closeEditor">取消</el-button>
+        <el-button type="primary" @click="submitEditor">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -728,16 +600,6 @@ onUnmounted(() => {
 .device-control {
   align-items: center;
   display: flex;
-}
-
-.device-settings-card {
-  background: var(--app-surface);
-  border-radius: 0;
-  display: flex;
-  flex-direction: column;
-  width: 80vw;
-  max-width: 1200px;
-  height: 70vh;
 }
 
 .device-settings-header {
@@ -766,13 +628,14 @@ onUnmounted(() => {
 }
 
 .device-settings-panel {
-  height: 100%;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .device-table {
   border-color: var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-base);
 }
 
 .table-toolbar {
@@ -814,37 +677,21 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
-.editor-card {
-  max-width: 720px;
-  width: min(720px, calc(100vw - 32px));
-}
-
-.editor-header {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-}
-
-.editor-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.editor-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .editor-banner {
-  background: color-mix(in srgb, rgb(245, 158, 11) 16%, var(--app-surface));
-  color: var(--text-color);
+  margin-bottom: 16px;
 }
 
 .editor-grid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.editor-grid :deep(.el-form-item),
+.editor-grid :deep(.el-input-number),
+.editor-grid :deep(.el-select) {
+  margin-bottom: 0;
+  width: 100%;
 }
 
 @media (max-width: 960px) {

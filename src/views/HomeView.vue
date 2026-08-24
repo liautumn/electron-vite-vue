@@ -48,35 +48,35 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <div class="hero">
+    <el-card shadow="never" class="hero">
       <div>
-        <p class="eyebrow">Quasar Renderer</p>
+        <p class="eyebrow">Element Plus Renderer</p>
         <h1>{{ t('home.title') }}</h1>
         <p class="hero-text">{{ t('home.description') }}</p>
       </div>
-    </div>
+    </el-card>
 
-    <q-card flat bordered class="card">
-      <q-card-section class="card-section">
+    <el-card shadow="never" class="card">
+      <div class="card-section">
         <p class="card-title">{{ t('home.i18nTitle') }}</p>
         <p class="muted">{{ t('home.i18nTip') }}</p>
         <div class="language-row">
           <span>{{ currentLanguageText }}</span>
-          <q-btn outline color="primary" no-caps @click="toggleLocale">{{ switchLabel }}</q-btn>
+          <el-button type="primary" plain @click="toggleLocale">{{ switchLabel }}</el-button>
         </div>
-      </q-card-section>
-    </q-card>
+      </div>
+    </el-card>
 
-    <q-card flat bordered class="card">
-      <q-card-section class="card-section">
+    <el-card shadow="never" class="card">
+      <div class="card-section">
         <p class="card-title">{{ t('home.logTitle') }}</p>
         <p class="muted">{{ t('home.logTip') }}</p>
         <div class="log-actions">
-          <q-btn color="primary" no-caps unelevated @click="emitInfoLog">{{ t('home.logInfoButton') }}</q-btn>
-          <q-btn color="negative" no-caps unelevated @click="emitErrorLog">{{ t('home.logErrorButton') }}</q-btn>
+          <el-button type="primary" @click="emitInfoLog">{{ t('home.logInfoButton') }}</el-button>
+          <el-button type="danger" @click="emitErrorLog">{{ t('home.logErrorButton') }}</el-button>
         </div>
-      </q-card-section>
-    </q-card>
+      </div>
+    </el-card>
 
   </div>
 </template>
@@ -92,21 +92,18 @@ onMounted(() => {
 }
 
 .hero {
-  align-items: end;
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 34%),
-    linear-gradient(135deg, color-mix(in srgb, var(--app-surface) 92%, white), var(--app-surface));
-  border: 1px solid var(--app-border);
-  border-radius: 18px;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
+  background: var(--el-bg-color);
+  border-color: var(--el-border-color-light);
+  border-radius: var(--el-border-radius-base);
+}
+
+.hero :deep(.el-card__body) {
   padding: 24px;
 }
 
 .eyebrow {
   color: var(--app-text-secondary);
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   margin: 0 0 8px;
   text-transform: uppercase;
 }
@@ -123,7 +120,7 @@ onMounted(() => {
 .card {
   background: var(--app-surface);
   border-color: var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-base);
 }
 
 .card-section {
@@ -157,14 +154,13 @@ onMounted(() => {
 }
 
 .link {
-  color: var(--q-primary);
+  color: var(--el-color-primary);
   text-decoration: none;
 }
 
 @media (max-width: 640px) {
-  .hero {
-    align-items: stretch;
-    flex-direction: column;
+  .hero :deep(.el-card__body) {
+    padding: 18px;
   }
 }
 </style>

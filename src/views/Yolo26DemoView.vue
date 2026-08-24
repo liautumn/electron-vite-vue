@@ -1,6 +1,27 @@
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref, watch} from 'vue'
-import {useQuasar} from 'quasar'
+import {ElMessage} from 'element-plus'
+import {
+  CircleCheckFilled,
+  CircleCloseFilled,
+  Clock,
+  Close,
+  Collection,
+  Cpu,
+  Delete,
+  Download,
+  FolderAdd,
+  Loading,
+  Picture,
+  Refresh,
+  RefreshRight,
+  Timer,
+  VideoCamera,
+  VideoPause,
+  VideoPlay,
+  WarningFilled,
+  ZoomIn,
+} from '@element-plus/icons-vue'
 import type {ImageFileEntry, ImageSelectionMode} from '../../shared/types/image-files'
 import type {
   Yolo26FrameInferenceResult,
@@ -26,7 +47,6 @@ type QueueItem = ImageFileEntry & {
   result?: PresentedInferenceResult
 }
 
-const $q = useQuasar()
 const sourceMode = ref<SourceMode>('images')
 const confidence = ref(0.25)
 const queue = ref<QueueItem[]>([])
@@ -125,15 +145,14 @@ const cameraStateLabel = computed(() => {
   return '相机未启动'
 })
 const cameraStateIcon = computed(() => {
-  if (cameraState.value === 'running') return 'videocam'
-  if (cameraState.value === 'starting') return 'progress_activity'
-  if (cameraState.value === 'error') return 'videocam_off'
-  return 'videocam'
+  if (cameraState.value === 'starting') return Loading
+  if (cameraState.value === 'error') return VideoPause
+  return VideoCamera
 })
 const cameraStateColor = computed(() => {
-  if (cameraState.value === 'running') return 'positive'
-  if (cameraState.value === 'error') return 'negative'
-  return 'grey-7'
+  if (cameraState.value === 'running') return 'var(--el-color-success)'
+  if (cameraState.value === 'error') return 'var(--el-color-danger)'
+  return 'var(--el-text-color-secondary)'
 })
 const modelName = computed(() => {
   const modelPath = engineStatus.value?.modelPath
@@ -150,17 +169,17 @@ const statusLabel = computed(() => {
 })
 const statusIcon = computed(() => {
   switch (engineStatus.value?.state) {
-    case 'ready': return 'check_circle'
-    case 'loading': return 'hourglass_top'
+    case 'ready': return CircleCheckFilled
+    case 'loading': return Loading
     case 'error':
-    case 'missing': return 'error'
-    default: return 'memory'
+    case 'missing': return CircleCloseFilled
+    default: return Cpu
   }
 })
 const statusTone = computed(() => {
-  if (engineStatus.value?.state === 'ready') return 'positive'
-  if (engineStatus.value?.state === 'error' || engineStatus.value?.state === 'missing') return 'negative'
-  return 'primary'
+  if (engineStatus.value?.state === 'ready') return 'var(--el-color-success)'
+  if (engineStatus.value?.state === 'error' || engineStatus.value?.state === 'missing') return 'var(--el-color-danger)'
+  return 'var(--el-color-primary)'
 })
 
 const toErrorMessage = (error: unknown) => error instanceof Error ? error.message : String(error)
@@ -174,7 +193,7 @@ const refreshStatus = async () => {
   try {
     applyEngineStatus(await window.yolo26.getStatus())
   } catch (error) {
-    $q.notify({type: 'negative', message: toErrorMessage(error)})
+    ElMessage.error(toErrorMessage(error))
   }
 }
 
@@ -185,11 +204,11 @@ const changeGpuEnabled = async (enabled: boolean) => {
     if (!pageActive) return
     applyEngineStatus(status)
     stressResult.value = null
-    $q.notify({type: 'positive', message: `已切换为 ${providerLabel.value} 推理`})
+    ElMessage.success(`已切换为 ${providerLabel.value} 推理`)
   } catch (error) {
     if (pageActive) {
       await refreshStatus()
-      $q.notify({type: 'negative', message: toErrorMessage(error)})
+      ElMessage.error(toErrorMessage(error))
     }
   } finally {
     gpuSwitching.value = false
@@ -207,10 +226,10 @@ const selectImages = async (mode: ImageSelectionMode) => {
     queue.value.push(...additions)
     if (!selectedPath.value && additions.length) selectedPath.value = additions[0].path
     if (files.length && !additions.length) {
-      $q.notify({type: 'info', message: '所选图片已在队列中'})
+      ElMessage.info('所选图片已在队列中')
     }
   } catch (error) {
-    $q.notify({type: 'negative', message: toErrorMessage(error)})
+    ElMessage.error(toErrorMessage(error))
   } finally {
     selecting.value = false
   }
@@ -289,9 +308,9 @@ const downloadSelectedResult = async () => {
       name: `${sourceName}-result.jpg`,
       imageUrl: selectedResult.value.imageUrl,
     })
-    if (downloadPath) $q.notify({type: 'positive', message: `已下载：${downloadPath}`})
+    if (downloadPath) ElMessage.success(`已下载：${downloadPath}`)
   } catch (error) {
-    $q.notify({type: 'negative', message: toErrorMessage(error)})
+    ElMessage.error(toErrorMessage(error))
   } finally {
     downloading.value = false
   }
@@ -302,7 +321,7 @@ const runStressTest = async () => {
   try {
     stressResult.value = await window.yolo26.stressTest()
   } catch (error) {
-    $q.notify({type: 'negative', message: toErrorMessage(error)})
+    ElMessage.error(toErrorMessage(error))
   } finally {
     stressTesting.value = false
   }
@@ -429,17 +448,17 @@ const startCamera = async () => {
 }
 
 const stateIcon = (state: QueueState) => ({
-  pending: 'schedule',
-  running: 'progress_activity',
-  done: 'check_circle',
-  error: 'error',
+  pending: Clock,
+  running: Loading,
+  done: CircleCheckFilled,
+  error: CircleCloseFilled,
 })[state]
 
 const stateColor = (state: QueueState) => ({
-  pending: 'grey-6',
-  running: 'primary',
-  done: 'positive',
-  error: 'negative',
+  pending: 'var(--el-text-color-secondary)',
+  running: 'var(--el-color-primary)',
+  done: 'var(--el-color-success)',
+  error: 'var(--el-color-danger)',
 })[state]
 
 const handleCameraDeviceChange = () => {
@@ -470,7 +489,7 @@ onMounted(async () => {
     const status = await window.yolo26.initialize()
     if (pageActive) applyEngineStatus(status)
   } catch (error) {
-    if (pageActive) $q.notify({type: 'negative', message: toErrorMessage(error)})
+    if (pageActive) ElMessage.error(toErrorMessage(error))
   }
 })
 
@@ -491,16 +510,18 @@ onBeforeUnmount(() => {
         <h1>YOLO26 ONNX 测试</h1>
         <p>ONNX Runtime Node · OpenCV.js · YOLO26 · {{ providerLabel }}</p>
       </div>
-      <q-btn flat round dense icon="refresh" aria-label="刷新模型状态" @click="refreshStatus">
-        <q-tooltip>刷新模型状态</q-tooltip>
-      </q-btn>
+      <el-tooltip content="刷新模型状态" placement="top">
+        <el-button circle text :icon="Refresh" aria-label="刷新模型状态" @click="refreshStatus" />
+      </el-tooltip>
     </header>
 
     <section
       class="model-bar"
       :class="{'model-bar--error': engineStatus?.state === 'error' || engineStatus?.state === 'missing'}"
     >
-      <q-icon :name="statusIcon" :color="statusTone" size="22px" />
+      <el-icon :color="statusTone" size="22" :class="{'status-spin': engineStatus?.state === 'loading'}">
+        <component :is="statusIcon" />
+      </el-icon>
       <div class="model-copy">
         <div class="model-summary">
           <strong>{{ modelName }}</strong>
@@ -512,181 +533,125 @@ onBeforeUnmount(() => {
         <div class="model-path" :title="engineStatus?.modelPath">{{ engineStatus?.modelPath || '—' }}</div>
         <div v-if="engineStatus?.message" class="model-message">{{ engineStatus.message }}</div>
       </div>
-      <q-toggle
-        :model-value="gpuEnabled"
-        class="gpu-toggle"
-        color="secondary"
-        checked-icon="bolt"
-        unchecked-icon="memory"
-        label="GPU 推理"
-        left-label
-        :disable="gpuControlDisabled"
-        :loading="gpuSwitching"
-        @update:model-value="changeGpuEnabled"
-      >
-        <q-tooltip>{{ gpuTooltip }}</q-tooltip>
-      </q-toggle>
+      <el-tooltip :content="gpuTooltip" placement="top">
+        <div class="gpu-toggle">
+          <span>GPU 推理</span>
+          <el-switch
+            :model-value="gpuEnabled"
+            :disabled="gpuControlDisabled"
+            :loading="gpuSwitching"
+            @update:model-value="changeGpuEnabled"
+          />
+        </div>
+      </el-tooltip>
     </section>
 
     <section class="control-bar">
-      <q-btn-toggle
+      <el-segmented
         v-model="sourceMode"
         class="source-toggle"
-        no-caps
-        unelevated
-        toggle-color="primary"
-        color="grey-3"
-        text-color="grey-8"
-        :disable="running || stressTesting || cameraIsRunning || cameraIsBusy"
+        :disabled="running || stressTesting || cameraIsRunning || cameraIsBusy"
         :options="[
-          {label: '图片', value: 'images', icon: 'image'},
-          {label: '相机', value: 'camera', icon: 'videocam'},
+          {label: '图片', value: 'images'},
+          {label: '相机', value: 'camera'},
         ]"
       />
 
       <div v-if="sourceMode === 'images'" class="file-actions">
-        <q-btn
-          color="primary"
-          unelevated
-          no-caps
-          icon="add_photo_alternate"
-          label="添加图片"
+        <el-button
+          type="primary"
+          :icon="Picture"
           :loading="selecting"
-          :disable="running || stressTesting"
+          :disabled="running || stressTesting"
           @click="selectImages('images')"
-        />
-        <q-btn
-          outline
-          color="primary"
-          no-caps
-          icon="folder_open"
-          label="添加目录"
-          :disable="selecting || running || stressTesting"
+        >添加图片</el-button>
+        <el-button
+          type="primary"
+          plain
+          :icon="FolderAdd"
+          :disabled="selecting || running || stressTesting"
           @click="selectImages('directory')"
-        />
+        >添加目录</el-button>
       </div>
 
       <div v-else class="camera-actions">
-        <q-select
+        <el-select
           v-model="selectedCameraId"
           class="camera-select"
-          dense
-          outlined
-          emit-value
-          map-options
-          options-dense
-          label="摄像头"
-          :options="cameraDeviceOptions"
-          :disable="cameraIsRunning || cameraIsBusy"
-        />
-        <q-btn
-          flat
-          round
-          dense
-          icon="refresh"
-          aria-label="刷新摄像头列表"
-          :disable="cameraIsRunning || cameraIsBusy"
-          @click="handleCameraDeviceChange"
+          placeholder="摄像头"
+          :disabled="cameraIsRunning || cameraIsBusy"
         >
-          <q-tooltip>刷新摄像头列表</q-tooltip>
-        </q-btn>
-        <q-btn
+          <el-option v-for="option in cameraDeviceOptions" :key="option.value" :label="option.label" :value="option.value" />
+        </el-select>
+        <el-tooltip content="刷新摄像头列表" placement="top">
+          <el-button circle text :icon="Refresh" aria-label="刷新摄像头列表" :disabled="cameraIsRunning || cameraIsBusy" @click="handleCameraDeviceChange" />
+        </el-tooltip>
+        <el-button
           v-if="!cameraIsRunning && !cameraIsStarting"
-          color="positive"
-          unelevated
-          no-caps
-          icon="play_arrow"
-          label="开始识别"
+          type="success"
+          :icon="VideoPlay"
           :loading="cameraState === 'starting'"
-          :disable="running || stressTesting || gpuSwitching || cameraInferencePending || !engineStatus?.modelAvailable"
+          :disabled="running || stressTesting || gpuSwitching || cameraInferencePending || !engineStatus?.modelAvailable"
           @click="startCamera"
-        />
-        <q-btn
+        >开始识别</el-button>
+        <el-button
           v-else
-          color="negative"
-          unelevated
-          no-caps
-          icon="stop"
-          :label="cameraIsStarting ? '停止启动' : '停止识别'"
+          type="danger"
+          :icon="VideoPause"
           @click="stopCamera"
-        />
+        >{{ cameraIsStarting ? '停止启动' : '停止识别' }}</el-button>
       </div>
 
       <div class="confidence-control">
         <span>置信度</span>
-        <q-slider v-model="confidence" :min="0.05" :max="0.95" :step="0.05" color="primary" />
+        <el-slider v-model="confidence" :min="0.05" :max="0.95" :step="0.05" :show-tooltip="false" />
         <strong>{{ confidence.toFixed(2) }}</strong>
       </div>
 
       <div v-if="sourceMode === 'images'" class="run-actions">
-        <q-btn
+        <el-button
           v-if="!running"
-          color="positive"
-          unelevated
-          no-caps
-          icon="play_arrow"
-          label="开始推理"
-          :disable="stressTesting || gpuSwitching || !pendingCount || !engineStatus?.modelAvailable"
+          type="success"
+          :icon="VideoPlay"
+          :disabled="stressTesting || gpuSwitching || !pendingCount || !engineStatus?.modelAvailable"
           @click="runQueue()"
-        />
-        <q-btn
+        >开始推理</el-button>
+        <el-button
           v-if="!running"
-          outline
-          color="secondary"
-          no-caps
-          icon="speed"
-          label="压力测试"
+          type="warning"
+          plain
+          :icon="Timer"
           :loading="stressTesting"
-          :disable="gpuSwitching || !engineStatus?.engineReady"
+          :disabled="gpuSwitching || !engineStatus?.engineReady"
           @click="runStressTest"
-        />
-        <q-btn
+        >压力测试</el-button>
+        <el-button
           v-if="running"
-          color="negative"
-          unelevated
-          no-caps
-          icon="stop"
-          label="停止队列"
-          :disable="stopRequested"
+          type="danger"
+          :icon="VideoPause"
+          :disabled="stopRequested"
           @click="requestStop"
-        />
-        <q-btn
-          flat
-          round
-          dense
-          icon="restart_alt"
-          aria-label="重新推理全部图片"
-          :disable="running || stressTesting || !resultItems.length"
-          @click="runQueue(true)"
-        >
-          <q-tooltip>重新推理全部图片</q-tooltip>
-        </q-btn>
-        <q-btn
-          flat
-          round
-          dense
-          icon="delete_sweep"
-          aria-label="清空队列"
-          :disable="running || stressTesting || !queue.length"
-          @click="clearQueue"
-        >
-          <q-tooltip>清空队列</q-tooltip>
-        </q-btn>
+        >停止队列</el-button>
+        <el-tooltip content="重新推理全部图片" placement="top">
+          <el-button circle text :icon="RefreshRight" aria-label="重新推理全部图片" :disabled="running || stressTesting || !resultItems.length" @click="runQueue(true)" />
+        </el-tooltip>
+        <el-tooltip content="清空队列" placement="top">
+          <el-button circle text :icon="Delete" aria-label="清空队列" :disabled="running || stressTesting || !queue.length" @click="clearQueue" />
+        </el-tooltip>
       </div>
-      <q-linear-progress
+      <el-progress
         v-if="sourceMode === 'images' && (running || completedCount)"
         class="queue-progress"
-        :value="progress"
-        color="positive"
-        track-color="grey-4"
-        rounded
-        size="4px"
+        :percentage="progress * 100"
+        :show-text="false"
+        status="success"
+        :stroke-width="4"
       />
     </section>
 
     <section v-if="sourceMode === 'images' && stressResult" class="stress-summary">
       <div class="stress-heading">
-        <q-icon name="speed" color="secondary" size="22px" />
+        <el-icon color="var(--el-color-warning)" size="22"><Timer /></el-icon>
         <div>
           <strong>压力测试结果</strong>
           <span>
@@ -723,64 +688,55 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-if="!queue.length" class="empty-state empty-state--queue">
-          <q-icon name="collections" size="34px" />
+          <el-icon size="34"><Collection /></el-icon>
           <span>尚未添加图片</span>
         </div>
 
-        <q-list v-else separator class="queue-list">
-          <q-item
+        <el-scrollbar v-else class="queue-list">
+          <div
             v-for="item in queue"
             :key="item.path"
-            dense
-            clickable
             class="queue-item"
-            :active="selectedPath === item.path"
-            active-class="queue-item--active"
+            :class="{'queue-item--active': selectedPath === item.path}"
+            role="button"
+            tabindex="0"
             @click="selectedPath = item.path"
+            @keyup.enter="selectedPath = item.path"
           >
-            <q-item-section avatar>
-              <q-icon
-                :name="stateIcon(item.state)"
+            <el-icon
                 :color="stateColor(item.state)"
                 :class="{'status-spin': item.state === 'running'}"
-                size="20px"
-              />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label class="file-name">{{ item.name }}</q-item-label>
-              <q-item-label caption class="file-path" :title="item.path">{{ item.path }}</q-item-label>
-              <q-item-label v-if="item.error" caption class="file-error" :title="item.error">
-                {{ item.error }}
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-btn
-                v-if="item.state === 'error'"
-                flat
-                round
-                dense
-                icon="replay"
+                size="20"
+            ><component :is="stateIcon(item.state)" /></el-icon>
+            <div class="queue-item__content">
+              <div class="file-name">{{ item.name }}</div>
+              <div class="file-path" :title="item.path">{{ item.path }}</div>
+              <div v-if="item.error" class="file-error" :title="item.error">{{ item.error }}</div>
+            </div>
+            <div class="queue-item__actions">
+              <el-tooltip v-if="item.state === 'error'" content="重试" placement="top">
+              <el-button
+                circle
+                text
+                :icon="RefreshRight"
                 aria-label="重试"
-                :disable="running"
+                :disabled="running"
                 @click.stop="retryItem(item)"
-              >
-                <q-tooltip>重试</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-else
-                flat
-                round
-                dense
-                icon="close"
+              />
+              </el-tooltip>
+              <el-tooltip v-else content="移除" placement="top">
+              <el-button
+                circle
+                text
+                :icon="Close"
                 aria-label="移除"
-                :disable="running"
+                :disabled="running"
                 @click.stop="removeItem(item)"
-              >
-                <q-tooltip>移除</q-tooltip>
-              </q-btn>
-            </q-item-section>
-          </q-item>
-        </q-list>
+              />
+              </el-tooltip>
+            </div>
+          </div>
+        </el-scrollbar>
       </section>
 
       <section class="result-pane">
@@ -788,29 +744,26 @@ onBeforeUnmount(() => {
           <h2>推理结果</h2>
           <div class="result-heading-actions">
             <span>{{ resultItems.length }} / {{ queue.length }}</span>
-            <q-btn
-              flat
-              dense
-              no-caps
-              color="primary"
-              icon="download"
-              label="下载图片"
+            <el-button
+              text
+              type="primary"
+              :icon="Download"
               :loading="downloading"
-              :disable="!selectedResult"
+              :disabled="!selectedResult"
               @click="downloadSelectedResult"
-            />
+            >下载图片</el-button>
           </div>
         </div>
 
         <div v-if="!selectedResult" class="empty-state">
-          <q-icon name="image_search" size="42px" />
+          <el-icon size="42"><Picture /></el-icon>
           <span>{{ selectedItem?.state === 'running' ? '正在生成结果' : '暂无推理结果' }}</span>
         </div>
 
         <div v-else class="selected-result">
           <button class="result-image-button" type="button" @click="previewResult = selectedResult">
             <img :src="selectedResult.imageUrl" :alt="`${selectedResult.name} 推理结果`" />
-            <span class="preview-icon"><q-icon name="zoom_in" size="20px" /></span>
+            <span class="preview-icon"><el-icon size="20"><ZoomIn /></el-icon></span>
           </button>
           <div class="result-meta">
             <div class="result-name" :title="selectedResult.name">{{ selectedResult.name }}</div>
@@ -828,18 +781,17 @@ onBeforeUnmount(() => {
       <div class="section-heading camera-heading">
         <h2>实时识别</h2>
         <div class="camera-status">
-          <q-icon
-            :name="cameraStateIcon"
+          <el-icon
             :color="cameraStateColor"
             :class="{'status-spin': cameraState === 'starting'}"
-            size="18px"
-          />
+            size="18"
+          ><component :is="cameraStateIcon" /></el-icon>
           <span>{{ cameraStateLabel }}</span>
         </div>
       </div>
 
       <div v-if="cameraError" class="camera-error">
-        <q-icon name="error" size="18px" />
+        <el-icon size="18"><WarningFilled /></el-icon>
         <span>{{ cameraError }}</span>
       </div>
 
@@ -855,15 +807,15 @@ onBeforeUnmount(() => {
             />
             <canvas ref="cameraOverlayCanvas" class="camera-overlay" />
             <div v-if="!cameraIsRunning && cameraState !== 'starting'" class="camera-placeholder">
-              <q-icon name="videocam" size="44px" />
+              <el-icon size="44"><VideoCamera /></el-icon>
               <span>相机未启动</span>
             </div>
-            <q-spinner
+            <el-icon
               v-if="cameraInferencePending"
-              class="camera-spinner"
-              color="white"
-              size="24px"
-            />
+              class="camera-spinner status-spin"
+              color="#ffffff"
+              size="24"
+            ><Loading /></el-icon>
           </div>
         </div>
 
@@ -889,35 +841,33 @@ onBeforeUnmount(() => {
 
           <div class="camera-detections-heading">检测目标</div>
           <div v-if="!cameraResult?.detections.length" class="camera-detections-empty">暂无目标</div>
-          <q-list v-else separator dense class="camera-detections">
-            <q-item v-for="(detection, index) in cameraResult.detections" :key="`${detection.classId}-${index}`">
-              <q-item-section avatar>
+          <el-scrollbar v-else class="camera-detections">
+            <div v-for="(detection, index) in cameraResult.detections" :key="`${detection.classId}-${index}`" class="detection-item">
+              <div class="detection-item__swatch">
                 <span class="detection-swatch" :style="{backgroundColor: detectionColor(detection)}" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label>{{ detection.className }}</q-item-label>
-                <q-item-label caption>
-                  {{ (detection.confidence * 100).toFixed(1) }}%
-                </q-item-label>
-              </q-item-section>
-            </q-item>
-          </q-list>
+              </div>
+              <div>
+                <div>{{ detection.className }}</div>
+                <div class="detection-confidence">{{ (detection.confidence * 100).toFixed(1) }}%</div>
+              </div>
+            </div>
+          </el-scrollbar>
         </aside>
       </div>
     </section>
 
-    <q-dialog v-model="previewOpen" maximized transition-show="fade" transition-hide="fade">
+    <el-dialog v-model="previewOpen" fullscreen :show-close="false" class="preview-modal">
       <div class="preview-dialog">
         <div class="preview-toolbar">
           <div>
             <strong>{{ previewResult?.name }}</strong>
             <span>{{ previewResult?.detections.length ?? 0 }} 个目标</span>
           </div>
-          <q-btn v-close-popup flat round icon="close" aria-label="关闭预览" />
+          <el-button circle text :icon="Close" aria-label="关闭预览" @click="previewOpen = false" />
         </div>
         <img v-if="previewResult" :src="previewResult.imageUrl" :alt="`${previewResult.name} 推理结果预览`" />
       </div>
-    </q-dialog>
+    </el-dialog>
   </main>
 </template>
 
@@ -949,7 +899,7 @@ onBeforeUnmount(() => {
   align-items: center;
   background: var(--app-surface);
   border: 1px solid var(--app-border);
-  border-left: 3px solid var(--q-secondary);
+  border-left: 3px solid var(--el-color-warning);
   border-radius: 6px;
   display: flex;
   gap: 18px;
@@ -1059,7 +1009,7 @@ h2 {
 .model-bar {
   background: var(--app-surface);
   border: 1px solid var(--app-border);
-  border-left: 3px solid var(--q-primary);
+  border-left: 3px solid var(--el-color-primary);
   border-radius: 6px;
   gap: 10px;
   min-height: 58px;
@@ -1067,7 +1017,7 @@ h2 {
 }
 
 .model-bar--error {
-  border-left-color: var(--q-negative);
+  border-left-color: var(--el-color-danger);
 }
 
 .model-copy {
@@ -1108,7 +1058,7 @@ h2 {
 
 .model-message,
 .file-error {
-  color: var(--q-negative) !important;
+  color: var(--el-color-danger) !important;
 }
 
 .control-bar {
@@ -1193,9 +1143,9 @@ h2 {
 
 .camera-error {
   align-items: center;
-  background: color-mix(in srgb, var(--q-negative) 8%, var(--app-surface));
-  border-bottom: 1px solid color-mix(in srgb, var(--q-negative) 28%, var(--app-border));
-  color: var(--q-negative);
+  background: color-mix(in srgb, var(--el-color-danger) 8%, var(--app-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--el-color-danger) 28%, var(--app-border));
+  color: var(--el-color-danger);
   display: flex;
   font-size: 12px;
   gap: 7px;
@@ -1327,13 +1277,26 @@ h2 {
   overflow: auto;
 }
 
-.camera-detections :deep(.q-item) {
+.detection-item {
+  align-items: center;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  display: flex;
+  gap: 10px;
   min-height: 50px;
   padding: 6px 8px;
 }
 
-.camera-detections :deep(.q-item__section--avatar) {
-  min-width: 28px;
+.detection-item__swatch {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  width: 20px;
+}
+
+.detection-confidence {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 .detection-swatch {
@@ -1375,17 +1338,31 @@ h2 {
 }
 
 .queue-item {
+  align-items: center;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
   min-height: 62px;
   padding: 7px 8px 7px 12px;
 }
 
-.queue-item--active {
-  background: color-mix(in srgb, var(--q-primary) 12%, var(--app-surface));
-  box-shadow: inset 3px 0 var(--q-primary);
+.queue-item:hover {
+  background: var(--el-fill-color-light);
 }
 
-.queue-item :deep(.q-item__section--avatar) {
-  min-width: 32px;
+.queue-item--active {
+  background: color-mix(in srgb, var(--el-color-primary) 12%, var(--app-surface));
+  box-shadow: inset 3px 0 var(--el-color-primary);
+}
+
+.queue-item__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.queue-item__actions {
+  flex: none;
 }
 
 .file-name {
@@ -1412,6 +1389,15 @@ h2 {
 
 .status-spin {
   animation: status-spin 900ms linear infinite;
+}
+
+:deep(.preview-modal .el-dialog__header) {
+  display: none;
+}
+
+:deep(.preview-modal .el-dialog__body) {
+  height: 100vh;
+  padding: 0;
 }
 
 .empty-state {

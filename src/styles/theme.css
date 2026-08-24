@@ -1,21 +1,52 @@
-/* 默认就是亮色 */
 :root {
-    --bg-color: rgb(245, 245, 245);
-    --text-color: rgb(0, 0, 0);
-    --app-header: rgb(255, 255, 255);
-    --app-surface: rgb(255, 255, 255);
-    --app-border: rgb(229, 231, 235);
-    --app-text-secondary: rgb(107, 114, 128);
+    color-scheme: light;
+    font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --el-color-primary-rgb: 0, 107, 230;
+    --el-color-primary: #006be6;
+    --el-color-primary-light-3: #4d97ee;
+    --el-color-primary-light-5: #80b5f3;
+    --el-color-primary-light-7: #b3d3f8;
+    --el-color-primary-light-8: #cce1fa;
+    --el-color-primary-light-9: #e6f0fd;
+    --el-color-primary-dark-2: #0056b8;
+    --bg-color: var(--el-bg-color-page);
+    --text-color: var(--el-text-color-primary);
+    --app-header: var(--el-bg-color);
+    --app-surface: var(--el-bg-color);
+    --app-border: var(--el-border-color-light);
+    --app-text-secondary: var(--el-text-color-secondary);
 }
 
-/* 暗黑模式 */
 html[data-theme='dark'] {
-    --bg-color: rgb(0, 0, 0);
-    --text-color: rgb(245, 245, 245);
-    --app-header: rgb(20, 20, 20);
-    --app-surface: rgb(20, 20, 20);
-    --app-border: rgb(58, 58, 58);
-    --app-text-secondary: rgb(163, 163, 163);
+    color-scheme: dark;
+}
+
+html.dark {
+    --el-color-primary-rgb: 0, 107, 230;
+    --el-color-primary: #006be6;
+    --el-color-primary-light-3: #0651a7;
+    --el-color-primary-light-5: #0a407d;
+    --el-color-primary-light-7: #0e2e53;
+    --el-color-primary-light-8: #10253e;
+    --el-color-primary-light-9: #121d29;
+    --el-color-primary-dark-2: #3389eb;
+}
+
+.el-dialog {
+    --el-dialog-border-radius: 8px;
+}
+
+html,
+body,
+#app {
+    min-height: 100%;
+    margin: 0;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
 body {

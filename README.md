@@ -1,6 +1,6 @@
 # Electron Vite Vue3 案例
 
-这是一个基于 `Electron`、`Vue 3`、`Vite` 和 `Quasar` 的桌面应用项目，用于验证和调试本地设备通信、协议解析、数据库读写和常见桌面端能力。
+这是一个基于 `Electron`、`Vue 3`、`Vite` 和 `Element Plus` 的桌面应用项目，用于验证和调试本地设备通信、协议解析、数据库读写和常见桌面端能力。
 
 项目当前保留了示例性质的页面和接口，适合继续扩展为设备调试工具、产线工具或本地运维工具。
 
@@ -20,7 +20,7 @@
 
 - 桌面端：`Electron`
 - 前端：`Vue 3`、`Vite`、`TypeScript`
-- 界面组件：`Quasar`
+- 界面组件：`Element Plus`
 - 状态管理：`Pinia`、`pinia-plugin-persistedstate`
 - 本地数据库：`better-sqlite3`
 - 串口通信：`serialport`

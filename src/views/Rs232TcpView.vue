@@ -231,98 +231,65 @@ onUnmounted(() => {
 <template>
   <div class="container">
     <div class="page-stack">
-      <q-card flat bordered class="panel-card">
-        <q-card-section class="panel-title-row">
+      <el-card shadow="never" class="panel-card">
+        <div class="panel-title-row">
           <div class="panel-title">连接方式</div>
-          <q-chip square dense :color="isConnected ? 'positive' : 'negative'" text-color="white">
+          <el-tag :type="isConnected ? 'success' : 'danger'" effect="dark">
             {{ isConnected ? '已连接' : '未连接' }}
-          </q-chip>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
-          <q-btn-toggle
-            v-model="mode"
-            no-caps
-            rounded
-            unelevated
-            toggle-color="primary"
-            :options="modeOptions"
-          />
+          </el-tag>
+        </div>
+        <el-divider />
+        <div class="panel-stack">
+          <el-segmented v-model="mode" :options="modeOptions" />
 
           <div v-if="mode === 'rs232'" class="field-row">
-            <q-select
-              v-model="portPath"
-              outlined
-              emit-value
-              map-options
-              class="field-grow"
-              :options="comList"
-              label="串口"
-              placeholder="选择串口"
-            />
-            <q-input
-              v-model.number="baudRate"
-              outlined
-              type="number"
-              label="波特率"
-              min="300"
-              step="300"
-            />
-            <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
-            <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
-            <q-btn outline color="primary" no-caps @click="refreshPorts">刷新串口</q-btn>
+            <el-select v-model="portPath" class="field-grow" placeholder="选择串口">
+              <el-option v-for="option in comList" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+            <el-input-number v-model="baudRate" :min="300" :step="300" controls-position="right" />
+            <el-button type="primary" @click="connect">连接</el-button>
+            <el-button type="danger" @click="disconnect">断开</el-button>
+            <el-button type="primary" plain @click="refreshPorts">刷新串口</el-button>
           </div>
 
           <div v-else class="field-row">
-            <q-input
+            <el-input
               v-model="host"
-              outlined
               class="field-grow"
-              label="TCP 地址"
               placeholder="TCP 地址"
             />
-            <q-input
-              v-model.number="tcpPort"
-              outlined
-              type="number"
-              label="端口"
-              min="1"
-              max="65535"
-            />
-            <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
-            <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
+            <el-input-number v-model="tcpPort" :min="1" :max="65535" controls-position="right" />
+            <el-button type="primary" @click="connect">连接</el-button>
+            <el-button type="danger" @click="disconnect">断开</el-button>
           </div>
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section>
+      <el-card shadow="never" class="panel-card">
+        <div>
           <div class="panel-title">发送与接收</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
-          <q-input
+        </div>
+        <el-divider />
+        <div class="panel-stack">
+          <el-input
             v-model="sendHex"
-            outlined
-            label="发送"
             placeholder="发送 HEX"
           />
 
           <div class="action-buttons">
-            <q-btn color="primary" no-caps unelevated @click="sendData">发送</q-btn>
-            <q-btn color="negative" no-caps unelevated @click="clearLog">清空日志</q-btn>
+            <el-button type="primary" @click="sendData">发送</el-button>
+            <el-button type="danger" @click="clearLog">清空日志</el-button>
           </div>
 
-          <q-input
+          <el-input
             v-model="log"
-            outlined
-            autogrow
             readonly
             type="textarea"
+            :autosize="{minRows: 12, maxRows: 24}"
             placeholder="收发日志"
           />
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
     </div>
   </div>
 </template>
@@ -341,7 +308,11 @@ onUnmounted(() => {
 .panel-card {
   background: var(--app-surface);
   border-color: var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-base);
+}
+
+.panel-card :deep(.el-divider--horizontal) {
+  margin: 12px 0 16px;
 }
 
 .panel-title-row,

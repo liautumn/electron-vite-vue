@@ -67,11 +67,11 @@ const statusLabel = computed(() => {
 })
 
 const statusColor = computed(() => {
-    if (connectionState.value === 'connected') return 'positive'
+    if (connectionState.value === 'connected') return 'success'
     if (connectionState.value === 'connecting') return 'primary'
     if (connectionState.value === 'reconnecting') return 'warning'
-    if (connectionState.value === 'offline') return 'amber'
-    return 'negative'
+    if (connectionState.value === 'offline') return 'warning'
+    return 'danger'
 })
 
 const tryParseJson = (value: string) => {
@@ -235,117 +235,109 @@ onUnmounted(() => {
 <template>
   <div class="container">
     <div class="panel-grid">
-      <q-card flat bordered class="panel-card">
-        <q-card-section>
+      <el-card shadow="never" class="panel-card">
+        <div class="panel-card__header">
           <div class="panel-title">Broker 配置</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
-          <q-input v-model="brokerUrl" outlined label="Broker URL" placeholder="mqtt://127.0.0.1:1883"/>
+        </div>
+        <el-divider />
+        <el-form label-position="top" class="panel-stack">
+          <el-form-item label="Broker URL"><el-input v-model="brokerUrl" placeholder="mqtt://127.0.0.1:1883" /></el-form-item>
 
           <div class="field-grid field-grid--wide">
-            <q-input v-model="clientId" outlined label="Client ID" placeholder="客户端 ID"/>
-            <q-input v-model.number="reconnectPeriod" outlined type="number" label="重连间隔(ms)" min="0" step="500"/>
+            <el-form-item label="Client ID"><el-input v-model="clientId" placeholder="客户端 ID" /></el-form-item>
+            <el-form-item label="重连间隔 (ms)"><el-input-number v-model="reconnectPeriod" :min="0" :step="500" controls-position="right" /></el-form-item>
           </div>
 
           <div class="field-grid">
-            <q-input v-model="username" outlined label="用户名" placeholder="可选"/>
-            <q-input v-model="password" outlined type="password" label="密码" placeholder="可选"/>
+            <el-form-item label="用户名"><el-input v-model="username" placeholder="可选" /></el-form-item>
+            <el-form-item label="密码"><el-input v-model="password" type="password" show-password placeholder="可选" /></el-form-item>
           </div>
 
           <div class="actions-row">
             <div class="status-row">
-              <q-checkbox v-model="cleanSession" label="Clean Session"/>
-              <q-chip square dense :color="statusColor" text-color="white">{{ statusLabel }}</q-chip>
+              <el-checkbox v-model="cleanSession">Clean Session</el-checkbox>
+              <el-tag :type="statusColor" effect="dark">{{ statusLabel }}</el-tag>
             </div>
             <div class="action-buttons">
-              <q-btn color="primary" no-caps unelevated @click="connect">连接</q-btn>
-              <q-btn color="negative" no-caps unelevated @click="disconnect">断开</q-btn>
+              <el-button type="primary" @click="connect">连接</el-button>
+              <el-button type="danger" @click="disconnect">断开</el-button>
             </div>
           </div>
-        </q-card-section>
-      </q-card>
+        </el-form>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section class="panel-title-row">
+      <el-card shadow="never" class="panel-card">
+        <div class="panel-card__header panel-title-row">
           <div class="panel-title">运行日志</div>
-          <q-btn flat color="primary" no-caps @click="clearLog">清空日志</q-btn>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-fill">
+          <el-button type="primary" link @click="clearLog">清空日志</el-button>
+        </div>
+        <el-divider />
+        <div class="panel-fill">
           <div class="output-box output-box--fill">
             <pre class="output-content">{{ log || '连接、订阅、发布、接收日志' }}</pre>
           </div>
-        </q-card-section>
-      </q-card>
+        </div>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section>
+      <el-card shadow="never" class="panel-card">
+        <div class="panel-card__header">
           <div class="panel-title">订阅</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack panel-stack--fill">
-          <q-input v-model="subscribeTopic" outlined label="Topic" placeholder="订阅 Topic"/>
-          <q-select
-            v-model="subscribeQos"
-            outlined
-            emit-value
-            map-options
-            :options="qosOptions"
-            label="QoS"
-          />
+        </div>
+        <el-divider />
+        <el-form label-position="top" class="panel-stack panel-stack--fill">
+          <el-form-item label="Topic"><el-input v-model="subscribeTopic" placeholder="订阅 Topic" /></el-form-item>
+          <el-form-item label="QoS">
+            <el-select v-model="subscribeQos">
+              <el-option v-for="option in qosOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+          </el-form-item>
 
           <div class="action-buttons">
-            <q-btn color="primary" no-caps unelevated :disable="!isConnected" @click="subscribe">订阅</q-btn>
-            <q-btn outline color="primary" no-caps :disable="!isConnected" @click="unsubscribe">取消订阅</q-btn>
+            <el-button type="primary" :disabled="!isConnected" @click="subscribe">订阅</el-button>
+            <el-button type="primary" plain :disabled="!isConnected" @click="unsubscribe">取消订阅</el-button>
           </div>
 
           <div class="panel-fill">
             <div class="output-header">
               <span class="output-title">订阅消息</span>
               <div class="action-buttons">
-                <q-chip square dense color="primary" text-color="white">JSON</q-chip>
-                <q-btn flat color="primary" no-caps @click="clearMessages">清空消息</q-btn>
+                <el-tag effect="dark">JSON</el-tag>
+                <el-button type="primary" link @click="clearMessages">清空消息</el-button>
               </div>
             </div>
             <div class="output-box output-box--fill output-box--records">
               <pre class="output-content">{{ messageRecordsText || '收到的 MQTT 消息会格式化为 JSON 输出到这里' }}</pre>
             </div>
           </div>
-        </q-card-section>
-      </q-card>
+        </el-form>
+      </el-card>
 
-      <q-card flat bordered class="panel-card">
-        <q-card-section>
+      <el-card shadow="never" class="panel-card">
+        <div class="panel-card__header">
           <div class="panel-title">发布</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack panel-stack--fill">
-          <q-input v-model="publishTopic" outlined label="Topic" placeholder="发布 Topic"/>
-          <q-input
+        </div>
+        <el-divider />
+        <el-form label-position="top" class="panel-stack panel-stack--fill">
+          <el-form-item label="Topic"><el-input v-model="publishTopic" placeholder="发布 Topic" /></el-form-item>
+          <el-form-item label="Payload"><el-input
             v-model="publishPayload"
-            outlined
-            autogrow
             type="textarea"
+            :autosize="{minRows: 3, maxRows: 8}"
             class="payload-input"
-            label="Payload"
             placeholder="消息内容"
-          />
-          <q-select
-            v-model="publishQos"
-            outlined
-            emit-value
-            map-options
-            :options="qosOptions"
-            label="QoS"
-          />
+          /></el-form-item>
+          <el-form-item label="QoS">
+            <el-select v-model="publishQos">
+              <el-option v-for="option in qosOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+          </el-form-item>
 
           <div class="action-buttons">
-            <q-checkbox v-model="retain" label="Retain"/>
-            <q-btn color="primary" no-caps unelevated :disable="!isConnected" @click="publish">发布</q-btn>
+            <el-checkbox v-model="retain">Retain</el-checkbox>
+            <el-button type="primary" :disabled="!isConnected" @click="publish">发布</el-button>
           </div>
-        </q-card-section>
-      </q-card>
+        </el-form>
+      </el-card>
     </div>
   </div>
 </template>
@@ -364,10 +356,34 @@ onUnmounted(() => {
 .panel-card {
   background: var(--app-surface);
   border-color: var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-base);
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.panel-card :deep(.el-card__body) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-card__header {
+  min-height: 32px;
+}
+
+.panel-card :deep(.el-divider--horizontal) {
+  margin: 8px 0 16px;
+}
+
+.panel-stack :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.panel-stack :deep(.el-input-number),
+.panel-stack :deep(.el-select) {
+  width: 100%;
 }
 
 .panel-title,

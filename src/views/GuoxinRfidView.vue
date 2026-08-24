@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {storeToRefs} from 'pinia'
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
-import {Notify} from 'quasar'
+import {ElMessage} from 'element-plus'
 import {guoxinDevice, type GuoxinConnectionMode} from '../components/rfid/guoxin/GuoXinDevice'
 import type {IRFIDTagReadMessage} from '../components/rfid/guoxin/GuoXinCommon'
 import {normalizeHex} from '../components/rfid/guoxin/GuoXinCommon'
@@ -57,12 +57,7 @@ let disposeRawListener = () => {
 }
 
 const notify = (type: 'positive' | 'negative', content: unknown) => {
-  Notify.create({
-    type,
-    message: String(content ?? ''),
-    position: 'top',
-    timeout: 2200
-  })
+  ElMessage[type === 'positive' ? 'success' : 'error'](String(content ?? ''))
 }
 
 const antennaCountModel = computed({
@@ -563,142 +558,99 @@ onUnmounted(() => {
   <div class="container">
     <div class="page-stack">
       <div class="layout-row layout-row-top">
-        <q-card flat bordered class="panel-card">
-          <q-card-section>
+        <el-card shadow="never" class="panel-card">
+          <div>
             <div class="panel-title">会话与状态</div>
-          </q-card-section>
-          <q-separator />
-          <q-card-section class="panel-stack">
-            <q-btn-toggle
+          </div>
+          <el-divider />
+          <div class="panel-stack">
+            <el-segmented
                 :model-value="rfidConfig.mode"
-                no-caps
-                rounded
-                unelevated
-                toggle-color="primary"
                 :options="CONNECTION_MODE_OPTIONS"
                 @update:model-value="handleConnectionModeChange"
             />
 
-            <q-select
+            <el-select
                 :model-value="selectedConnectionProfile?.sessionId ?? null"
-                outlined
-                emit-value
-                map-options
-                :options="connectionSessionOptions"
-                label="连接会话 ID"
                 placeholder="选择当前连接方式下的 sessionId"
                 @update:model-value="handleConnectionSessionChange"
-            />
+            >
+              <el-option v-for="option in connectionSessionOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
 
             <div class="action-buttons">
-              <q-chip square dense :color="connected ? 'positive' : 'negative'" text-color="white">
+              <el-tag :type="connected ? 'success' : 'danger'" effect="dark">
                 {{ connected ? '已连接' : '未连接' }}
-              </q-chip>
-              <q-chip square dense color="primary" text-color="white">
+              </el-tag>
+              <el-tag effect="dark">
                 {{ formatConnectionModeLabel(currentMode) }}
-              </q-chip>
+              </el-tag>
             </div>
             <div class="muted-text">{{ connectionSessionHint }}</div>
             <div class="muted-text">当前页面按所选连接方式调用对应会话：TCP 走 TCP session，Serial 走串口 session。</div>
 
-            <q-banner
+            <el-alert
                 v-if="lastError"
-                rounded
-                dense
+                :title="lastError"
+                type="error"
+                :closable="false"
+                show-icon
                 class="error-banner"
-            >
-              {{ lastError }}
-            </q-banner>
-          </q-card-section>
-        </q-card>
-
-        <q-card flat bordered class="panel-card">
-          <q-card-section>
-            <div class="panel-title">功率与参数</div>
-          </q-card-section>
-          <q-separator />
-          <q-card-section class="panel-stack">
-            <q-input
-                v-model.number="antennaCountModel"
-                outlined
-                type="number"
-                min="1"
-                max="32"
-                label="天线数"
             />
+          </div>
+        </el-card>
 
-            <q-separator />
+        <el-card shadow="never" class="panel-card">
+          <div>
+            <div class="panel-title">功率与参数</div>
+          </div>
+          <el-divider />
+          <div class="panel-stack">
+            <el-input-number v-model="antennaCountModel" :min="1" :max="32" controls-position="right" />
+
+            <el-divider />
 
             <div class="muted-text">
               {{ formatPowerLevels(rfidConfig.powerLevels) }}
             </div>
             <div class="action-buttons">
-              <q-btn outline color="primary" no-caps @click="openPowerConfigModal">设置功率</q-btn>
-              <q-btn outline color="primary" no-caps @click="loadAllPower">读取功率</q-btn>
+              <el-button type="primary" plain @click="openPowerConfigModal">设置功率</el-button>
+              <el-button type="primary" plain @click="loadAllPower">读取功率</el-button>
             </div>
 
-            <q-separator />
+            <el-divider />
 
-            <q-input
-                v-model.number="rfidConfig.epcBasebandRate"
-                outlined
-                type="number"
-                min="0"
-                max="255"
-                label="基带速率"
-            />
-            <q-input
-                v-model.number="rfidConfig.defaultQ"
-                outlined
-                type="number"
-                min="0"
-                max="255"
-                label="默认Q"
-            />
-            <q-input
-                v-model.number="rfidConfig.session"
-                outlined
-                type="number"
-                min="0"
-                max="255"
-                label="EPC Session"
-            />
-            <q-input
-                v-model.number="rfidConfig.inventoryFlag"
-                outlined
-                type="number"
-                min="0"
-                max="255"
-                label="盘存标志"
-            />
-            <q-btn outline color="primary" no-caps @click="applyBasebandConfig">配置 EPC 基带参数</q-btn>
-          </q-card-section>
-        </q-card>
+            <div class="parameter-grid">
+              <el-input-number v-model="rfidConfig.epcBasebandRate" :min="0" :max="255" controls-position="right" />
+              <el-input-number v-model="rfidConfig.defaultQ" :min="0" :max="255" controls-position="right" />
+              <el-input-number v-model="rfidConfig.session" :min="0" :max="255" controls-position="right" />
+              <el-input-number v-model="rfidConfig.inventoryFlag" :min="0" :max="255" controls-position="right" />
+            </div>
+            <el-button type="primary" plain @click="applyBasebandConfig">配置 EPC 基带参数</el-button>
+          </div>
+        </el-card>
       </div>
 
       <div class="layout-row layout-row-bottom">
-        <q-card flat bordered class="panel-card">
-          <q-card-section class="panel-title-row">
+        <el-card shadow="never" class="panel-card">
+          <div class="panel-title-row">
             <div class="panel-title">盘存测试</div>
-            <q-chip square dense color="primary" text-color="white">{{ inventoryStatus }}</q-chip>
-          </q-card-section>
-          <q-separator />
-          <q-card-section class="panel-stack">
-            <q-select
+            <el-tag effect="dark">{{ inventoryStatus }}</el-tag>
+          </div>
+          <el-divider />
+          <div class="panel-stack">
+            <el-select
                 v-model="inventoryAntennasModel"
-                outlined
-                emit-value
-                map-options
                 multiple
-                use-chips
-                :options="inventoryAntennaOptions"
-                label="盘存天线"
+                collapse-tags
                 placeholder="选择盘存天线"
-            />
+            >
+              <el-option v-for="option in inventoryAntennaOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
             <div class="action-buttons">
-              <q-btn color="primary" no-caps unelevated @click="startSingleRead">单次读取</q-btn>
-              <q-btn outline color="primary" no-caps @click="startContinuousRead">连续读取</q-btn>
-              <q-btn color="negative" no-caps unelevated @click="stopInventory">停止读取</q-btn>
+              <el-button type="primary" @click="startSingleRead">单次读取</el-button>
+              <el-button type="primary" plain @click="startContinuousRead">连续读取</el-button>
+              <el-button type="danger" @click="stopInventory">停止读取</el-button>
             </div>
             <div v-if="latestTag" class="info-panel">
               <div class="info-panel__title">最近标签</div>
@@ -710,130 +662,91 @@ onUnmounted(() => {
                 <div class="info-row"><span>TID</span><code>{{ latestTag.tidData?.data ?? '-' }}</code></div>
               </div>
             </div>
-          </q-card-section>
-        </q-card>
+          </div>
+        </el-card>
 
-        <q-card flat bordered class="panel-card">
-          <q-card-section>
+        <el-card shadow="never" class="panel-card">
+          <div>
             <div class="panel-title">写标签测试</div>
-          </q-card-section>
-          <q-separator />
-          <q-card-section class="panel-stack">
-            <q-banner rounded dense class="info-banner">
-              首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。
-            </q-banner>
-            <q-select
+          </div>
+          <el-divider />
+          <div class="panel-stack">
+            <el-alert title="首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。" type="info" :closable="false" show-icon />
+            <el-select
                 v-model="writeAntennaModel"
-                outlined
-                emit-value
-                map-options
-                :options="inventoryAntennaOptions"
-                label="写入天线"
                 placeholder="选择写入天线"
-            />
-            <q-input
+            >
+              <el-option v-for="option in inventoryAntennaOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
+            <el-input
                 v-model="rfidConfig.writeTid"
-                outlined
-                label="标签 TID"
                 placeholder="标签 TID，HEX"
             />
             <div class="write-epc-row">
-              <q-input
+              <el-input
                   v-model="rfidConfig.writeEpc"
-                  outlined
                   class="field-grow"
-                  label="待写 EPC"
                   placeholder="待写 EPC，HEX，例如 192012345678901234567895"
               />
-              <q-btn outline color="primary" no-caps @click="randomizeWriteEpc">随机生成</q-btn>
+              <el-button type="primary" plain @click="randomizeWriteEpc">随机生成</el-button>
             </div>
-            <q-input
-                v-model="rfidConfig.accessPassword"
-                outlined
-                label="访问密码"
-                placeholder="访问密码，8位HEX"
-            />
-            <q-input
-                v-model="rfidConfig.oldAccessPassword"
-                outlined
-                label="旧访问密码"
-                placeholder="旧访问密码，8位HEX，仅首次写入使用"
-            />
-            <q-input
-                v-model="rfidConfig.killPassword"
-                outlined
-                label="灭活密码"
-                placeholder="灭活密码，8位HEX"
-            />
+            <el-input v-model="rfidConfig.accessPassword" placeholder="访问密码，8位HEX" />
+            <el-input v-model="rfidConfig.oldAccessPassword" placeholder="旧访问密码，8位HEX，仅首次写入使用" />
+            <el-input v-model="rfidConfig.killPassword" placeholder="灭活密码，8位HEX" />
             <div class="action-buttons">
-              <q-btn outline color="primary" no-caps @click="useLatestTagForWrite">带入最近标签</q-btn>
-              <q-btn color="primary" no-caps unelevated @click="firstWriteTag">首次写入</q-btn>
-              <q-btn outline color="primary" no-caps @click="rewriteTag">再次写入</q-btn>
+              <el-button type="primary" plain @click="useLatestTagForWrite">带入最近标签</el-button>
+              <el-button type="primary" @click="firstWriteTag">首次写入</el-button>
+              <el-button type="primary" plain @click="rewriteTag">再次写入</el-button>
             </div>
-          </q-card-section>
-        </q-card>
+          </div>
+        </el-card>
 
-        <q-card flat bordered class="panel-card">
-          <q-card-section>
+        <el-card shadow="never" class="panel-card">
+          <div>
             <div class="panel-title">原始 HEX 调试</div>
-          </q-card-section>
-          <q-separator />
-          <q-card-section class="panel-stack">
-            <q-input
+          </div>
+          <el-divider />
+          <div class="panel-stack">
+            <el-input
                 v-model="rfidConfig.rawHex"
-                outlined
-                label="原始 HEX"
                 placeholder="输入原始 HEX 帧"
             />
             <div class="action-buttons">
-              <q-btn outline color="primary" no-caps @click="sendRawHex">发送 HEX</q-btn>
-              <q-btn color="negative" no-caps unelevated @click="clearLog">清空日志</q-btn>
+              <el-button type="primary" plain @click="sendRawHex">发送 HEX</el-button>
+              <el-button type="danger" @click="clearLog">清空日志</el-button>
             </div>
-            <q-input
+            <el-input
                 v-model="log"
-                outlined
-                autogrow
                 readonly
                 type="textarea"
-                rows="12"
+                :rows="12"
                 class="log-textarea"
                 placeholder="收发日志"
             />
-          </q-card-section>
-        </q-card>
+          </div>
+        </el-card>
       </div>
     </div>
 
-    <q-dialog v-model="powerModalVisible">
-      <q-card flat bordered class="dialog-card">
-        <q-card-section>
-          <div class="panel-title">设置天线功率</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section class="panel-stack">
-          <div class="muted-text">
-          当前设备天线数：{{ rfidConfig.antennaCount }}
-          </div>
+    <el-dialog v-model="powerModalVisible" title="设置天线功率" width="min(720px, 90vw)">
+      <div class="panel-stack">
+        <el-text type="info">当前设备天线数：{{ rfidConfig.antennaCount }}</el-text>
         <div class="power-grid">
-          <q-input
+          <el-input-number
               v-for="(_, index) in powerEditor"
               :key="`power-editor-${index}`"
-              v-model.number="powerEditor[index]"
-              outlined
-              type="number"
-              min="0"
-              max="33"
-              :label="`天线${index + 1}`"
+              v-model="powerEditor[index]"
+              :min="0"
+              :max="33"
+              controls-position="right"
           />
         </div>
-        </q-card-section>
-        <q-separator />
-        <q-card-actions align="right">
-          <q-btn flat no-caps @click="powerModalVisible = false">取消</q-btn>
-          <q-btn color="primary" no-caps unelevated :loading="powerSubmitting" @click="applyPowerConfig">确定</q-btn>
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+      </div>
+      <template #footer>
+        <el-button @click="powerModalVisible = false">取消</el-button>
+        <el-button type="primary" :loading="powerSubmitting" @click="applyPowerConfig">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -869,7 +782,24 @@ onUnmounted(() => {
 .panel-card {
   background: var(--app-surface);
   border-color: var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-base);
+}
+
+.panel-card :deep(.el-divider--horizontal) {
+  margin: 12px 0 16px;
+}
+
+.panel-stack :deep(.el-select),
+.panel-stack :deep(.el-input-number),
+.parameter-grid :deep(.el-input-number),
+.power-grid :deep(.el-input-number) {
+  width: 100%;
+}
+
+.parameter-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .panel-title,
@@ -918,7 +848,7 @@ onUnmounted(() => {
 
 .info-panel {
   border: 1px solid var(--app-border);
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-base);
   padding: 12px;
 }
 
@@ -967,13 +897,6 @@ onUnmounted(() => {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.dialog-card {
-  background: var(--app-surface);
-  border-color: var(--app-border);
-  border-radius: 16px;
-  min-width: min(640px, 92vw);
 }
 
 @media (max-width: 1200px) {

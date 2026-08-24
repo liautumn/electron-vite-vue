@@ -15,7 +15,7 @@ const goHome = () => {
     <div class="code">404</div>
     <p class="message">页面不存在或者已被移动</p>
     <div class="actions">
-      <q-btn color="primary" no-caps unelevated @click="goHome">返回首页</q-btn>
+      <el-button type="primary" @click="goHome">返回首页</el-button>
       <router-link class="link" to="/">回到首页</router-link>
     </div>
   </div>
@@ -35,7 +35,7 @@ const goHome = () => {
 .code {
   font-size: 64px;
   font-weight: 700;
-  letter-spacing: 4px;
+  letter-spacing: 0;
 }
 
 .message {
@@ -50,6 +50,6 @@ const goHome = () => {
 }
 
 .link {
-  color: var(--q-primary);
+  color: var(--el-color-primary);
 }
 </style>

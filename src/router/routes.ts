@@ -19,11 +19,7 @@ export const routes: RouteRecordRaw[] = [
         meta: {
             title: '首页',
             keepAlive: true,
-            icon: 'home',
-            visible: true,
-            enabled: true,
             permission: 'app:home:view',
-            type: 'menu',
         },
     },
     {
@@ -33,10 +29,7 @@ export const routes: RouteRecordRaw[] = [
         meta: {
             title: '示例合集',
             requiresAuth: false,
-            visible: true,
-            enabled: true,
             permission: 'app:demos:view',
-            type: 'directory',
         },
         children: [
             {
@@ -51,10 +44,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/rs232-tcp-demo',
                 meta: {
                     title: 'RS232/TCP 通讯',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:rs232-tcp',
-                    type: 'menu',
                 },
             },
             {
@@ -64,10 +54,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/mqtt-demo',
                 meta: {
                     title: 'MQTT Demo',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:mqtt',
-                    type: 'menu',
                 },
             },
             {
@@ -77,10 +64,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/sqlite-demo',
                 meta: {
                     title: 'SQLite CRUD Demo',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:sqlite',
-                    type: 'menu',
                 },
             },
             {
@@ -90,10 +74,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/sensevoice-demo',
                 meta: {
                     title: 'SenseVoice 语音识别',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:sensevoice',
-                    type: 'menu',
                 },
             },
             {
@@ -103,10 +84,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/guoxin-rfid-demo',
                 meta: {
                     title: '国芯 RFID 测试',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:guoxin-rfid',
-                    type: 'menu',
                 },
             },
             {
@@ -116,10 +94,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/lock-demo',
                 meta: {
                     title: 'Lock 锁控板 测试',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:lock',
-                    type: 'menu',
                 },
             },
             {
@@ -129,10 +104,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/led-demo',
                 meta: {
                     title: 'LED 指示灯控制',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:led',
-                    type: 'menu',
                 },
             },
             {
@@ -142,10 +114,7 @@ export const routes: RouteRecordRaw[] = [
                 alias: '/yolo26-demo',
                 meta: {
                     title: 'YOLO26 ONNX 测试',
-                    visible: true,
-                    enabled: true,
                     permission: 'app:demos:yolo26',
-                    type: 'menu',
                 },
             },
         ],
@@ -157,8 +126,6 @@ export const routes: RouteRecordRaw[] = [
         meta: {
             title: '页面不存在',
             layout: 'blank',
-            visible: false,
-            enabled: false,
         },
     },
 ]

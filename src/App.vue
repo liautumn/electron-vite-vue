@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import {watch} from 'vue'
 import { storeToRefs } from 'pinia'
+import {useRoute, useRouter} from 'vue-router'
 import {Monitor, Moon, Sunny} from '@element-plus/icons-vue'
 import { useThemeStore, type ThemePreference } from './stores/theme'
-import { useMenu } from './router/useMenu'
+import {menuItems} from './menu/menu'
 import DeviceConnectionsControl from './components/DeviceConnectionsControl.vue'
 
 const themeStore = useThemeStore()
@@ -23,12 +24,11 @@ watch(
   { immediate: true }
 )
 
-const { items, selectedKey, activeRootKey, navigate } = useMenu()
-const handleMenuSelect = (key: string) => {
-  const root = items.value.find((item) => item.key === key)
-  const child = items.value.flatMap((item) => item.children ?? []).find((item) => item.key === key)
-  const target = root ?? child
-  if (target) navigate(target)
+const route = useRoute()
+const router = useRouter()
+
+const handleMenuSelect = (routeName: string) => {
+  void router.push({name: routeName})
 }
 </script>
 
@@ -44,21 +44,20 @@ const handleMenuSelect = (key: string) => {
       </div>
       <el-scrollbar class="sidebar-scrollbar">
         <el-menu
-          :default-active="selectedKey"
+          :default-active="String(route.name ?? '')"
           class="app-menu"
           @select="handleMenuSelect"
         >
-          <template v-for="item in items" :key="item.key">
-            <el-menu-item v-if="!item.children?.length" :index="item.key" :disabled="item.disabled">
+          <template v-for="item in menuItems" :key="item.routeName">
+            <el-menu-item v-if="!item.children?.length" :index="item.routeName">
               {{ item.label }}
             </el-menu-item>
-            <el-sub-menu v-else :index="item.key" :disabled="item.disabled">
+            <el-sub-menu v-else :index="item.routeName">
               <template #title>{{ item.label }}</template>
               <el-menu-item
                 v-for="child in item.children"
-                :key="child.key"
-                :index="child.key"
-                :disabled="child.disabled"
+                :key="child.routeName"
+                :index="child.routeName"
               >
                 {{ child.label }}
               </el-menu-item>
@@ -73,7 +72,7 @@ const handleMenuSelect = (key: string) => {
         <div class="app-toolbar">
           <div class="page-context">
             <span class="page-context__label">当前模块</span>
-            <strong>{{ items.find((item) => item.key === activeRootKey)?.label ?? '工作台' }}</strong>
+            <strong>{{ route.matched[0]?.meta.title ?? '工作台' }}</strong>
           </div>
         <div class="toolbar-actions">
           <DeviceConnectionsControl />

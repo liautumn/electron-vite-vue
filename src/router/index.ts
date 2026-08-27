@@ -3,7 +3,7 @@ import {
     createWebHashHistory,    // 使用 hash 模式（兼容 file://）
 } from 'vue-router'
 import {unref} from 'vue' // 从 ref 中取值，避免 .value
-import {routes} from './routes' // 静态路由表，菜单/权限共用
+import {routes} from './routes' // 静态路由表
 import {useUserStore} from '../stores/user' // 权限与登录态来源
 
 const router = createRouter({

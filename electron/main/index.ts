@@ -139,10 +139,6 @@ async function createWindow() {
         window.maximize()
         window.show()
     })
-    // 针对 macOS 设置 Dock 图标
-    // if (process.platform === 'darwin') {
-    //     app.dock.setIcon(path.join(process.env.VITE_PUBLIC, 'icon/icon.png'));
-    // }
 
     // 注册 mod
     registerMediaAccess(window)
@@ -168,18 +164,6 @@ async function createWindow() {
         // 生产模式：加载本地 HTML
         await window.loadFile(indexHtml)
     }
-
-    // =======================
-    // 主进程 → 渲染进程通信示例
-    // =======================
-
-    // 页面加载完成后，主动给 Renderer 发消息
-    // win.webContents.on('did-finish-load', () => {
-    //     win?.webContents.send(
-    //         'main-process-message',
-    //         new Date().toLocaleString()
-    //     )
-    // })
 
     // =======================
     // 外部链接用系统浏览器打开
@@ -291,25 +275,25 @@ app.on('activate', () => {
 // =======================
 
 // Renderer 调用 ipcRenderer.invoke('open-win', arg)
-ipcMain.handle('open-win', (_, arg) => {
-    log.info('Opening child window', {hash: arg})
-
-    const childWindow = new BrowserWindow({
-        autoHideMenuBar: true,
-        webPreferences: {
-            // 预加载脚本（安全桥）
-            preload,
-            nodeIntegration: false,    // 允许 Renderer 直接用 Node
-            contextIsolation: true,    // 开启上下文隔离（推荐）
-        },
-    })
-    childWindow.removeMenu()
-
-    // 开发模式
-    if (VITE_DEV_SERVER_URL) {
-        childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`)
-    } else {
-        // 生产模式，通过 hash 区分路由
-        childWindow.loadFile(indexHtml, {hash: arg})
-    }
-})
+// ipcMain.handle('open-win', (_, arg) => {
+//     log.info('Opening child window', {hash: arg})
+//
+//     const childWindow = new BrowserWindow({
+//         autoHideMenuBar: true,
+//         webPreferences: {
+//             // 预加载脚本（安全桥）
+//             preload,
+//             nodeIntegration: false,    // 允许 Renderer 直接用 Node
+//             contextIsolation: true,    // 开启上下文隔离（推荐）
+//         },
+//     })
+//     childWindow.removeMenu()
+//
+//     // 开发模式
+//     if (VITE_DEV_SERVER_URL) {
+//         childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`)
+//     } else {
+//         // 生产模式，通过 hash 区分路由
+//         childWindow.loadFile(indexHtml, {hash: arg})
+//     }
+// })

@@ -60,7 +60,7 @@
     "target": [
       "AppImage",
       "deb",
-//      "rpm"
+      "rpm"
     ],
     "artifactName": "${productName}-Linux-${version}.${ext}"
   }

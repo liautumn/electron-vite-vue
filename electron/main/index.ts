@@ -116,6 +116,9 @@ async function createWindow() {
     const window = new BrowserWindow({
         // 窗口标题
         title: 'Main window',
+        // 默认窗口尺寸
+        width: 1344,
+        height: 756,
         // 防止启动闪一下
         show: true,
         // 默认全屏
@@ -133,12 +136,6 @@ async function createWindow() {
         },
     })
     win = window
-    window.removeMenu()
-    // 默认最大化窗口
-    window.once('ready-to-show', () => {
-        window.maximize()
-        window.show()
-    })
 
     // 注册 mod
     registerMediaAccess(window)
@@ -242,7 +239,8 @@ app.on('window-all-closed', () => {
     log.info('All windows closed')
     win = null
     // macOS：关闭窗口不退出应用
-    if (process.platform !== 'darwin') app.quit()
+    // if (process.platform !== 'darwin') app.quit()
+    app.quit()
 })
 
 // =======================

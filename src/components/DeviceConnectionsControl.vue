@@ -2,7 +2,11 @@
 import {computed, onMounted, onUnmounted, reactive, ref, watch} from 'vue'
 import {storeToRefs} from 'pinia'
 import {ElMessage} from 'element-plus'
-import {Close, Connection, Delete, Edit, Refresh, Setting} from '@element-plus/icons-vue'
+import {
+  Connection,
+  Refresh,
+  Setting
+} from '@element-plus/icons-vue'
 import {
   DEFAULT_SERIAL_BAUD_RATE,
   DEFAULT_TCP_HOST,
@@ -23,7 +27,6 @@ type ConnectionTableRow = {
   mode: TransportConnectionMode
   endpoint: string
   connected: boolean
-  lastError: string | null
   profile: DeviceConnectionProfile
 }
 
@@ -94,7 +97,6 @@ const rows = computed<ConnectionTableRow[]>(() =>
             mode: profile.mode,
             endpoint,
             connected: runtime.connected,
-            lastError: runtime.lastError,
             profile
           }
         })
@@ -184,7 +186,10 @@ const refreshSerialOptions = async () => {
   }
 }
 
-const connectProfile = async (profile: DeviceConnectionProfile) => {
+const connectProfile = async (
+    profile: DeviceConnectionProfile,
+    {notify = true}: {notify?: boolean} = {}
+) => {
   try {
     const sessionId = requireSessionId(profile.sessionId)
     ensureUniqueSession(sessionId, connectionProfiles.value, profile.id)
@@ -203,10 +208,33 @@ const connectProfile = async (profile: DeviceConnectionProfile) => {
       })
     }
 
-    ElMessage.success(`会话[${sessionId}]连接成功`)
+    if (notify) ElMessage.success(`会话[${sessionId}]连接成功`)
+    return true
   } catch (error) {
-    ElMessage.error(`连接失败: ${resolveError(error)}`)
+    const message = resolveError(error)
+    const sessionId = Number(profile.sessionId)
+
+    if (Number.isInteger(sessionId) && sessionId >= 0) {
+      deviceConnectionsStore.updateRuntimeStatus({
+        sessionId,
+        mode: profile.mode,
+        connected: false
+      })
+    }
+
+    if (notify) ElMessage.error(`连接失败: ${message}`)
+    return false
   }
+}
+
+const initializeConnections = async () => {
+  const profiles = connectionProfiles.value.filter(
+      (profile) => !getRuntimeStatus(profile.sessionId).connected
+  )
+
+  await Promise.all(
+      profiles.map((profile) => connectProfile(profile, {notify: false}))
+  )
 }
 
 const disconnectProfile = async (profile: DeviceConnectionProfile) => {
@@ -373,8 +401,7 @@ const wireSessionStatus = (profile: DeviceConnectionProfile) => {
     deviceConnectionsStore.updateRuntimeStatus({
       sessionId,
       mode: profile.mode,
-      connected: true,
-      lastError: null
+      connected: true
     })
   }
 
@@ -382,17 +409,7 @@ const wireSessionStatus = (profile: DeviceConnectionProfile) => {
     deviceConnectionsStore.updateRuntimeStatus({
       sessionId,
       mode: profile.mode,
-      connected: false,
-      lastError: getRuntimeStatus(sessionId).lastError
-    })
-  }
-
-  const markError = (message: string) => {
-    deviceConnectionsStore.updateRuntimeStatus({
-      sessionId,
-      mode: profile.mode,
-      connected: false,
-      lastError: String(message ?? '')
+      connected: false
     })
   }
 
@@ -401,7 +418,7 @@ const wireSessionStatus = (profile: DeviceConnectionProfile) => {
     const disposers = [
       session.onOpen(markConnected),
       session.onClose(markDisconnected),
-      session.onError((payload: { message: string }) => markError(payload.message))
+      session.onError(markDisconnected)
     ]
 
     return () => {
@@ -413,7 +430,7 @@ const wireSessionStatus = (profile: DeviceConnectionProfile) => {
   const disposers = [
     session.onConnect(markConnected),
     session.onClose(markDisconnected),
-    session.onError((payload: { message: string }) => markError(payload.message))
+    session.onError(markDisconnected)
   ]
 
   return () => {
@@ -452,6 +469,7 @@ watch(
 
 onMounted(() => {
   void refreshSerialOptions()
+  void initializeConnections()
 })
 
 onUnmounted(() => {
@@ -469,21 +487,14 @@ onUnmounted(() => {
     <el-dialog
       v-model="deviceSettingsVisible"
       append-to-body
+      title="设备连接管理"
       width="min(1200px, 86vw)"
       top="8vh"
       class="device-settings-dialog"
-      :show-close="false"
     >
-      <template #header>
-        <div class="device-settings-header">
-          <div>
-            <div class="device-settings-title">设备连接管理</div>
-            <div class="device-settings-subtitle">
-              仅维护 TCP / 串口下层会话，上层设备按 sessionId 复用
-            </div>
-          </div>
-
-          <div class="device-settings-actions">
+      <div class="device-settings-panel">
+        <div class="table-toolbar">
+          <div class="table-toolbar-actions">
             <el-button
               type="primary"
               plain
@@ -493,51 +504,38 @@ onUnmounted(() => {
             >
               刷新串口
             </el-button>
-            <el-button :icon="Close" @click="deviceSettingsVisible = false">关闭</el-button>
-          </div>
-        </div>
-      </template>
-
-      <div class="device-settings-panel">
-        <div class="table-toolbar">
-          <div>
-            <div class="table-title">下层连接会话</div>
-            <div class="table-subtitle">一个 session 绑定一个串口或 TCP 连接</div>
-          </div>
-          <div class="table-toolbar-actions">
             <el-button type="primary" :icon="Connection" @click="openCreateDialog('serial')">新增串口</el-button>
             <el-button type="primary" :icon="Connection" @click="openCreateDialog('tcp')">新增 TCP</el-button>
           </div>
         </div>
 
         <el-table :data="rows" border stripe height="calc(70vh - 150px)" class="device-table">
-          <el-table-column label="状态" width="90" align="center">
+          <el-table-column label="状态" width="82" align="center">
             <template #default="{row}">
               <el-tag :type="row.connected ? 'success' : 'danger'" effect="dark">
                 {{ row.connected ? '已连接' : '未连接' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="name" label="连接名称" min-width="130" />
-          <el-table-column prop="sessionId" label="Session ID" width="110" sortable align="center" />
-          <el-table-column label="连接方式" width="100" align="center">
+          <el-table-column prop="name" label="连接名称" min-width="150" />
+          <el-table-column prop="sessionId" label="Session ID" width="130" sortable align="center" />
+          <el-table-column label="连接方式" width="90" align="center">
             <template #default="{row}">{{ row.mode === 'serial' ? 'RS232' : 'TCP' }}</template>
           </el-table-column>
-          <el-table-column prop="endpoint" label="连接目标" min-width="180" />
-          <el-table-column label="最近错误" min-width="180">
-            <template #default="{row}"><span class="cell-error">{{ row.lastError || '-' }}</span></template>
-          </el-table-column>
-          <el-table-column label="操作" width="250" fixed="right" align="center">
+          <el-table-column prop="endpoint" label="连接目标" min-width="210" />
+          <el-table-column label="操作" width="220" fixed="right" align="center">
             <template #default="{row}">
               <div class="table-actions">
-                <el-tooltip content="编辑" placement="top">
-                  <el-button circle :icon="Edit" @click="openEditDialog(row.profile)" />
-                </el-tooltip>
-                <el-button type="primary" link @click="connectProfile(row.profile)">连接</el-button>
-                <el-button type="danger" link @click="disconnectProfile(row.profile)">断开</el-button>
+                <el-button type="primary" link @click="openEditDialog(row.profile)">编辑</el-button>
+                <el-button type="primary" link :disabled="row.connected" @click="connectProfile(row.profile)">
+                  连接
+                </el-button>
+                <el-button type="warning" link :disabled="!row.connected" @click="disconnectProfile(row.profile)">
+                  断开
+                </el-button>
                 <el-popconfirm title="确定删除这个连接吗？" @confirm="handleRemove(row.profile)">
                   <template #reference>
-                    <el-button circle type="danger" plain :icon="Delete" />
+                    <el-button type="danger" link>删除</el-button>
                   </template>
                 </el-popconfirm>
               </div>
@@ -602,31 +600,6 @@ onUnmounted(() => {
   display: flex;
 }
 
-.device-settings-header {
-  align-items: center;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-}
-
-.device-settings-title {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.device-settings-subtitle {
-  color: var(--app-text-secondary);
-  font-size: 13px;
-  margin-top: 4px;
-}
-
-.device-settings-actions {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .device-settings-panel {
   display: flex;
   flex-direction: column;
@@ -638,11 +611,15 @@ onUnmounted(() => {
   border-radius: var(--el-border-radius-base);
 }
 
+.device-table :deep(.el-table__header .cell) {
+  white-space: nowrap;
+}
+
 .table-toolbar {
   align-items: center;
   display: flex;
   gap: 16px;
-  justify-content: space-between;
+  justify-content: flex-end;
   width: 100%;
 }
 
@@ -653,28 +630,12 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-.table-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.table-subtitle {
-  color: var(--app-text-secondary);
-  font-size: 13px;
-  margin-top: 4px;
-}
-
 .table-actions {
+  align-items: center;
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-}
-
-.cell-error {
-  color: rgb(220, 38, 38);
-  max-width: 260px;
-  white-space: normal;
-  word-break: break-word;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .editor-banner {
@@ -695,8 +656,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 960px) {
-  .device-settings-header,
-  .device-settings-actions,
   .table-toolbar {
     align-items: stretch;
     flex-direction: column;

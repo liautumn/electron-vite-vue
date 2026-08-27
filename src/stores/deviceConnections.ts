@@ -10,7 +10,6 @@ export type DeviceConnectionProfile = TransportConnectionProfile
 export type DeviceConnectionRuntimeStatus = {
   connected: boolean
   mode: TransportConnectionMode
-  lastError: string | null
 }
 
 const DEFAULT_SESSION_ID = 0
@@ -123,15 +122,13 @@ export const useDeviceConnectionsStore = defineStore(
       sessionId: number
       mode: TransportConnectionMode
       connected: boolean
-      lastError: string | null
     }) => {
       const sessionId = normalizeSessionId(snapshot.sessionId)
       runtimeMap.value = {
         ...runtimeMap.value,
         [sessionId]: {
           connected: snapshot.connected,
-          mode: snapshot.mode,
-          lastError: snapshot.lastError
+          mode: snapshot.mode
         }
       }
     }
@@ -141,8 +138,7 @@ export const useDeviceConnectionsStore = defineStore(
       return (
         runtimeMap.value[targetSessionId] ?? {
           connected: false,
-          mode: 'tcp',
-          lastError: null
+          mode: 'tcp'
         }
       )
     }

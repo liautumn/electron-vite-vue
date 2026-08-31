@@ -119,10 +119,10 @@ async function createWindow() {
         // 默认窗口尺寸
         width: 1344,
         height: 756,
-        // 防止启动闪一下
-        show: true,
+        // 创建时不立即显示
+        show: false,
         // 默认全屏
-        fullscreen: true,
+        fullscreen: false,
         // 隐藏原生菜单栏
         autoHideMenuBar: true,
         // 应用图标
@@ -135,6 +135,11 @@ async function createWindow() {
             contextIsolation: true,    // 开启上下文隔离（推荐）
         },
     })
+    // 最大化
+    window.maximize()
+    // 最大化完成后再显示
+    window.show()
+
     win = window
 
     // 注册 mod

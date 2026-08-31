@@ -5,7 +5,7 @@ import {useRoute, useRouter} from 'vue-router'
 import {Monitor, Moon, Sunny} from '@element-plus/icons-vue'
 import { useThemeStore, type ThemePreference } from './stores/theme'
 import {menuItems} from './menu/menu'
-import DeviceConnectionsControl from './components/DeviceConnectionsControl.vue'
+import DeviceConnectionsControl from './views/DeviceConnectionsControl.vue'
 
 const themeStore = useThemeStore()
 const { preference, resolvedTheme } = storeToRefs(themeStore)

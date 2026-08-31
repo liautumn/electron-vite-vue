@@ -17,7 +17,7 @@ import type {
 import {createLogger} from '../utils/logger'
 import {getModelConfigPath, readModelConfigSection} from '../utils/model-config'
 import {resolvePortablePath} from '../utils/portable-path'
-import {preprocessYolo26, type Yolo26PixelImage, type Yolo26PreprocessedImage} from './yolo26-preprocess'
+import {preprocessYolo26, type Yolo26PixelImage, type Yolo26PreprocessedImage} from '../utils/yolo26-preprocess'
 
 // 解码后允许的最大像素数，防止超大图片占用过多内存。
 const MAX_IMAGE_PIXELS = 25_000_000

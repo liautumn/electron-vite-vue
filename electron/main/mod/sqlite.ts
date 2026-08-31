@@ -9,7 +9,7 @@ import type {
   SqliteExecuteResult,
   SqliteRow,
 } from '../../../shared/types/sqlite'
-import { initializeSqliteSchema } from './sqlite-schema'
+import { initializeSqliteSchema } from '../utils/sqlite-schema'
 
 const DB_DIRECTORY = 'database'
 const DB_FILENAME = 'app.sqlite3'

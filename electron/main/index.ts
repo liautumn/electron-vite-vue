@@ -131,14 +131,28 @@ async function createWindow() {
         webPreferences: {
             // 预加载脚本（安全桥）
             preload,
-            nodeIntegration: false,    // 允许 Renderer 直接用 Node
+            nodeIntegration: false,    // 不允许 Renderer 直接用 Node
             contextIsolation: true,    // 开启上下文隔离（推荐）
         },
     })
-    // 最大化
+    // 隐藏状态下先最大化，页面首帧准备完成后再显示
     window.maximize()
-    // 最大化完成后再显示
-    window.show()
+    window.once('ready-to-show', () => {
+        if (!window.isDestroyed()) window.show()
+    })
+
+    window.webContents.on(
+        'did-fail-load',
+        (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+            if (!isMainFrame || errorCode === -3) return
+            log.error('Main window failed to load', {
+                errorCode,
+                errorDescription,
+                validatedURL,
+            })
+            if (!window.isDestroyed()) window.destroy()
+        }
+    )
 
     win = window
 

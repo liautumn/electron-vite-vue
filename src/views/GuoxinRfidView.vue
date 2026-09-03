@@ -563,20 +563,22 @@ onUnmounted(() => {
             <div class="panel-title">会话与状态</div>
           </div>
           <el-divider />
-          <div class="panel-stack">
+          <el-form label-position="top" class="panel-stack field-form">
             <el-segmented
                 :model-value="rfidConfig.mode"
                 :options="CONNECTION_MODE_OPTIONS"
                 @update:model-value="handleConnectionModeChange"
             />
 
-            <el-select
-                :model-value="selectedConnectionProfile?.sessionId ?? null"
-                placeholder="选择当前连接方式下的 sessionId"
-                @update:model-value="handleConnectionSessionChange"
-            >
-              <el-option v-for="option in connectionSessionOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
+            <el-form-item label="连接会话 ID">
+              <el-select
+                  :model-value="selectedConnectionProfile?.sessionId ?? null"
+                  placeholder="选择当前连接方式下的 sessionId"
+                  @update:model-value="handleConnectionSessionChange"
+              >
+                <el-option v-for="option in connectionSessionOptions" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+            </el-form-item>
 
             <div class="action-buttons">
               <el-tag :type="connected ? 'success' : 'danger'" effect="dark">
@@ -597,7 +599,7 @@ onUnmounted(() => {
                 show-icon
                 class="error-banner"
             />
-          </div>
+          </el-form>
         </el-card>
 
         <el-card shadow="never" class="panel-card">
@@ -605,8 +607,10 @@ onUnmounted(() => {
             <div class="panel-title">功率与参数</div>
           </div>
           <el-divider />
-          <div class="panel-stack">
-            <el-input-number v-model="antennaCountModel" :min="1" :max="32" controls-position="right" />
+          <el-form label-position="top" class="panel-stack field-form">
+            <el-form-item label="天线数">
+              <el-input-number v-model="antennaCountModel" :min="1" :max="32" controls-position="right" />
+            </el-form-item>
 
             <el-divider />
 
@@ -621,13 +625,21 @@ onUnmounted(() => {
             <el-divider />
 
             <div class="parameter-grid">
-              <el-input-number v-model="rfidConfig.epcBasebandRate" :min="0" :max="255" controls-position="right" />
-              <el-input-number v-model="rfidConfig.defaultQ" :min="0" :max="255" controls-position="right" />
-              <el-input-number v-model="rfidConfig.session" :min="0" :max="255" controls-position="right" />
-              <el-input-number v-model="rfidConfig.inventoryFlag" :min="0" :max="255" controls-position="right" />
+              <el-form-item label="基带速率">
+                <el-input-number v-model="rfidConfig.epcBasebandRate" :min="0" :max="255" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="默认 Q">
+                <el-input-number v-model="rfidConfig.defaultQ" :min="0" :max="255" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="EPC Session">
+                <el-input-number v-model="rfidConfig.session" :min="0" :max="255" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="盘存标志">
+                <el-input-number v-model="rfidConfig.inventoryFlag" :min="0" :max="255" controls-position="right" />
+              </el-form-item>
             </div>
             <el-button type="primary" plain @click="applyBasebandConfig">配置 EPC 基带参数</el-button>
-          </div>
+          </el-form>
         </el-card>
       </div>
 
@@ -638,15 +650,17 @@ onUnmounted(() => {
             <el-tag effect="dark">{{ inventoryStatus }}</el-tag>
           </div>
           <el-divider />
-          <div class="panel-stack">
-            <el-select
-                v-model="inventoryAntennasModel"
-                multiple
-                collapse-tags
-                placeholder="选择盘存天线"
-            >
-              <el-option v-for="option in inventoryAntennaOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
+          <el-form label-position="top" class="panel-stack field-form">
+            <el-form-item label="盘存天线">
+              <el-select
+                  v-model="inventoryAntennasModel"
+                  multiple
+                  collapse-tags
+                  placeholder="选择盘存天线"
+              >
+                <el-option v-for="option in inventoryAntennaOptions" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+            </el-form-item>
             <div class="action-buttons">
               <el-button type="primary" @click="startSingleRead">单次读取</el-button>
               <el-button type="primary" plain @click="startContinuousRead">连续读取</el-button>
@@ -662,7 +676,7 @@ onUnmounted(() => {
                 <div class="info-row"><span>TID</span><code>{{ latestTag.tidData?.data ?? '-' }}</code></div>
               </div>
             </div>
-          </div>
+          </el-form>
         </el-card>
 
         <el-card shadow="never" class="panel-card">
@@ -670,35 +684,47 @@ onUnmounted(() => {
             <div class="panel-title">写标签测试</div>
           </div>
           <el-divider />
-          <div class="panel-stack">
+          <el-form label-position="top" class="panel-stack field-form">
             <el-alert title="首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。" type="info" :closable="false" show-icon />
-            <el-select
-                v-model="writeAntennaModel"
-                placeholder="选择写入天线"
-            >
-              <el-option v-for="option in inventoryAntennaOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-            <el-input
-                v-model="rfidConfig.writeTid"
-                placeholder="标签 TID，HEX"
-            />
-            <div class="write-epc-row">
+            <el-form-item label="写入天线">
+              <el-select
+                  v-model="writeAntennaModel"
+                  placeholder="选择写入天线"
+              >
+                <el-option v-for="option in inventoryAntennaOptions" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="标签 TID">
               <el-input
-                  v-model="rfidConfig.writeEpc"
-                  class="field-grow"
-                  placeholder="待写 EPC，HEX，例如 192012345678901234567895"
+                  v-model="rfidConfig.writeTid"
+                  placeholder="标签 TID，HEX"
               />
-              <el-button type="primary" plain @click="randomizeWriteEpc">随机生成</el-button>
-            </div>
-            <el-input v-model="rfidConfig.accessPassword" placeholder="访问密码，8位HEX" />
-            <el-input v-model="rfidConfig.oldAccessPassword" placeholder="旧访问密码，8位HEX，仅首次写入使用" />
-            <el-input v-model="rfidConfig.killPassword" placeholder="灭活密码，8位HEX" />
+            </el-form-item>
+            <el-form-item label="待写 EPC">
+              <div class="write-epc-row">
+                <el-input
+                    v-model="rfidConfig.writeEpc"
+                    class="field-grow"
+                    placeholder="待写 EPC，HEX，例如 192012345678901234567895"
+                />
+                <el-button type="primary" plain @click="randomizeWriteEpc">随机生成</el-button>
+              </div>
+            </el-form-item>
+            <el-form-item label="访问密码">
+              <el-input v-model="rfidConfig.accessPassword" placeholder="访问密码，8位HEX" />
+            </el-form-item>
+            <el-form-item label="旧访问密码">
+              <el-input v-model="rfidConfig.oldAccessPassword" placeholder="旧访问密码，8位HEX，仅首次写入使用" />
+            </el-form-item>
+            <el-form-item label="灭活密码">
+              <el-input v-model="rfidConfig.killPassword" placeholder="灭活密码，8位HEX" />
+            </el-form-item>
             <div class="action-buttons">
               <el-button type="primary" plain @click="useLatestTagForWrite">带入最近标签</el-button>
               <el-button type="primary" @click="firstWriteTag">首次写入</el-button>
               <el-button type="primary" plain @click="rewriteTag">再次写入</el-button>
             </div>
-          </div>
+          </el-form>
         </el-card>
 
         <el-card shadow="never" class="panel-card">
@@ -706,11 +732,13 @@ onUnmounted(() => {
             <div class="panel-title">原始 HEX 调试</div>
           </div>
           <el-divider />
-          <div class="panel-stack">
-            <el-input
-                v-model="rfidConfig.rawHex"
-                placeholder="输入原始 HEX 帧"
-            />
+          <el-form label-position="top" class="panel-stack field-form">
+            <el-form-item label="原始 HEX">
+              <el-input
+                  v-model="rfidConfig.rawHex"
+                  placeholder="输入原始 HEX 帧"
+              />
+            </el-form-item>
             <div class="action-buttons">
               <el-button type="primary" plain @click="sendRawHex">发送 HEX</el-button>
               <el-button type="danger" @click="clearLog">清空日志</el-button>
@@ -723,7 +751,7 @@ onUnmounted(() => {
                 class="log-textarea"
                 placeholder="收发日志"
             />
-          </div>
+          </el-form>
         </el-card>
       </div>
     </div>
@@ -731,16 +759,20 @@ onUnmounted(() => {
     <el-dialog v-model="powerModalVisible" title="设置天线功率" width="min(720px, 90vw)">
       <div class="panel-stack">
         <el-text type="info">当前设备天线数：{{ rfidConfig.antennaCount }}</el-text>
-        <div class="power-grid">
-          <el-input-number
+        <el-form label-position="top" class="power-grid field-form">
+          <el-form-item
               v-for="(_, index) in powerEditor"
               :key="`power-editor-${index}`"
-              v-model="powerEditor[index]"
-              :min="0"
-              :max="33"
-              controls-position="right"
-          />
-        </div>
+              :label="`天线${index + 1}`"
+          >
+            <el-input-number
+                v-model="powerEditor[index]"
+                :min="0"
+                :max="33"
+                controls-position="right"
+            />
+          </el-form-item>
+        </el-form>
       </div>
       <template #footer>
         <el-button @click="powerModalVisible = false">取消</el-button>
@@ -800,6 +832,17 @@ onUnmounted(() => {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.field-form :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.field-form :deep(.el-form-item__label) {
+  color: var(--app-text-secondary);
+  line-height: 20px;
+  margin-bottom: 6px;
+  padding: 0;
 }
 
 .panel-title,
@@ -891,6 +934,7 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 .power-grid {

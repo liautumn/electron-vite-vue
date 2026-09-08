@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed, onMounted, reactive, ref} from 'vue'
 import {ElMessage} from 'element-plus'
+import {Plus, Refresh} from '@element-plus/icons-vue'
 import {
   createDemoUser,
   deleteDemoUser,
@@ -15,6 +16,8 @@ defineOptions({name: 'sqlite-demo'})
 const loading = ref(false)
 const users = ref<DemoUser[]>([])
 const keyword = ref('')
+const editorVisible = ref(false)
+const saving = ref(false)
 const form = reactive({
   id: undefined as number | undefined,
   name: '',
@@ -114,38 +117,33 @@ const handlePageSizeChange = async (pageSize: number) => {
   await loadUsers()
 }
 
-const handleCreate = async () => {
-  try {
-    const payload = normalizeForm()
-    await createDemoUser(payload)
-    await loadUsers()
-    resetForm()
-    showSuccess('新增成功')
-  } catch (error) {
-    showError(error)
-  }
+const handleCreate = () => {
+  resetForm()
+  editorVisible.value = true
 }
 
-const handleUpdate = async () => {
-  if (!form.id) {
-    showError(new Error('请先点击表格中的“编辑”'))
-    return
-  }
+const handleSubmit = async () => {
+  if (saving.value) return
 
   try {
     const payload = normalizeForm()
-    const updated = await updateDemoUser({
-      id: form.id,
-      ...payload,
-    })
+    const editing = isEditMode.value
+    saving.value = true
 
-    if (!updated) throw new Error('未找到要更新的数据')
+    if (form.id !== undefined) {
+      const updated = await updateDemoUser({id: form.id, ...payload})
+      if (!updated) throw new Error('未找到要更新的数据')
+    } else {
+      await createDemoUser(payload)
+    }
 
+    editorVisible.value = false
+    showSuccess(editing ? '更新成功' : '新增成功')
     await loadUsers()
-    resetForm()
-    showSuccess('更新成功')
   } catch (error) {
     showError(error)
+  } finally {
+    saving.value = false
   }
 }
 
@@ -174,6 +172,7 @@ const handleEdit = async (id: number) => {
     form.name = user.name
     form.age = user.age
     form.email = user.email
+    editorVisible.value = true
   } catch (error) {
     showError(error)
   }
@@ -192,7 +191,10 @@ onMounted(async () => {
           <div>
             <p class="title">SQLite CRUD Demo</p>
           </div>
-          <el-button type="primary" @click="loadUsers">刷新列表</el-button>
+          <div class="actions">
+            <el-button :icon="Refresh" @click="loadUsers">刷新列表</el-button>
+            <el-button type="primary" :icon="Plus" @click="handleCreate">新增</el-button>
+          </div>
         </div>
 
         <div class="search-row">
@@ -204,36 +206,6 @@ onMounted(async () => {
           />
           <el-button type="primary" @click="handleSearch">搜索</el-button>
           <el-button type="primary" plain @click="handleResetSearch">清空</el-button>
-        </div>
-
-        <el-form label-position="top" class="form-grid">
-          <el-form-item label="姓名">
-          <el-input
-            v-model="form.name"
-            placeholder="请输入姓名"
-          />
-          </el-form-item>
-          <el-form-item label="年龄">
-          <el-input-number v-model="form.age" :min="0" placeholder="请输入年龄" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="邮箱">
-          <el-input
-            v-model="form.email"
-            placeholder="请输入邮箱"
-          />
-          </el-form-item>
-        </el-form>
-
-        <div class="actions">
-          <el-button type="primary" @click="handleCreate">新增</el-button>
-          <el-button
-            type="success"
-            :disabled="!isEditMode"
-            @click="handleUpdate"
-          >
-            保存更新
-          </el-button>
-          <el-button type="primary" plain @click="resetForm">重置</el-button>
         </div>
 
         <el-table v-loading="loading" :data="users" border stripe class="table">
@@ -279,6 +251,42 @@ onMounted(async () => {
         />
       </div>
     </el-card>
+
+    <el-dialog
+      v-model="editorVisible"
+      append-to-body
+      destroy-on-close
+      align-center
+      :title="isEditMode ? '编辑用户' : '新增用户'"
+      width="min(480px, calc(100vw - 32px))"
+      :close-on-click-modal="false"
+      :close-on-press-escape="!saving"
+      :show-close="!saving"
+    >
+      <el-form
+        id="sqlite-user-form"
+        label-position="top"
+        :disabled="saving"
+        class="editor-form"
+        @submit.prevent="handleSubmit"
+      >
+        <el-form-item label="姓名">
+          <el-input v-model="form.name" placeholder="请输入姓名" />
+        </el-form-item>
+        <el-form-item label="年龄">
+          <el-input-number v-model="form.age" :min="0" placeholder="请输入年龄" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="form.email" placeholder="请输入邮箱" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button :disabled="saving" @click="editorVisible = false">取消</el-button>
+        <el-button type="primary" native-type="submit" form="sqlite-user-form" :loading="saving">
+          {{ isEditMode ? '保存' : '新增' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -310,15 +318,8 @@ onMounted(async () => {
   margin: 0;
 }
 
-.tip {
-  color: var(--app-text-secondary);
-  margin: 4px 0 0;
-}
-
-.form-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(0, 240px) 144px minmax(0, 320px);
+.editor-form .el-input-number {
+  width: 100%;
 }
 
 .search-row {
@@ -335,6 +336,10 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.actions > .el-button + .el-button {
+  margin-left: 0;
+}
+
 .table {
   background: transparent;
 }
@@ -349,20 +354,9 @@ onMounted(async () => {
   gap: 8px;
 }
 
-@media (max-width: 900px) {
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-}
-
 @media (max-width: 640px) {
   .header {
     flex-wrap: wrap;
-  }
-
-  .form-grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .search-row {

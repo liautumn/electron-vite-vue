@@ -63,6 +63,36 @@ VITE_DEV_PORT=5173 npm run dev
 | `npm run build` | 构建并打包正式安装包 |
 | `npm run build:test` | 使用测试模式构建并打包 |
 
+## Main 和 Renderer 通信流程
+
+```text
+Renderer (Vue)                                Main (Electron)
+
+通知，无返回值
+ipcRenderer.send("xxx")      ───────────────►  ipcMain.on("xxx")
+                                               
+                                               ipcMain.on("xxx")        → 监听
+                                               ipcMain.once("xxx")      → 监听一次
+                                               ipcMain.off("xxx")       → 移除监听
+                                               ipcMain.removeAllListeners("xxx") → 移除全部监听
+                                               
+
+调用方法，需要返回值
+ipcRenderer.invoke("xxx")    ───────────────►  ipcMain.handle("xxx")
+                             ◄───────────────  return result
+                                               
+                                               ipcMain.handle("xxx") → 注册
+                                               ipcMain.removeHandler("xxx") → 移除 
+
+Main 主动推送，无需返回值
+ipcRenderer.on("xxx")        ◄───────────────  webContents.send("xxx")
+
+ipcRenderer.on("xxx")        → 监听
+ipcRenderer.once("xxx")      → 监听一次
+ipcRenderer.off("xxx")       → 移除监听
+ipcRenderer.removeAllListeners("xxx") → 移除全部监听
+```
+
 ## 模型配置
 
 应用不会下载模型。SenseVoice 和 YOLO26 共用 `config/models.json`：

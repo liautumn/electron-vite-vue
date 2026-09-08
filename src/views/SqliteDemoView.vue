@@ -185,13 +185,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page">
+  <div class="workspace-page">
     <el-card shadow="never" class="panel">
       <div class="panel-section">
         <div class="header">
           <div>
             <p class="title">SQLite CRUD Demo</p>
-            <p class="tip">业务层写 SQL，主进程仅提供 execute SQL 接口</p>
           </div>
           <el-button type="primary" @click="loadUsers">刷新列表</el-button>
         </div>
@@ -207,17 +206,23 @@ onMounted(async () => {
           <el-button type="primary" plain @click="handleResetSearch">清空</el-button>
         </div>
 
-        <div class="form-grid">
+        <el-form label-position="top" class="form-grid">
+          <el-form-item label="姓名">
           <el-input
             v-model="form.name"
             placeholder="请输入姓名"
           />
+          </el-form-item>
+          <el-form-item label="年龄">
           <el-input-number v-model="form.age" :min="0" placeholder="请输入年龄" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="邮箱">
           <el-input
             v-model="form.email"
             placeholder="请输入邮箱"
           />
-        </div>
+          </el-form-item>
+        </el-form>
 
         <div class="actions">
           <el-button type="primary" @click="handleCreate">新增</el-button>
@@ -242,7 +247,7 @@ onMounted(async () => {
             <template #default="props">
               <div class="row-actions">
                 <el-button
-                  size="sm"
+                  size="small"
                   type="primary"
                   link
                   @click="handleEdit(props.row.id)"
@@ -251,7 +256,7 @@ onMounted(async () => {
                 </el-button>
                 <el-popconfirm title="确定删除这条数据吗？" @confirm="handleDelete(props.row)">
                   <template #reference><el-button
-                  size="sm"
+                  size="small"
                   type="danger"
                   link
                 >
@@ -278,16 +283,12 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page {
-  padding: 18px 12px;
-}
-
 .panel {
   background: var(--app-surface);
   border-color: var(--app-border);
   border-radius: var(--el-border-radius-base);
   margin: 0 auto;
-  max-width: 1100px;
+  min-width: 0;
 }
 
 .panel-section {
@@ -317,7 +318,7 @@ onMounted(async () => {
 .form-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 240px) 144px minmax(0, 320px);
 }
 
 .search-row {
@@ -325,6 +326,7 @@ onMounted(async () => {
   display: grid;
   gap: 10px;
   grid-template-columns: minmax(0, 1fr) auto auto;
+  max-width: 560px;
 }
 
 .actions {
@@ -342,24 +344,34 @@ onMounted(async () => {
   gap: 4px;
 }
 
+:deep(.el-pagination) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 900px) {
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .search-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 @media (max-width: 640px) {
   .header {
-    align-items: stretch;
-    flex-direction: column;
+    flex-wrap: wrap;
   }
 
   .form-grid {
     grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  .search-row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .search-row > .el-input {
+    flex: 1 1 200px;
   }
 }
 </style>

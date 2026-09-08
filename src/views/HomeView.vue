@@ -47,10 +47,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page">
+  <div class="page workspace-page">
     <el-card shadow="never" class="hero">
       <div>
-        <p class="eyebrow">Element Plus Renderer</p>
         <h1>{{ t('home.title') }}</h1>
         <p class="hero-text">{{ t('home.description') }}</p>
       </div>
@@ -83,15 +82,13 @@ onMounted(() => {
 
 <style scoped>
 .page {
-  max-width: 760px;
-  margin: 28px auto;
-  padding: 0 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .hero {
+  grid-column: 1 / -1;
   background: var(--el-bg-color);
   border-color: var(--el-border-color-light);
   border-radius: var(--el-border-radius-base);
@@ -109,6 +106,7 @@ onMounted(() => {
 }
 
 .hero h1 {
+  font-size: 22px;
   margin: 0 0 8px;
 }
 
@@ -118,6 +116,7 @@ onMounted(() => {
 }
 
 .card {
+  min-width: 0;
   background: var(--app-surface);
   border-color: var(--app-border);
   border-radius: var(--el-border-radius-base);
@@ -159,6 +158,10 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .hero :deep(.el-card__body) {
     padding: 18px;
   }

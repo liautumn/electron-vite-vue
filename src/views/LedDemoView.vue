@@ -2,6 +2,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
+import { Delete } from '@element-plus/icons-vue'
 import { ledSingleDevice } from '../components/led/LedDevice'
 import {
   buildShowAllLedsCommand,
@@ -408,9 +409,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="container">
+  <div class="workspace-page">
     <div class="page-stack">
-      <el-card shadow="never" class="panel-card">
+      <el-card shadow="never" class="panel-card full-width">
         <div class="panel-title-row">
           <div class="panel-title">会话与模块参数</div>
           <el-tag :type="connected ? 'success' : 'danger'" effect="dark">
@@ -419,7 +420,8 @@ onUnmounted(() => {
         </div>
         <el-divider />
         <div class="panel-stack">
-          <div class="form-grid">
+          <el-form label-position="top" class="form-grid">
+            <el-form-item label="串口会话" class="session-field">
             <el-select
               :model-value="selectedConnectionProfile?.sessionId ?? null"
               placeholder="选择串口 sessionId"
@@ -427,10 +429,12 @@ onUnmounted(() => {
             >
               <el-option v-for="option in connectionSessionOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
+            </el-form-item>
+            <el-form-item label="模块地址">
             <el-input-number v-model="moduleId" :min="0" :max="255" :step="1" controls-position="right" />
-          </div>
+            </el-form-item>
+          </el-form>
           <div class="muted-text">{{ connectionSessionHint }}</div>
-          <div class="muted-text">LED 页面仅支持串口会话，连接参数请在“设备连接管理”里维护。</div>
           <div v-if="lastError" class="error-text">
             最近错误：{{ lastError }}
           </div>
@@ -439,19 +443,25 @@ onUnmounted(() => {
 
       <el-card shadow="never" class="panel-card">
         <div>
-          <div class="panel-title">单灯控制（06 指令）</div>
+          <div class="panel-title">单灯控制</div>
         </div>
         <el-divider />
         <div class="panel-stack">
-          <div class="form-grid">
+          <el-form label-position="top" class="form-grid">
+            <el-form-item label="灯地址">
             <el-input-number v-model="singleAddress" :min="1" :max="255" :step="1" controls-position="right" />
+            </el-form-item>
+            <el-form-item label="显示模式" class="mode-field">
             <el-select v-model="singleMode" placeholder="显示模式">
               <el-option v-for="option in modeOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
+            </el-form-item>
+            <el-form-item label="颜色" class="color-field">
             <el-select v-model="singleColor" placeholder="颜色">
               <el-option v-for="option in colorOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
-          </div>
+            </el-form-item>
+          </el-form>
           <div class="action-buttons">
             <el-button type="primary" @click="handleShowSingleLed">发送单灯命令</el-button>
             <el-button type="primary" plain @click="handleTurnOffSingleLed">关闭单灯</el-button>
@@ -464,18 +474,22 @@ onUnmounted(() => {
 
       <el-card shadow="never" class="panel-card">
         <div>
-          <div class="panel-title">全灯统一控制（05 指令）</div>
+          <div class="panel-title">全灯统一控制</div>
         </div>
         <el-divider />
         <div class="panel-stack">
-          <div class="form-grid">
+          <el-form label-position="top" class="form-grid">
+            <el-form-item label="显示模式" class="mode-field">
             <el-select v-model="allMode" placeholder="显示模式">
               <el-option v-for="option in modeOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
+            </el-form-item>
+            <el-form-item label="颜色" class="color-field">
             <el-select v-model="allColor" placeholder="颜色">
               <el-option v-for="option in colorOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
-          </div>
+            </el-form-item>
+          </el-form>
           <div class="action-buttons">
             <el-button type="primary" @click="handleShowAllLeds">发送全灯命令</el-button>
             <el-button type="primary" plain @click="handleTurnOffAllLeds">关闭全灯</el-button>
@@ -486,15 +500,12 @@ onUnmounted(() => {
         </div>
       </el-card>
 
-      <el-card shadow="never" class="panel-card">
+      <el-card shadow="never" class="panel-card full-width">
         <div>
           <div class="panel-title">自定义 HEX</div>
         </div>
         <el-divider />
         <div class="panel-stack">
-          <div class="muted-text">
-            可直接发送原始 Modbus HEX，例如：`01 06 00 01 00 01 19 CA`
-          </div>
           <div class="serial-port-row">
             <el-input
               v-model="rawHex"
@@ -506,10 +517,10 @@ onUnmounted(() => {
         </div>
       </el-card>
 
-      <el-card shadow="never" class="panel-card">
+      <el-card shadow="never" class="panel-card full-width">
         <div class="panel-title-row">
           <div class="panel-title">通讯日志</div>
-          <el-button type="danger" @click="clearLog">清空日志</el-button>
+          <el-tooltip content="清空日志"><el-button text :icon="Delete" aria-label="清空日志" @click="clearLog" /></el-tooltip>
         </div>
         <el-divider />
         <div>
@@ -528,17 +539,18 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.container {
-  padding: 16px;
-}
-
 .page-stack {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
+.full-width {
+  grid-column: 1 / -1;
+}
+
 .panel-card {
+  min-width: 0;
   background: var(--app-surface);
   border-color: var(--app-border);
   border-radius: var(--el-border-radius-base);
@@ -548,7 +560,6 @@ onUnmounted(() => {
   margin: 12px 0 16px;
 }
 
-.form-grid :deep(.el-input-number),
 .form-grid :deep(.el-select) {
   width: 100%;
 }
@@ -573,9 +584,23 @@ onUnmounted(() => {
 }
 
 .form-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 12px;
+}
+
+.session-field {
+  width: 320px;
+  max-width: 100%;
+}
+
+.mode-field {
+  width: 160px;
+}
+
+.color-field {
+  width: 200px;
 }
 
 .serial-port-row {
@@ -583,12 +608,12 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  width: 100%;
+  max-width: 840px;
 }
 
 .field-grow {
   flex: 1;
-  min-width: 280px;
+  min-width: min(240px, 100%);
 }
 
 .muted-text {
@@ -604,15 +629,8 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1080px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .panel-title-row,
-  .action-buttons,
-  .serial-port-row {
-    align-items: stretch;
-    flex-direction: column;
+  .page-stack {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

@@ -504,7 +504,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="yolo-page">
+  <main class="yolo-page workspace-page">
     <header class="page-heading">
       <div>
         <h1>YOLO26 ONNX 测试</h1>
@@ -972,6 +972,7 @@ onBeforeUnmount(() => {
 }
 
 .page-heading {
+  gap: 12px;
   justify-content: space-between;
   min-height: 44px;
 }
@@ -1090,7 +1091,7 @@ h2 {
 }
 
 .confidence-control {
-  flex: 1 1 260px;
+  flex: 0 1 280px;
   gap: 10px;
   min-width: 230px;
 }
@@ -1366,6 +1367,7 @@ h2 {
 }
 
 .file-name {
+  overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 600;
 }
@@ -1581,9 +1583,16 @@ h2 {
     width: 100%;
   }
 
-  .source-toggle,
   .camera-select {
     width: 100%;
+  }
+
+  .model-bar {
+    flex-wrap: wrap;
+  }
+
+  .model-copy {
+    flex: 1 1 200px;
   }
 
   .camera-preview-pane {

@@ -488,7 +488,7 @@ onUnmounted(() => {
       v-model="deviceSettingsVisible"
       append-to-body
       title="设备连接管理"
-      width="min(1200px, 86vw)"
+      width="min(1200px, calc(100vw - 32px))"
       top="8vh"
       class="device-settings-dialog"
     >
@@ -645,7 +645,7 @@ onUnmounted(() => {
 .editor-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) 160px;
 }
 
 .editor-grid :deep(.el-form-item),
@@ -661,6 +661,9 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
+}
+
+@media (max-width: 600px) {
   .editor-grid {
     grid-template-columns: 1fr;
   }

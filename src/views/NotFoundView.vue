@@ -16,7 +16,6 @@ const goHome = () => {
     <p class="message">页面不存在或者已被移动</p>
     <div class="actions">
       <el-button type="primary" @click="goHome">返回首页</el-button>
-      <router-link class="link" to="/">回到首页</router-link>
     </div>
   </div>
 </template>

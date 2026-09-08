@@ -320,7 +320,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="sensevoice-page">
+  <main class="sensevoice-page workspace-page">
     <header class="page-heading">
       <div>
         <h1>SenseVoice 本地语音识别</h1>
@@ -452,6 +452,8 @@ onBeforeUnmount(() => {
 }
 
 .page-heading {
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: space-between;
   min-height: 44px;
 }
@@ -525,7 +527,7 @@ h2 {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   flex: 1 1 320px;
   font-size: 11px;
-  max-width: min(62vw, 820px);
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -546,6 +548,7 @@ h2 {
 
 .control-pane,
 .transcript-pane {
+  min-width: 0;
   background: var(--app-surface);
   border: 1px solid var(--app-border);
   border-radius: 6px;
@@ -621,6 +624,7 @@ h2 {
 }
 
 .metrics dd {
+  overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 600;
   margin: 4px 0 0;
@@ -698,7 +702,7 @@ h2 {
 
   .model-path {
     flex-basis: 100%;
-    max-width: 78vw;
+    max-width: 100%;
   }
 }
 </style>

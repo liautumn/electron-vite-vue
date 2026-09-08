@@ -555,10 +555,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="container">
+  <div class="workspace-page">
     <div class="page-stack">
       <div class="layout-row layout-row-top">
-        <el-card shadow="never" class="panel-card">
+        <section class="workspace-section">
           <div>
             <div class="panel-title">会话与状态</div>
           </div>
@@ -589,7 +589,6 @@ onUnmounted(() => {
               </el-tag>
             </div>
             <div class="muted-text">{{ connectionSessionHint }}</div>
-            <div class="muted-text">当前页面按所选连接方式调用对应会话：TCP 走 TCP session，Serial 走串口 session。</div>
 
             <el-alert
                 v-if="lastError"
@@ -600,30 +599,29 @@ onUnmounted(() => {
                 class="error-banner"
             />
           </el-form>
-        </el-card>
+        </section>
 
-        <el-card shadow="never" class="panel-card">
+        <section class="workspace-section">
           <div>
             <div class="panel-title">功率与参数</div>
           </div>
           <el-divider />
           <el-form label-position="top" class="panel-stack field-form">
+            <div class="power-controls">
             <el-form-item label="天线数">
               <el-input-number v-model="antennaCountModel" :min="1" :max="32" controls-position="right" />
             </el-form-item>
-
-            <el-divider />
-
-            <div class="muted-text">
-              {{ formatPowerLevels(rfidConfig.powerLevels) }}
-            </div>
             <div class="action-buttons">
               <el-button type="primary" plain @click="openPowerConfigModal">设置功率</el-button>
               <el-button type="primary" plain @click="loadAllPower">读取功率</el-button>
             </div>
+            </div>
 
-            <el-divider />
+            <div class="muted-text">
+              {{ formatPowerLevels(rfidConfig.powerLevels) }}
+            </div>
 
+            <div class="parameter-controls">
             <div class="parameter-grid">
               <el-form-item label="基带速率">
                 <el-input-number v-model="rfidConfig.epcBasebandRate" :min="0" :max="255" controls-position="right" />
@@ -639,12 +637,13 @@ onUnmounted(() => {
               </el-form-item>
             </div>
             <el-button type="primary" plain @click="applyBasebandConfig">配置 EPC 基带参数</el-button>
+            </div>
           </el-form>
-        </el-card>
+        </section>
       </div>
 
       <div class="layout-row layout-row-bottom">
-        <el-card shadow="never" class="panel-card">
+        <section class="workspace-section">
           <div class="panel-title-row">
             <div class="panel-title">盘存测试</div>
             <el-tag effect="dark">{{ inventoryStatus }}</el-tag>
@@ -677,15 +676,15 @@ onUnmounted(() => {
               </div>
             </div>
           </el-form>
-        </el-card>
+        </section>
 
-        <el-card shadow="never" class="panel-card">
+        <section class="workspace-section">
           <div>
             <div class="panel-title">写标签测试</div>
           </div>
           <el-divider />
           <el-form label-position="top" class="panel-stack field-form">
-            <el-alert title="首次写入会依次执行：改密码 -> 锁灭活/认证/EPC/用户区 -> 写 EPC；再次写入直接走 writeEPC。" type="info" :closable="false" show-icon />
+            <el-alert title="首次写入将修改密码、锁定存储区并写入 EPC。" type="warning" :closable="false" show-icon />
             <el-form-item label="写入天线">
               <el-select
                   v-model="writeAntennaModel"
@@ -710,6 +709,7 @@ onUnmounted(() => {
                 <el-button type="primary" plain @click="randomizeWriteEpc">随机生成</el-button>
               </div>
             </el-form-item>
+            <div class="password-grid">
             <el-form-item label="访问密码">
               <el-input v-model="rfidConfig.accessPassword" placeholder="访问密码，8位HEX" />
             </el-form-item>
@@ -719,15 +719,16 @@ onUnmounted(() => {
             <el-form-item label="灭活密码">
               <el-input v-model="rfidConfig.killPassword" placeholder="灭活密码，8位HEX" />
             </el-form-item>
+            </div>
             <div class="action-buttons">
               <el-button type="primary" plain @click="useLatestTagForWrite">带入最近标签</el-button>
               <el-button type="primary" @click="firstWriteTag">首次写入</el-button>
               <el-button type="primary" plain @click="rewriteTag">再次写入</el-button>
             </div>
           </el-form>
-        </el-card>
+        </section>
 
-        <el-card shadow="never" class="panel-card">
+        <section class="workspace-section debug-section">
           <div>
             <div class="panel-title">原始 HEX 调试</div>
           </div>
@@ -752,7 +753,7 @@ onUnmounted(() => {
                 placeholder="收发日志"
             />
           </el-form>
-        </el-card>
+        </section>
       </div>
     </div>
 
@@ -783,10 +784,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.container {
-  padding: 16px;
-}
-
 .page-stack {
   display: flex;
   flex-direction: column;
@@ -796,34 +793,29 @@ onUnmounted(() => {
 .layout-row {
   display: grid;
   gap: 16px;
-  align-items: stretch;
-}
-
-.layout-row > .panel-card {
-  height: 100%;
+  align-items: start;
 }
 
 .layout-row-top {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
 }
 
 .layout-row-bottom {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
 }
 
-.panel-card {
-  background: var(--app-surface);
-  border-color: var(--app-border);
-  border-radius: var(--el-border-radius-base);
+.debug-section {
+  grid-column: 1 / -1;
 }
 
-.panel-card :deep(.el-divider--horizontal) {
+.workspace-section :deep(.el-divider--horizontal) {
   margin: 12px 0 16px;
 }
 
-.panel-stack :deep(.el-select),
-.panel-stack :deep(.el-input-number),
-.parameter-grid :deep(.el-input-number),
+.panel-stack :deep(.el-select) {
+  max-width: 360px;
+}
+
 .power-grid :deep(.el-input-number) {
   width: 100%;
 }
@@ -831,7 +823,30 @@ onUnmounted(() => {
 .parameter-grid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 144px));
+}
+
+.power-controls,
+.parameter-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.parameter-controls {
+  border-top: 1px solid var(--app-border);
+  padding-top: 16px;
+}
+
+.parameter-grid {
+  flex: 1 1 600px;
+}
+
+.password-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .field-form :deep(.el-form-item) {
@@ -891,7 +906,7 @@ onUnmounted(() => {
 
 .info-panel {
   border: 1px solid var(--app-border);
-  border-radius: var(--el-border-radius-base);
+  border-radius: 4px;
   padding: 12px;
 }
 
@@ -943,25 +958,18 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-@media (max-width: 1200px) {
-  .layout-row-bottom {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .layout-row-top,
   .layout-row-bottom {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .write-epc-row,
-  .panel-title-row,
-  .action-buttons {
-    align-items: stretch;
-    flex-direction: column;
-  }
+}
 
+@media (max-width: 480px) {
+  .password-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .power-grid {
     grid-template-columns: minmax(0, 1fr);
   }

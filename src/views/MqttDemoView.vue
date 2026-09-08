@@ -233,9 +233,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="container">
+  <div class="workspace-page">
     <div class="panel-grid">
-      <el-card shadow="never" class="panel-card">
+      <section class="workspace-section">
         <div class="panel-card__header">
           <div class="panel-title">Broker 配置</div>
         </div>
@@ -264,9 +264,9 @@ onUnmounted(() => {
             </div>
           </div>
         </el-form>
-      </el-card>
+      </section>
 
-      <el-card shadow="never" class="panel-card">
+      <section class="workspace-section">
         <div class="panel-card__header panel-title-row">
           <div class="panel-title">运行日志</div>
           <el-button type="primary" link @click="clearLog">清空日志</el-button>
@@ -277,9 +277,9 @@ onUnmounted(() => {
             <pre class="output-content">{{ log || '连接、订阅、发布、接收日志' }}</pre>
           </div>
         </div>
-      </el-card>
+      </section>
 
-      <el-card shadow="never" class="panel-card">
+      <section class="workspace-section">
         <div class="panel-card__header">
           <div class="panel-title">订阅</div>
         </div>
@@ -287,7 +287,7 @@ onUnmounted(() => {
         <el-form label-position="top" class="panel-stack panel-stack--fill">
           <el-form-item label="Topic"><el-input v-model="subscribeTopic" placeholder="订阅 Topic" /></el-form-item>
           <el-form-item label="QoS">
-            <el-select v-model="subscribeQos">
+            <el-select v-model="subscribeQos" class="qos-select">
               <el-option v-for="option in qosOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
           </el-form-item>
@@ -306,13 +306,13 @@ onUnmounted(() => {
               </div>
             </div>
             <div class="output-box output-box--fill output-box--records">
-              <pre class="output-content">{{ messageRecordsText || '收到的 MQTT 消息会格式化为 JSON 输出到这里' }}</pre>
+              <pre class="output-content">{{ messageRecordsText || '暂无消息' }}</pre>
             </div>
           </div>
         </el-form>
-      </el-card>
+      </section>
 
-      <el-card shadow="never" class="panel-card">
+      <section class="workspace-section">
         <div class="panel-card__header">
           <div class="panel-title">发布</div>
         </div>
@@ -327,7 +327,7 @@ onUnmounted(() => {
             placeholder="消息内容"
           /></el-form-item>
           <el-form-item label="QoS">
-            <el-select v-model="publishQos">
+            <el-select v-model="publishQos" class="qos-select">
               <el-option v-for="option in qosOptions" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
           </el-form-item>
@@ -337,34 +337,20 @@ onUnmounted(() => {
             <el-button type="primary" :disabled="!isConnected" @click="publish">发布</el-button>
           </div>
         </el-form>
-      </el-card>
+      </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-.container {
-  padding: 16px;
-}
-
 .panel-grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 480px) minmax(0, 1fr);
 }
 
-.panel-card {
-  background: var(--app-surface);
-  border-color: var(--app-border);
-  border-radius: var(--el-border-radius-base);
+.workspace-section {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.panel-card :deep(.el-card__body) {
-  display: flex;
-  flex: 1;
   flex-direction: column;
   min-height: 0;
 }
@@ -381,9 +367,8 @@ onUnmounted(() => {
   margin-bottom: 0;
 }
 
-.panel-stack :deep(.el-input-number),
-.panel-stack :deep(.el-select) {
-  width: 100%;
+.qos-select {
+  max-width: 200px;
 }
 
 .panel-title,
@@ -413,7 +398,7 @@ onUnmounted(() => {
 }
 
 .field-grid--wide {
-  grid-template-columns: minmax(0, 1.5fr) minmax(180px, 0.8fr);
+  grid-template-columns: minmax(0, 1fr) 144px;
 }
 
 .panel-stack--fill {
@@ -460,8 +445,8 @@ onUnmounted(() => {
 .output-box {
   overflow: auto;
   border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
+  border-radius: 4px;
+  background: var(--el-fill-color-blank);
   padding: 12px;
   min-height: 260px;
   max-height: 360px;
@@ -491,8 +476,14 @@ onUnmounted(() => {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
 }
 
-@media (max-width: 991px) {
-  .panel-grid,
+@media (max-width: 1100px) {
+  .panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 480px) {
   .field-grid,
   .field-grid--wide {
     grid-template-columns: 1fr;

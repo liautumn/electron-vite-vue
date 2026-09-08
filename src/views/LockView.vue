@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
+import { Delete } from '@element-plus/icons-vue'
 import { lockDevice } from '../components/lock/LockDevice'
 import {
   formatLockHex,
@@ -488,7 +489,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="container">
+  <div class="workspace-page">
     <div class="page-stack">
       <el-card shadow="never" class="panel-card">
         <div class="panel-title-row">
@@ -500,6 +501,8 @@ onUnmounted(() => {
         <el-divider />
         <div class="panel-stack">
           <el-select
+            class="session-select"
+            aria-label="串口会话"
             :model-value="selectedConnectionProfile?.sessionId ?? null"
             placeholder="选择串口 sessionId"
             @update:model-value="handleSessionChange"
@@ -508,7 +511,6 @@ onUnmounted(() => {
           </el-select>
 
           <el-text type="info">{{ connectionSessionHint }}</el-text>
-          <el-text type="info">锁控板页面仅支持串口会话，连接参数请在项目设置维护。</el-text>
           <el-alert v-if="lastError" :title="`最近错误：${lastError}`" type="error" :closable="false" show-icon />
         </div>
       </el-card>
@@ -520,10 +522,14 @@ onUnmounted(() => {
         <el-divider />
         <div class="module-grid">
           <div class="module-column">
-            <div class="address-grid">
+            <el-form label-position="top" class="address-grid">
+              <el-form-item label="板地址">
               <el-input-number v-model="normalLockTarget.boardAddress" :min="0" :max="255" placeholder="普通锁板地址" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="锁地址">
               <el-input-number v-model="normalLockTarget.lockAddress" :min="0" :max="255" placeholder="普通锁锁地址" controls-position="right" />
-            </div>
+              </el-form-item>
+            </el-form>
             <el-text type="info">{{ formatTargetPreview(normalLockTarget) }}</el-text>
             <div class="action-buttons">
               <el-button type="primary" @click="handleOpenNormalLock">开锁</el-button>
@@ -548,10 +554,14 @@ onUnmounted(() => {
         <el-divider />
         <div class="module-grid">
           <div class="module-column">
-            <div class="address-grid">
+            <el-form label-position="top" class="address-grid">
+              <el-form-item label="板地址">
               <el-input-number v-model="magneticLockTarget.boardAddress" :min="0" :max="255" placeholder="电磁锁板地址" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="锁地址">
               <el-input-number v-model="magneticLockTarget.lockAddress" :min="0" :max="255" placeholder="电磁锁锁地址" controls-position="right" />
-            </div>
+              </el-form-item>
+            </el-form>
             <el-text type="info">{{ formatTargetPreview(magneticLockTarget) }}</el-text>
             <div class="action-buttons">
               <el-button type="primary" @click="handleEnableMagneticHoldOpen">开启长通电</el-button>
@@ -565,7 +575,6 @@ onUnmounted(() => {
               <el-descriptions-item label="状态位">{{ magneticLockPanel.statusText || '-' }}</el-descriptions-item>
               <el-descriptions-item label="BCC">{{ magneticLockPanel.bccText || '-' }}</el-descriptions-item>
             </el-descriptions>
-            <el-text type="info">9A/9B 不强行按统一长度拆包。</el-text>
           </div>
         </div>
       </el-card>
@@ -577,10 +586,14 @@ onUnmounted(() => {
         <el-divider />
         <div class="module-grid">
           <div class="module-column">
-            <div class="address-grid">
+            <el-form label-position="top" class="address-grid">
+              <el-form-item label="板地址">
               <el-input-number v-model="microswitchTarget.boardAddress" :min="0" :max="255" placeholder="微动板地址" controls-position="right" />
+              </el-form-item>
+              <el-form-item label="锁地址">
               <el-input-number v-model="microswitchTarget.lockAddress" :min="0" :max="255" placeholder="微动锁地址" controls-position="right" />
-            </div>
+              </el-form-item>
+            </el-form>
             <el-text type="info">{{ formatTargetPreview(microswitchTarget) }}</el-text>
           </div>
           <div class="module-column">
@@ -601,7 +614,6 @@ onUnmounted(() => {
         </div>
         <el-divider />
         <div class="panel-stack">
-          <el-text type="info">自定义 HEX 会直接走当前串口会话发送，便于补测文档之外的命令。</el-text>
           <div class="serial-port-row">
             <el-input v-model="rawHex" class="field-grow" placeholder="例如：8A 01 01 11 9B" />
             <el-button type="primary" @click="handleSendRawHex">发送自定义 HEX</el-button>
@@ -612,7 +624,7 @@ onUnmounted(() => {
       <el-card shadow="never" class="panel-card">
         <div class="panel-title-row">
           <div class="panel-title">通讯日志</div>
-          <el-button type="danger" @click="clearLog">清空日志</el-button>
+          <el-tooltip content="清空日志"><el-button text :icon="Delete" aria-label="清空日志" @click="clearLog" /></el-tooltip>
         </div>
         <el-divider />
         <div>
@@ -631,8 +643,9 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.container {
-  padding: 16px;
+.session-select {
+  width: 320px;
+  max-width: 100%;
 }
 
 .page-stack {
@@ -649,10 +662,6 @@ onUnmounted(() => {
 
 .panel-card :deep(.el-divider--horizontal) {
   margin: 12px 0 16px;
-}
-
-.address-grid :deep(.el-input-number) {
-  width: 100%;
 }
 
 .panel-title-row,
@@ -677,23 +686,24 @@ onUnmounted(() => {
 .serial-port-row {
   display: flex;
   gap: 12px;
-  width: 100%;
+  max-width: 840px;
   align-items: end;
   flex-wrap: wrap;
 }
 
 .field-grow {
   flex: 1;
-  min-width: 240px;
+  min-width: min(240px, 100%);
 }
 
 .module-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 24px;
 }
 
 .module-column {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -701,7 +711,7 @@ onUnmounted(() => {
 
 .address-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 144px));
   gap: 12px;
 }
 
@@ -718,16 +728,8 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1080px) {
-  .module-grid,
-  .address-grid {
+  .module-grid {
     grid-template-columns: 1fr;
-  }
-
-  .serial-port-row,
-  .panel-title-row,
-  .action-buttons {
-    flex-direction: column;
-    align-items: stretch;
   }
 }
 </style>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {computed, onMounted, onUnmounted, ref, watch} from 'vue'
+import {Connection, Delete, Refresh, Position} from '@element-plus/icons-vue'
 
 type SelectOption<T = string | number | boolean> = {
   label: string
@@ -229,133 +230,111 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="container">
+  <div class="workspace-page">
     <div class="page-stack">
-      <el-card shadow="never" class="panel-card">
+      <section class="workspace-section">
         <div class="panel-title-row">
           <div class="panel-title">连接方式</div>
-          <el-tag :type="isConnected ? 'success' : 'danger'" effect="dark">
+          <el-tag :type="isConnected ? 'success' : 'info'" effect="plain">
             {{ isConnected ? '已连接' : '未连接' }}
           </el-tag>
         </div>
         <el-divider />
         <div class="panel-stack">
-          <el-segmented v-model="mode" :options="modeOptions" />
-
-          <div v-if="mode === 'rs232'" class="field-row">
-            <el-select v-model="portPath" class="field-grow" placeholder="选择串口">
-              <el-option v-for="option in comList" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-            <el-input-number v-model="baudRate" :min="300" :step="300" controls-position="right" />
-            <el-button type="primary" @click="connect">连接</el-button>
-            <el-button type="danger" @click="disconnect">断开</el-button>
-            <el-button type="primary" plain @click="refreshPorts">刷新串口</el-button>
-          </div>
-
-          <div v-else class="field-row">
-            <el-input
-              v-model="host"
-              class="field-grow"
-              placeholder="TCP 地址"
-            />
-            <el-input-number v-model="tcpPort" :min="1" :max="65535" controls-position="right" />
-            <el-button type="primary" @click="connect">连接</el-button>
-            <el-button type="danger" @click="disconnect">断开</el-button>
-          </div>
+          <el-form label-position="top" class="connection-form">
+            <el-form-item label="协议">
+              <el-segmented v-model="mode" :options="modeOptions" aria-label="连接方式" />
+            </el-form-item>
+            <el-form-item v-if="isRs232" label="串口" class="endpoint-field">
+              <el-select v-model="portPath" placeholder="选择串口">
+                <el-option v-for="option in comList" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item v-else label="TCP 地址" class="endpoint-field">
+              <el-input v-model="host" placeholder="192.168.1.100" @keyup.enter="connect" />
+            </el-form-item>
+            <el-form-item v-if="isRs232" label="波特率">
+              <el-input-number v-model="baudRate" :min="300" :step="300" controls-position="right" />
+            </el-form-item>
+            <el-form-item v-else label="端口">
+              <el-input-number v-model="tcpPort" :min="1" :max="65535" controls-position="right" />
+            </el-form-item>
+            <div class="action-buttons connection-actions">
+              <el-button type="primary" :icon="Connection" :disabled="isConnected" @click="connect">连接</el-button>
+              <el-button :disabled="!isConnected" @click="disconnect">断开</el-button>
+              <el-tooltip v-if="isRs232" content="刷新串口">
+                <el-button :icon="Refresh" aria-label="刷新串口" @click="refreshPorts" />
+              </el-tooltip>
+            </div>
+          </el-form>
         </div>
-      </el-card>
+      </section>
 
-      <el-card shadow="never" class="panel-card">
-        <div>
+      <section class="workspace-section">
+        <div class="panel-title-row">
           <div class="panel-title">发送与接收</div>
+          <el-tooltip content="清空日志">
+            <el-button text :icon="Delete" aria-label="清空日志" @click="clearLog" />
+          </el-tooltip>
         </div>
         <el-divider />
         <div class="panel-stack">
-          <el-input
-            v-model="sendHex"
-            placeholder="发送 HEX"
-          />
-
-          <div class="action-buttons">
-            <el-button type="primary" @click="sendData">发送</el-button>
-            <el-button type="danger" @click="clearLog">清空日志</el-button>
+          <div class="send-row">
+            <el-input v-model="sendHex" placeholder="发送 HEX" aria-label="发送 HEX" @keyup.enter="sendData" />
+            <el-button type="primary" :icon="Position" @click="sendData">发送</el-button>
           </div>
 
           <el-input
             v-model="log"
             readonly
             type="textarea"
-            :autosize="{minRows: 12, maxRows: 24}"
+            class="log-textarea"
+            :rows="14"
+            aria-label="收发日志"
             placeholder="收发日志"
           />
         </div>
-      </el-card>
+      </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-.container {
-  padding: 16px;
-}
-
 .page-stack {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
 
-.panel-card {
-  background: var(--app-surface);
-  border-color: var(--app-border);
-  border-radius: var(--el-border-radius-base);
-}
-
-.panel-card :deep(.el-divider--horizontal) {
-  margin: 12px 0 16px;
-}
-
-.panel-title-row,
-.action-buttons {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-}
-
-.panel-title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.panel-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.field-row {
-  align-items: end;
+.connection-form {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 12px;
 }
 
-.field-grow {
-  flex: 1;
-  min-width: 220px;
+.endpoint-field {
+  width: 280px;
+  max-width: 100%;
 }
 
-.container :deep(textarea) {
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+.connection-actions {
+  min-height: 32px;
 }
 
-@media (max-width: 900px) {
-  .field-row,
-  .panel-title-row,
-  .action-buttons {
-    align-items: stretch;
-    flex-direction: column;
+.send-row {
+  display: flex;
+  gap: 8px;
+  max-width: 840px;
+}
+
+.send-row > .el-input {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .endpoint-field {
+    width: 100%;
   }
 }
 </style>

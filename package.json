@@ -18,13 +18,6 @@
     "dev": "vite",
     "build": "vite build && electron-builder",
     "build:test": "vite build --mode test && electron-builder",
-    "build:win": "vite build && electron-builder --win",
-    "build:linux": "vite build && electron-builder --linux",
-    "docker:images": "docker buildx bake -f docker-build/docker-bake.hcl --pull --load",
-    "docker:install:linux": "node docker-build/run.mjs linux install",
-    "docker:install:win": "node docker-build/run.mjs win install",
-    "docker:build:linux": "node docker-build/run.mjs linux build",
-    "docker:build:win": "node docker-build/run.mjs win build",
     "rebuild:native": "electron-builder install-app-deps",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },

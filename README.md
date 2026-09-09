@@ -282,7 +282,7 @@ VITE_DEV_PORT=5173 npm run dev
 npm install -g electron-icon-builder
 
 # 使用
-electron-icon-builder --input=public/logo.png --output=public/icons
+electron-icon-builder --input=public/logo.png --output=public
 ```
 
 ## 来源

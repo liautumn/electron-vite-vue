@@ -60,12 +60,19 @@ docker run --rm --platform linux/amd64 electron-builder:node24-linux-amd64 \
 命名卷不存在时会自动创建，`nocopy` 防止复制宿主机的 `node_modules`。
 源码和 `release` 打包产物仍在本地项目中。
 
+Electron 和 electron-builder 的下载缓存分别保存在命名卷中，容器退出并删除后仍会保留。
+首次构建需要下载文件，后续构建可复用缓存；调整这些挂载无需重新构建镜像。
+
 Linux 使用 electron-builder 默认的原生依赖重建流程。
+deb 和 rpm 使用 gzip 压缩，减少每次生成安装包的耗时，代价是安装包通常比默认的 xz 压缩更大。
+下载缓存不会跳过安装包的压缩过程，在 ARM64 主机上通过 x64 模拟构建时仍有额外开销。
 
 ```sh
 docker run --rm --platform linux/amd64 \
   -v "$PWD:/project" \
   -v electron-builder-linux-amd64-node-modules:/project/node_modules:nocopy \
+  -v electron-cache:/root/.cache/electron \
+  -v electron-builder-cache:/root/.cache/electron-builder \
   electron-builder:node24-linux-amd64 \
   bash -c 'npm install && npm run build -- --linux --x64'
 ```

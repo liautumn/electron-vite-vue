@@ -72,5 +72,11 @@
       "rpm"
     ],
     "artifactName": "${productName}-Linux-${version}-${arch}.${ext}"
+  },
+  "deb": {
+    "compression": "gz"
+  },
+  "rpm": {
+    "compression": "gzip"
   }
 }

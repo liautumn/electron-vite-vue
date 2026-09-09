@@ -11,7 +11,7 @@
   ],
   "productName": "Autumn Electron",
   "directories": {
-    "output": "release/${version}"
+    "output": "release/${os}-${arch}-release/${version}"
   },
   "files": [
     "dist",

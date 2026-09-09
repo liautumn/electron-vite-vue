@@ -215,8 +215,18 @@ npm run build:test
 打包产物输出到：
 
 ```text
-release/${version}
+release/${os}-${arch}-release/${version}
 ```
+
+按目标系统、CPU 架构和版本分别存放，例如：
+
+```text
+release/linux-x64-release/1.0.0/
+release/win-x64-release/1.0.0/
+release/mac-arm64-release/1.0.0/
+```
+
+electron-builder 使用 `x64` 表示 Docker 中的 `amd64` 架构。
 
 当前配置支持：
 

@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import net, { Socket } from 'node:net'
 import {createLogger} from '../utils/logger'
-import type { TcpConnectOptions, TcpConnectRequest } from '../../../shared/types/tcp'
+import type { TcpConnectOptions, TcpConnectRequest } from '../../preload/mod/tcp'
 
 type TcpWriteRequest =
   | string

@@ -1,6 +1,6 @@
 import {computed, onMounted, onScopeDispose, readonly, ref, shallowRef} from 'vue'
-import type {CameraMethods, CameraPermissionStatus} from '../../shared/types/camera'
-import type {RgbaImage} from '../../shared/types/image'
+import type {CameraPermissionStatus} from '../../electron/preload/mod/camera'
+import type {RgbaImage} from '../../electron/preload/mod/yolo26'
 
 export type CameraState = 'idle' | 'starting' | 'running' | 'error'
 
@@ -38,7 +38,7 @@ const permissionError = (status: CameraPermissionStatus) => {
 }
 
 const cameraBridge = () => {
-    const bridge = (window as Window & {camera?: CameraMethods}).camera
+    const bridge = window.camera
     if (!bridge) throw new Error('摄像头权限接口不可用')
     return bridge
 }

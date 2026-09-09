@@ -1,8 +1,16 @@
 import {contextBridge, ipcRenderer} from 'electron'
-import type {CameraMethods} from '../../../shared/types/camera'
+
+export type CameraPermissionStatus =
+    | 'not-determined'
+    | 'granted'
+    | 'denied'
+    | 'restricted'
+    | 'unknown'
+
+export const cameraApi = {
+    requestAccess: (): Promise<CameraPermissionStatus> => ipcRenderer.invoke('camera:request-access'),
+}
 
 export function registerCameraRenderer() {
-    contextBridge.exposeInMainWorld('camera', {
-        requestAccess: () => ipcRenderer.invoke('camera:request-access'),
-    } satisfies CameraMethods)
+    contextBridge.exposeInMainWorld('camera', cameraApi)
 }

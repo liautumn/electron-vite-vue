@@ -1,13 +1,29 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type {
-  TcpApi,
-  TcpConnectRequest,
-  TcpDataEvent,
-  TcpErrorEvent,
-  TcpSession,
-  TcpSessionEvent,
-  TcpSessionId
-} from '../../../shared/types/tcp'
+
+export type TcpSessionId = number
+
+export interface TcpConnectOptions {
+  host: string
+  port: number
+}
+
+export interface TcpConnectRequest extends TcpConnectOptions {
+  sessionId?: TcpSessionId
+}
+
+export interface TcpSessionEvent {
+  sessionId: TcpSessionId
+}
+
+export interface TcpDataEvent extends TcpSessionEvent {
+  data: string
+}
+
+export interface TcpErrorEvent extends TcpSessionEvent {
+  message: string
+}
+
+type TcpSession = ReturnType<typeof createTcpSession>
 
 const DEFAULT_TCP_SESSION_ID = 0
 
@@ -21,21 +37,21 @@ const normalizeSessionId = (value?: number) => {
 
 const sessions = new Map<number, TcpSession>()
 
-function createTcpSession(sessionId: TcpSessionId): TcpSession {
+function createTcpSession(sessionId: TcpSessionId) {
   const normalizedSessionId = normalizeSessionId(sessionId)
 
   return {
     sessionId: normalizedSessionId,
 
-    disconnect: () => ipcRenderer.invoke('tcp:disconnect', normalizedSessionId),
+    disconnect: (): Promise<boolean> => ipcRenderer.invoke('tcp:disconnect', normalizedSessionId),
 
-    write: (hex: string) =>
+    write: (hex: string): Promise<boolean> =>
       ipcRenderer.invoke('tcp:write', {
         hex,
         sessionId: normalizedSessionId
       }),
 
-    onConnect: (cb: (payload: TcpSessionEvent) => void) => {
+    onConnect: (cb: (payload: TcpSessionEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: TcpSessionEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -44,7 +60,7 @@ function createTcpSession(sessionId: TcpSessionId): TcpSession {
       return () => ipcRenderer.off('tcp:connect', handler)
     },
 
-    onClose: (cb: (payload: TcpSessionEvent) => void) => {
+    onClose: (cb: (payload: TcpSessionEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: TcpSessionEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -53,7 +69,7 @@ function createTcpSession(sessionId: TcpSessionId): TcpSession {
       return () => ipcRenderer.off('tcp:close', handler)
     },
 
-    onData: (cb: (payload: TcpDataEvent) => void) => {
+    onData: (cb: (payload: TcpDataEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: TcpDataEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -62,7 +78,7 @@ function createTcpSession(sessionId: TcpSessionId): TcpSession {
       return () => ipcRenderer.off('tcp:data', handler)
     },
 
-    onError: (cb: (payload: TcpErrorEvent) => void) => {
+    onError: (cb: (payload: TcpErrorEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: TcpErrorEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -73,29 +89,29 @@ function createTcpSession(sessionId: TcpSessionId): TcpSession {
   }
 }
 
+const getSessionById = (sessionId: TcpSessionId) => {
+  const normalizedSessionId = normalizeSessionId(sessionId)
+  let session = sessions.get(normalizedSessionId)
+  if (!session) {
+    session = createTcpSession(normalizedSessionId)
+    sessions.set(normalizedSessionId, session)
+  }
+  return session
+}
+
+export const tcpApi = {
+  connect: (options: TcpConnectRequest): Promise<boolean> => {
+    const normalizedSessionId = normalizeSessionId(options?.sessionId)
+    getSessionById(normalizedSessionId)
+    return ipcRenderer.invoke('tcp:connect', {
+      ...options,
+      sessionId: normalizedSessionId
+    })
+  },
+
+  getSessionById
+}
+
 export function registerTcpRenderer() {
-  const getSessionById = (sessionId: TcpSessionId) => {
-    const normalizedSessionId = normalizeSessionId(sessionId)
-    let session = sessions.get(normalizedSessionId)
-    if (!session) {
-      session = createTcpSession(normalizedSessionId)
-      sessions.set(normalizedSessionId, session)
-    }
-    return session
-  }
-
-  const api: TcpApi = {
-    connect: (options: TcpConnectRequest) => {
-      const normalizedSessionId = normalizeSessionId(options?.sessionId)
-      getSessionById(normalizedSessionId)
-      return ipcRenderer.invoke('tcp:connect', {
-        ...options,
-        sessionId: normalizedSessionId
-      })
-    },
-
-    getSessionById
-  }
-
-  contextBridge.exposeInMainWorld('tcp', api)
+  contextBridge.exposeInMainWorld('tcp', tcpApi)
 }

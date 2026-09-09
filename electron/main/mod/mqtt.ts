@@ -1,7 +1,7 @@
 import {BrowserWindow, ipcMain} from 'electron'
 import {connect, type IClientOptions, type MqttClient} from 'mqtt'
 import {createLogger} from '../utils/logger'
-import {MqttConnectOptions, MqttPublishOptions, MqttSubscribeOptions} from "../../../shared/types/mqtt";
+import type {MqttConnectOptions, MqttPublishOptions, MqttSubscribeOptions} from "../../preload/mod/mqtt";
 
 let client: MqttClient | null = null
 let win: BrowserWindow | null = null

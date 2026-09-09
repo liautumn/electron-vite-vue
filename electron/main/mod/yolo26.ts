@@ -3,8 +3,8 @@ import {existsSync, readFileSync} from 'node:fs'
 import path from 'node:path'
 import {performance} from 'node:perf_hooks'
 import type * as ort from 'onnxruntime-node'
-import type {RgbaImage} from '../../../shared/types/image'
 import type {
+    RgbaImage,
     Yolo26Detection,
     Yolo26EngineState,
     Yolo26FrameInferenceResult,
@@ -13,7 +13,7 @@ import type {
     Yolo26InferenceResult,
     Yolo26Status,
     Yolo26StressResult,
-} from '../../../shared/types/yolo26'
+} from '../../preload/mod/yolo26'
 import {createLogger} from '../utils/logger'
 import {getModelConfigPath, readModelConfigSection} from '../utils/model-config'
 import {resolvePortablePath} from '../utils/portable-path'

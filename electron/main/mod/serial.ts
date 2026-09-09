@@ -1,7 +1,7 @@
 import { SerialPort } from 'serialport'
 import { BrowserWindow, ipcMain } from 'electron'
 import {createLogger} from '../utils/logger'
-import type { SerialOpenOptions, SerialOpenRequest } from '../../../shared/types/serial'
+import type { SerialOpenOptions, SerialOpenRequest } from '../../preload/mod/serial'
 
 type SerialWriteRequest =
   | string

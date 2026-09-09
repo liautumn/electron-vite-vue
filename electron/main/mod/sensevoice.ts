@@ -9,7 +9,7 @@ import type {
     MicrophonePermissionStatus,
     SenseVoiceRecognitionResult,
     SenseVoiceStatus,
-} from '../../../shared/types/sensevoice'
+} from '../../preload/mod/sensevoice'
 import {createLogger} from '../utils/logger'
 import {requestMediaAccess} from '../utils/media-access'
 import {getModelConfigPath, readModelConfigSection} from '../utils/model-config'

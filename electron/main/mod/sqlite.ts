@@ -8,7 +8,7 @@ import type {
   SqliteExecuteRequest,
   SqliteExecuteResult,
   SqliteRow,
-} from '../../../shared/types/sqlite'
+} from '../../preload/mod/sqlite'
 import { initializeSqliteSchema } from '../utils/sqlite-schema'
 
 const DB_DIRECTORY = 'database'

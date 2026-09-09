@@ -1,13 +1,29 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type {
-  SerialApi,
-  SerialDataEvent,
-  SerialErrorEvent,
-  SerialOpenRequest,
-  SerialSession,
-  SerialSessionEvent,
-  SerialSessionId
-} from '../../../shared/types/serial'
+
+export type SerialSessionId = number
+
+export interface SerialOpenOptions {
+  path: string
+  baudRate: number
+}
+
+export interface SerialOpenRequest extends SerialOpenOptions {
+  sessionId?: SerialSessionId
+}
+
+export interface SerialSessionEvent {
+  sessionId: SerialSessionId
+}
+
+export interface SerialDataEvent extends SerialSessionEvent {
+  data: string
+}
+
+export interface SerialErrorEvent extends SerialSessionEvent {
+  message: string
+}
+
+type SerialSession = ReturnType<typeof createSerialSession>
 
 const DEFAULT_SERIAL_SESSION_ID = 0
 
@@ -21,21 +37,21 @@ const normalizeSessionId = (value?: number) => {
 
 const sessions = new Map<number, SerialSession>()
 
-function createSerialSession(sessionId: SerialSessionId): SerialSession {
+function createSerialSession(sessionId: SerialSessionId) {
   const normalizedSessionId = normalizeSessionId(sessionId)
 
   return {
     sessionId: normalizedSessionId,
 
-    close: () => ipcRenderer.invoke('serial:close', normalizedSessionId),
+    close: (): Promise<boolean> => ipcRenderer.invoke('serial:close', normalizedSessionId),
 
-    write: (hex: string) =>
+    write: (hex: string): Promise<boolean> =>
       ipcRenderer.invoke('serial:write', {
         hex,
         sessionId: normalizedSessionId
       }),
 
-    onOpen: (cb: (payload: SerialSessionEvent) => void) => {
+    onOpen: (cb: (payload: SerialSessionEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: SerialSessionEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -44,7 +60,7 @@ function createSerialSession(sessionId: SerialSessionId): SerialSession {
       return () => ipcRenderer.off('serial:open', handler)
     },
 
-    onClose: (cb: (payload: SerialSessionEvent) => void) => {
+    onClose: (cb: (payload: SerialSessionEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: SerialSessionEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -53,7 +69,7 @@ function createSerialSession(sessionId: SerialSessionId): SerialSession {
       return () => ipcRenderer.off('serial:close', handler)
     },
 
-    onData: (cb: (payload: SerialDataEvent) => void) => {
+    onData: (cb: (payload: SerialDataEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: SerialDataEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -62,7 +78,7 @@ function createSerialSession(sessionId: SerialSessionId): SerialSession {
       return () => ipcRenderer.off('serial:data', handler)
     },
 
-    onError: (cb: (payload: SerialErrorEvent) => void) => {
+    onError: (cb: (payload: SerialErrorEvent) => void): (() => void) => {
       const handler = (_event: unknown, payload: SerialErrorEvent) => {
         if (payload?.sessionId !== normalizedSessionId) return
         cb(payload)
@@ -73,31 +89,31 @@ function createSerialSession(sessionId: SerialSessionId): SerialSession {
   }
 }
 
+const getSessionById = (sessionId: SerialSessionId) => {
+  const normalizedSessionId = normalizeSessionId(sessionId)
+  let session = sessions.get(normalizedSessionId)
+  if (!session) {
+    session = createSerialSession(normalizedSessionId)
+    sessions.set(normalizedSessionId, session)
+  }
+  return session
+}
+
+export const serialApi = {
+  list: (): Promise<any[]> => ipcRenderer.invoke('serial:list'),
+
+  open: (options: SerialOpenRequest): Promise<boolean> => {
+    const normalizedSessionId = normalizeSessionId(options?.sessionId)
+    getSessionById(normalizedSessionId)
+    return ipcRenderer.invoke('serial:open', {
+      ...options,
+      sessionId: normalizedSessionId
+    })
+  },
+
+  getSessionById
+}
+
 export function registerSerialRenderer() {
-  const getSessionById = (sessionId: SerialSessionId) => {
-    const normalizedSessionId = normalizeSessionId(sessionId)
-    let session = sessions.get(normalizedSessionId)
-    if (!session) {
-      session = createSerialSession(normalizedSessionId)
-      sessions.set(normalizedSessionId, session)
-    }
-    return session
-  }
-
-  const api: SerialApi = {
-    list: () => ipcRenderer.invoke('serial:list'),
-
-    open: (options: SerialOpenRequest) => {
-      const normalizedSessionId = normalizeSessionId(options?.sessionId)
-      getSessionById(normalizedSessionId)
-      return ipcRenderer.invoke('serial:open', {
-        ...options,
-        sessionId: normalizedSessionId
-      })
-    },
-
-    getSessionById
-  }
-
-  contextBridge.exposeInMainWorld('serial', api)
+  contextBridge.exposeInMainWorld('serial', serialApi)
 }

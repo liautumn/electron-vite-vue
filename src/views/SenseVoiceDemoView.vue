@@ -4,7 +4,7 @@ import {CircleCheckFilled, Close, Cpu, Delete, Microphone, SwitchButton, Warning
 import type {
   SenseVoiceRecognitionResult,
   SenseVoiceStatus,
-} from '../../shared/types/sensevoice'
+} from '../../electron/preload/mod/sensevoice'
 
 defineOptions({name: 'sensevoice-demo'})
 

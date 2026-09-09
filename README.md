@@ -143,8 +143,7 @@ MODELS_CONFIG_PATH=/absolute/path/to/models.json npm run dev
 │   │   ├── mod              主进程能力模块
 │   │   └── utils            主进程工具
 │   └── preload              预加载脚本，向渲染进程暴露安全接口
-├── shared
-│   └── types                主进程、预加载脚本和渲染进程共享类型
+│       └── mod              API 实现及对应的参数、返回值和事件类型
 ├── src
 │   ├── api                  渲染进程接口封装
 │   ├── components           通用组件和设备协议模块
@@ -160,12 +159,13 @@ MODELS_CONFIG_PATH=/absolute/path/to/models.json npm run dev
 
 ## 架构说明
 
-应用分为四层：
+应用分为三层：
 
 - 主进程：负责系统能力和原生能力，例如串口、`TCP`、`MQTT`、`SQLite`、文件和日志。
 - 预加载脚本：通过 `contextBridge` 暴露白名单接口，渲染进程不直接访问 `Node.js`。
 - 渲染进程：负责页面、状态管理、设备操作界面和协议交互。
-- 共享类型：放在 `shared/types`，供主进程、预加载脚本和渲染进程复用。
+
+`src/vite-env.d.ts` 使用 `typeof import(...)` 从 preload 导出的 API 对象推导 `Window` 类型。参数、返回值和事件的数据类型与对应的 preload 模块放在一起，各进程通过 `import type` 复用；IPC 方法显式声明返回类型。
 
 当前主窗口启用了 `contextIsolation`，并关闭了渲染进程的 `nodeIntegration`。如果继续产品化，建议保持这个方向，把系统能力继续收敛在主进程。
 
@@ -272,7 +272,7 @@ VITE_DEV_PORT=5173 npm run dev
 
 - 渲染进程不要直接引入 `Node.js` 模块，需要通过预加载脚本暴露接口。
 - 新增系统能力时，优先放到 `electron/main/mod` 和 `electron/preload/mod`。
-- 新增跨进程类型时，优先放到 `shared/types`。
+- 新增跨进程数据类型时，放到对应的 `electron/preload/mod` 模块，并通过 `import type` 引用；API 方法类型从实现推导。
 - 当前 `sqlite.execute` 属于示例级通用接口。如果要做正式业务，建议改成主进程领域接口，避免渲染进程传任意 SQL。
 - 当前应用在主进程里配置了远程调试端口。发布正式版本前，建议只在开发环境开启。
 

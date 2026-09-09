@@ -6,7 +6,7 @@ import type {
     ImageFileEntry,
     ImageSelectionMode,
     SaveJpegRequest,
-} from '../../../shared/types/image-files'
+} from '../../preload/mod/image-files'
 import {createLogger} from '../utils/logger'
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff'])

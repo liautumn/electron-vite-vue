@@ -22,13 +22,13 @@ import {
   WarningFilled,
   ZoomIn,
 } from '@element-plus/icons-vue'
-import type {ImageFileEntry, ImageSelectionMode} from '../../shared/types/image-files'
+import type {ImageFileEntry, ImageSelectionMode} from '../../electron/preload/mod/image-files'
 import type {
   Yolo26FrameInferenceResult,
   Yolo26InferenceResult,
   Yolo26Status,
   Yolo26StressResult,
-} from '../../shared/types/yolo26'
+} from '../../electron/preload/mod/yolo26'
 import {useCamera} from '../composables/useCamera'
 import {detectionColor, renderYolo26Result} from '../utils/yolo26-result'
 

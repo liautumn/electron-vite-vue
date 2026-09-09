@@ -1,5 +1,5 @@
 import {BrowserWindow, ipcMain} from 'electron'
-import type {CameraPermissionStatus} from '../../../shared/types/camera'
+import type {CameraPermissionStatus} from '../../preload/mod/camera'
 import {requestMediaAccess} from '../utils/media-access'
 
 let mainWindow: BrowserWindow | null = null

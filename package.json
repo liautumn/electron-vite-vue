@@ -18,6 +18,8 @@
     "dev": "vite",
     "build": "vite build && electron-builder",
     "build:test": "vite build --mode test && electron-builder",
+    "build:win": "vite build && electron-builder --win",
+    "build:linux": "vite build && electron-builder --linux",
     "rebuild:native": "electron-builder install-app-deps",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json"
   },

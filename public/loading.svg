@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg fill="none" height="100%" width="100%" viewBox="0 0 225 225" xmlns:xlink="http://www.w3.org/1999/xlink"
+     xmlns="http://www.w3.org/2000/svg">
+    <defs/>
+    <g opacity="1" id="Shape Layer 4">
+        <animate repeatCount="indefinite" attributeName="opacity" dur="4s" begin="0s" fill="freeze" values="1; 1; 0; 0"
+                 keyTimes="0; 0.387931; 0.905172; 1" keySplines="0 0 1 1; 0 0 1 1; 0 0 1 1" calcMode="spline"/>
+        <g transform="translate(112.5,112.5)">
+            <g transform="scale(0.169,0.169)">
+                <animateTransform repeatCount="indefinite" type="scale" attributeName="transform" dur="4s" begin="0s"
+                                  calcMode="spline" values="0.169 0.169; 0.169 0.169; 0.563 0.563; 0.563 0.563"
+                                  keyTimes="0; 0.387931; 0.905173; 1" keySplines="0 0 1 1; 0 0 1 1; 0 0 1 1"
+                                  fill="freeze"/>
+                <g transform="translate(0,0)">
+                    <g id="Ellipse 1" transform="matrix(1.193,0,0,1.193,0.479,0.174)">
+                        <ellipse ry="165.9865" rx="165.9865" cy="0" cx="0" stroke-miterlimit="4" stroke-linejoin="miter"
+                                 stroke-linecap="butt" stroke-width="2" stroke-opacity="1" stroke="#ffffff"
+                                 fill="#ffffff" fill-opacity="1"/>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+    <g opacity="1" id="Shape Layer 3">
+        <animate repeatCount="indefinite" attributeName="opacity" dur="4s" begin="0s" fill="freeze" values="1; 1; 0; 0"
+                 keyTimes="0; 0.258621; 0.775862; 1" keySplines="0 0 1 1; 0 0 1 1; 0 0 1 1" calcMode="spline"/>
+        <g transform="translate(112.5,112.5)">
+            <g transform="scale(0.169,0.169)">
+                <animateTransform repeatCount="indefinite" type="scale" attributeName="transform" dur="4s" begin="0s"
+                                  calcMode="spline" values="0.169 0.169; 0.169 0.169; 0.563 0.563; 0.563 0.563"
+                                  keyTimes="0; 0.258621; 0.775862; 1" keySplines="0 0 1 1; 0 0 1 1; 0 0 1 1"
+                                  fill="freeze"/>
+                <g transform="translate(0,0)">
+                    <g id="Ellipse 1" transform="matrix(1.193,0,0,1.193,0.479,0.174)">
+                        <ellipse ry="165.9865" rx="165.9865" cy="0" cx="0" stroke-miterlimit="4" stroke-linejoin="miter"
+                                 stroke-linecap="butt" stroke-width="2" stroke-opacity="1" stroke="#ffffff"
+                                 fill="#ffffff" fill-opacity="1"/>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+    <g opacity="1" id="Shape Layer 2">
+        <animate repeatCount="indefinite" attributeName="opacity" dur="4s" begin="0s" fill="freeze" values="1; 1; 0; 0"
+                 keyTimes="0; 0.12931; 0.646552; 1" keySplines="0 0 1 1; 0 0 1 1; 0 0 1 1" calcMode="spline"/>
+        <g transform="translate(112.5,112.5)">
+            <g transform="scale(0.169,0.169)">
+                <animateTransform repeatCount="indefinite" type="scale" attributeName="transform" dur="4s" begin="0s"
+                                  calcMode="spline" values="0.169 0.169; 0.169 0.169; 0.563 0.563; 0.563 0.563"
+                                  keyTimes="0; 0.12931; 0.646552; 1" keySplines="0 0 1 1; 0 0 1 1; 0 0 1 1"
+                                  fill="freeze"/>
+                <g transform="translate(0,0)">
+                    <g id="Ellipse 1" transform="matrix(1.193,0,0,1.193,0.479,0.174)">
+                        <ellipse ry="165.9865" rx="165.9865" cy="0" cx="0" stroke-miterlimit="4" stroke-linejoin="miter"
+                                 stroke-linecap="butt" stroke-width="2" stroke-opacity="1" stroke="#ffffff"
+                                 fill="#ffffff" fill-opacity="1"/>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+    <g opacity="1" id="Shape Layer 1">
+        <animate repeatCount="indefinite" attributeName="opacity" dur="4s" begin="0s" fill="freeze" values="1; 0; 0"
+                 keyTimes="0; 0.517241; 1" keySplines="0 0 1 1; 0 0 1 1" calcMode="spline"/>
+        <g transform="translate(112.5,112.5)">
+            <g transform="scale(0.169,0.169)">
+                <animateTransform repeatCount="indefinite" type="scale" attributeName="transform" dur="4s" begin="0s"
+                                  calcMode="spline" values="0.169 0.169; 0.563 0.563; 0.563 0.563"
+                                  keyTimes="0; 0.517242; 1" keySplines="0 0 1 1; 0 0 1 1" fill="freeze"/>
+                <g transform="translate(0,0)">
+                    <g id="Ellipse 1" transform="matrix(1.193,0,0,1.193,0.479,0.174)">
+                        <ellipse ry="165.9865" rx="165.9865" cy="0" cx="0" stroke-miterlimit="4" stroke-linejoin="miter"
+                                 stroke-linecap="butt" stroke-width="2" stroke-opacity="1" stroke="#ffffff"
+                                 fill="#ffffff" fill-opacity="1"/>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

@@ -80,7 +80,7 @@ const safeDOM = {
 // Loading 动图实现（应用启动过渡）
 // ------------------------------------------------------------------
 function useLoading() {
-    const loadingImagePath = new URL('./loading.gif', window.location.href).toString()
+    const loadingImagePath = `${new URL('./loading.svg', window.location.href).toString()}?t=${Date.now()}`
 
     const styleContent = `
 .app-loading-wrap {
@@ -91,7 +91,7 @@ function useLoading() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #282c34;
+  background: #000;
   z-index: 9;
 }
 .app-loading-gif {
@@ -152,10 +152,10 @@ domReady().then(appendLoading)
 
 // 监听 window.postMessage 消息
 window.onmessage = (ev) => {
-
     // 当收到 payload === 'removeLoading' 时移除 Loading
-    ev.data.payload === 'removeLoading' && removeLoading()
+    // ev.data.payload === 'removeLoading' && removeLoading()
+    ev.data.payload === 'removeLoading' && setTimeout(removeLoading, 2000)
 }
 
 // 兜底：5 秒后强制移除 Loading，防止卡死
-setTimeout(removeLoading, 4999)
+setTimeout(removeLoading, 5000)

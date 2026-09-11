@@ -135,6 +135,20 @@ async function createWindow() {
             contextIsolation: true,    // 开启上下文隔离（推荐）
         },
     })
+
+    // 打包后的应用禁止 Ctrl+R / Cmd+R 刷新
+    if (app.isPackaged) {
+        window.webContents.on('before-input-event', (event, input) => {
+            if (
+                input.type === 'keyDown' &&
+                input.key.toLowerCase() === 'r' &&
+                (input.control || input.meta)
+            ) {
+                event.preventDefault()
+            }
+        })
+    }
+
     // 隐藏状态下先最大化，页面首帧准备完成后再显示
     window.maximize()
     window.once('ready-to-show', () => {

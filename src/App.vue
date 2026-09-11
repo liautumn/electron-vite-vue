@@ -139,7 +139,7 @@ const handleMenuSelect = (routeName: string) => {
   display: flex;
   flex: none;
   gap: 12px;
-  height: 64px;
+  height: 65px;
   padding: 0 18px;
 }
 

@@ -45,7 +45,7 @@ const handleMenuSelect = (routeName: string) => {
     <button v-if="isCompact && navigationOpen" class="sidebar-backdrop" aria-label="关闭导航" @click="navigationOpen = false" />
     <el-aside v-show="!isCompact || navigationOpen" id="app-navigation" class="app-sidebar" width="208px">
       <div class="app-brand">
-        <div class="app-brand__mark">EV</div>
+        <el-image src="./logo.png" style="width: 40px; height: 40px"/>
         <div>
           <strong>Electron Vite</strong>
           <span>Device Console</span>
@@ -141,20 +141,6 @@ const handleMenuSelect = (routeName: string) => {
   gap: 12px;
   height: 64px;
   padding: 0 18px;
-}
-
-.app-brand__mark {
-  align-items: center;
-  background: var(--el-color-primary);
-  border-radius: var(--el-border-radius-base);
-  color: white;
-  display: flex;
-  flex: none;
-  font-size: 13px;
-  font-weight: 700;
-  height: 34px;
-  justify-content: center;
-  width: 34px;
 }
 
 .app-brand strong,

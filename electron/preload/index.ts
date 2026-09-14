@@ -76,11 +76,39 @@ const safeDOM = {
     },
 }
 
+function getResolvedTheme(): 'light' | 'dark' {
+    try {
+        const raw = localStorage.getItem('theme-store')
+
+        if (!raw) {
+            return 'dark'
+        }
+
+        const {preference} = JSON.parse(raw)
+
+        if (preference === 'dark') {
+            return 'dark'
+        }
+
+        if (preference === 'light') {
+            return 'light'
+        }
+
+        // system
+        return window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+    } catch (error) {
+        console.error('Failed to read theme:', error)
+
+        return 'dark'
+    }
+}
+
 // ------------------------------------------------------------------
 // Loading 动图实现（应用启动过渡）
 // ------------------------------------------------------------------
 function useLoading() {
-    const loadingImagePath = `${new URL('./loading.svg', window.location.href).toString()}?t=${Date.now()}`
 
     const styleContent = `
 .app-loading-wrap {
@@ -107,6 +135,15 @@ function useLoading() {
     const oStyle = document.createElement('style')
     const oDiv = document.createElement('div')
     const oImage = document.createElement('img')
+
+    let loadingImagePath: string;
+    if (getResolvedTheme() === 'dark') {
+        loadingImagePath = `${new URL('./loading/loading-white.svg', window.location.href).toString()}?t=${Date.now()}`
+        oDiv.style.background = '#000'
+    } else {
+        loadingImagePath = `${new URL('./loading/loading-black.svg', window.location.href).toString()}?t=${Date.now()}`
+        oDiv.style.background = '#fff'
+    }
 
     oStyle.id = 'app-loading-style'
     oStyle.textContent = styleContent
@@ -154,8 +191,8 @@ domReady().then(appendLoading)
 window.onmessage = (ev) => {
     // 当收到 payload === 'removeLoading' 时移除 Loading
     // ev.data.payload === 'removeLoading' && removeLoading()
-    ev.data.payload === 'removeLoading' && setTimeout(removeLoading, 2000)
+    ev.data.payload === 'removeLoading' && setTimeout(removeLoading, 1999)
 }
 
 // 兜底：5 秒后强制移除 Loading，防止卡死
-setTimeout(removeLoading, 5000)
+setTimeout(removeLoading, 4999)

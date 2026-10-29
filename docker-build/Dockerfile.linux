@@ -11,6 +11,11 @@ ARG YARN_VERSION=1.22.22
 RUN test "${TARGETARCH}" = "amd64" || \
     { echo "electronuserland/builder requires --platform linux/amd64" >&2; exit 1; }
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libusb-1.0-0-dev \
+    libudev-dev \
+ && rm -rf /var/lib/apt/lists/*
+
 # Keep Node 24 separate from the toolchain bundled with the builder image.
 COPY --from=node24 /usr/local/ /opt/node24/
 

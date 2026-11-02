@@ -71,8 +71,11 @@ deb 和 rpm 使用 gzip 压缩，减少每次生成安装包的耗时，代价�
 docker run --rm --platform linux/amd64 \
   -v "$PWD:/project" \
   -v electron-builder-linux-amd64-node-modules:/project/node_modules:nocopy \
+  -v electron-cache:/root/.cache/electron \
+  -v electron-builder-cache:/root/.cache/electron-builder \
+  -v electron-builder-linux-amd64-npm-cache:/root/.npm \
   electron-builder:node24-linux-amd64 \
-  bash -c 'npm install && npm run build -- --linux --x64'
+  bash -c 'npm install && npm run rebuild:native && npm run build -- --linux AppImage deb rpm --x64'
 ```
 
 打包产物按目标系统、CPU 架构和版本写入本地项目目录：
